@@ -26,16 +26,16 @@ const HOLD_HOURS_MAX = 24;
 
 type MedRow = { rowId: string; name: string; time: string };
 type FeedRow = { rowId: string; time: string };
-type FormErrors = { name?: string; peeHoldHours?: string; poopHoldHours?: string };
+type FormErrors = { name?: string; feedTimes?: string; peeHoldHours?: string; poopHoldHours?: string };
 
 function makeRowId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-/** Empty is fine (optional field); otherwise must be numeric, clamped to 0.5–24. */
+/** Required — must be numeric, clamped to 0.5–24. Empty blocks save so the schedule is never left to guess. */
 function parseHoldHours(raw: string): { value: number | null; error?: string } {
   const trimmed = raw.trim();
-  if (!trimmed) return { value: null };
+  if (!trimmed) return { value: null, error: 'Required — enter hours' };
   const parsed = Number(trimmed);
   if (!Number.isFinite(parsed) || parsed <= 0) {
     return { value: null, error: `Enter a number between ${HOLD_HOURS_MIN} and ${HOLD_HOURS_MAX}` };
@@ -75,6 +75,7 @@ export default function AddPetScreen() {
 
   const updateFeedRow = (rowId: string, time: string) => {
     setFeedRows((prev) => prev.map((r) => (r.rowId === rowId ? { ...r, time } : r)));
+    clearError('feedTimes');
   };
 
   const removeFeedRow = (rowId: string) => {
@@ -96,11 +97,13 @@ export default function AddPetScreen() {
   const handleSave = () => {
     const pee = parseHoldHours(peeHoldHours);
     const poop = parseHoldHours(poopHoldHours);
+    const feedTimes = feedRows.map((r) => r.time.trim()).filter(Boolean);
     const nextErrors: FormErrors = {};
     if (name.trim().length === 0) nextErrors.name = 'Give your pet a name to save';
+    if (feedTimes.length === 0) nextErrors.feedTimes = 'Add at least one feed time';
     if (pee.error) nextErrors.peeHoldHours = pee.error;
     if (poop.error) nextErrors.poopHoldHours = poop.error;
-    if (nextErrors.name || nextErrors.peeHoldHours || nextErrors.poopHoldHours) {
+    if (nextErrors.name || nextErrors.feedTimes || nextErrors.peeHoldHours || nextErrors.poopHoldHours) {
       setErrors(nextErrors);
       return;
     }
@@ -109,7 +112,7 @@ export default function AddPetScreen() {
       avatar,
       breed: breed.trim(),
       age: age.trim(),
-      feedTimes: feedRows.map((r) => r.time.trim()).filter(Boolean),
+      feedTimes,
       peeHoldHours: pee.value,
       poopHoldHours: poop.value,
       medications: medications
@@ -184,8 +187,8 @@ export default function AddPetScreen() {
 
         <SectionTitle>Feeding & Potty Schedule</SectionTitle>
         <Text style={styles.helperText}>
-          Optional — skip it and we'll show "Calibrating" on Home for a few days. If it's still
-          blank after that, we'll prompt you to fill it in.
+          Required — this drives every meal reminder and potty-break prediction. At least one feed
+          time and both hold times are needed so the schedule starts working right away.
         </Text>
 
         <View style={styles.formGroup}>
@@ -219,6 +222,7 @@ export default function AddPetScreen() {
               <Text style={styles.addMedBtnText}>➕ Add Feed Time</Text>
             </Pressable>
           )}
+          {errors.feedTimes ? <Text style={styles.errorText}>{errors.feedTimes}</Text> : null}
         </View>
 
         <View style={styles.row2}>
