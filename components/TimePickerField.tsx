@@ -19,6 +19,8 @@ function generateTimeSlots(): string[] {
 }
 
 const TIME_SLOTS = generateTimeSlots();
+const CLEAR_OPTION = '__clear__';
+const OPTIONS = [CLEAR_OPTION, ...TIME_SLOTS];
 
 type Props = {
   label?: string;
@@ -30,7 +32,7 @@ type Props = {
 
 export function TimePickerField({ label, value, onChange, placeholder = 'Select time', style }: Props) {
   const [open, setOpen] = useState(false);
-  const selectedIndex = Math.max(0, TIME_SLOTS.indexOf(value));
+  const selectedIndex = Math.max(0, OPTIONS.indexOf(value));
 
   return (
     <View style={[styles.formGroup, style]}>
@@ -48,12 +50,25 @@ export function TimePickerField({ label, value, onChange, placeholder = 'Select 
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.sheetTitle}>{label || 'Select time'}</Text>
             <FlatList
-              data={TIME_SLOTS}
+              data={OPTIONS}
               keyExtractor={(t) => t}
               style={{ maxHeight: 320 }}
               getItemLayout={(_, index) => ({ length: ITEM_HEIGHT, offset: ITEM_HEIGHT * index, index })}
               initialScrollIndex={selectedIndex}
               renderItem={({ item }) => {
+                if (item === CLEAR_OPTION) {
+                  return (
+                    <Pressable
+                      style={({ pressed }) => [styles.option, pressed && styles.pressed]}
+                      onPress={() => {
+                        onChange('');
+                        setOpen(false);
+                      }}
+                    >
+                      <Text style={styles.clearText}>✕ Clear</Text>
+                    </Pressable>
+                  );
+                }
                 const selected = item === value;
                 return (
                   <Pressable
@@ -122,4 +137,5 @@ const styles = StyleSheet.create({
   optionText: { fontSize: 14, fontFamily: fonts.semiBold, color: colors.stone },
   optionTextSelected: { fontFamily: fonts.extraBold, color: colors.sage },
   check: { fontSize: 14, fontFamily: fonts.extraBold, color: colors.sage },
+  clearText: { fontSize: 14, fontFamily: fonts.bold, color: colors.stoneMid },
 });
