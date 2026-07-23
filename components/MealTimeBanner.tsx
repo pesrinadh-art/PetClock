@@ -1,9 +1,9 @@
-import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radius, shadow } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import type { Pet } from '../data/mockData';
 import { useLogs } from '../context/LogsContext';
+import { nudgeKey, useNudges } from '../context/NudgesContext';
 import { getTodaysMeals } from '../lib/petSchedule';
 
 const SNOOZE_MS = 30 * 60 * 1000;
@@ -16,12 +16,12 @@ const SNOOZE_MS = 30 * 60 * 1000;
  */
 export function MealTimeBanner({ pet }: { pet: Pet }) {
   const { getLogsForPet, addLog } = useLogs();
-  const [snoozedUntil, setSnoozedUntil] = useState<Record<string, number>>({});
+  const { snooze, isSnoozed } = useNudges();
 
   const now = new Date();
   const meals = getTodaysMeals(pet, now, getLogsForPet(pet.id));
   const dueMeal = meals.find(
-    (m) => m.status === 'upcoming' && m.time.getTime() <= now.getTime() && (snoozedUntil[m.id] ?? 0) <= now.getTime()
+    (m) => m.status === 'upcoming' && m.time.getTime() <= now.getTime() && !isSnoozed(nudgeKey(pet.id, m.id), now)
   );
 
   if (!dueMeal) return null;
@@ -31,7 +31,7 @@ export function MealTimeBanner({ pet }: { pet: Pet }) {
   };
 
   const handleSnooze = () => {
-    setSnoozedUntil((prev) => ({ ...prev, [dueMeal.id]: Date.now() + SNOOZE_MS }));
+    snooze(nudgeKey(pet.id, dueMeal.id), Date.now() + SNOOZE_MS);
   };
 
   return (
