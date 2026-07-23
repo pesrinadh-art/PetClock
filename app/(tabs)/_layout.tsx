@@ -1,4 +1,4 @@
-import { router, Tabs } from 'expo-router';
+import { router, Tabs, useSegments } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../theme/colors';
@@ -25,6 +25,12 @@ function TabIcon({ icon, label, focused }: { icon: string; label: string; focuse
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
+  const segments = useSegments();
+
+  // Context-aware FAB (D19): adding a pet from the Pets tab, an appointment
+  // elsewhere. (Home's quick-log sheet comes in a later milestone.)
+  const activeTab = segments[segments.length - 1];
+  const fabTarget = activeTab === 'pets' ? '/add-pet' : '/add-appointment';
 
   return (
     <View style={{ flex: 1 }}>
@@ -63,7 +69,9 @@ export default function TabsLayout() {
       </Tabs>
 
       <Pressable
-        onPress={() => router.push('/add-appointment')}
+        onPress={() => router.push(fabTarget)}
+        accessibilityRole="button"
+        accessibilityLabel={fabTarget === '/add-pet' ? 'Add pet' : 'Add appointment'}
         style={({ pressed }) => [
           {
             position: 'absolute',

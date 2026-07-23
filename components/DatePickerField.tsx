@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radius, shadow } from '../theme/colors';
 import { fonts } from '../theme/fonts';
+import { AppModal } from './AppModal';
 
 const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
@@ -40,15 +41,18 @@ type Props = {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  /** Earliest selectable day (inclusive, compared by calendar day); earlier cells are dimmed and disabled. */
+  minDate?: Date;
   style?: object;
 };
 
-export function DatePickerField({ label, value, onChange, placeholder = 'Select date', style }: Props) {
+export function DatePickerField({ label, value, onChange, placeholder = 'Select date', minDate, style }: Props) {
   const [open, setOpen] = useState(false);
   const [viewDate, setViewDate] = useState(() => parseDisplayDate(value) ?? new Date());
 
   const selectedDate = parseDisplayDate(value);
   const today = new Date();
+  const minDay = minDate ? new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate()) : null;
   const weeks = getMonthWeeks(viewDate);
 
   const openPicker = () => {
@@ -66,22 +70,34 @@ export function DatePickerField({ label, value, onChange, placeholder = 'Select 
       <Pressable
         style={({ pressed }) => [styles.field, value ? styles.fieldFilled : null, pressed && styles.pressed]}
         onPress={openPicker}
+        accessibilityRole="button"
+        accessibilityLabel={`${label ? `${label}: ` : ''}${value || placeholder}`}
       >
         <Text style={[styles.valueText, !value && styles.placeholderText]}>{value || placeholder}</Text>
         <Text style={styles.icon}>📅</Text>
       </Pressable>
 
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+      <AppModal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.overlay} onPress={() => setOpen(false)}>
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
             <View style={styles.header}>
-              <Pressable style={({ pressed }) => [styles.navBtn, pressed && styles.pressed]} onPress={() => changeMonth(-1)}>
+              <Pressable
+                style={({ pressed }) => [styles.navBtn, pressed && styles.pressed]}
+                onPress={() => changeMonth(-1)}
+                accessibilityRole="button"
+                accessibilityLabel="Previous month"
+              >
                 <Text style={styles.navBtnText}>‹</Text>
               </Pressable>
               <Text style={styles.headerTitle}>
                 {viewDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
               </Text>
-              <Pressable style={({ pressed }) => [styles.navBtn, pressed && styles.pressed]} onPress={() => changeMonth(1)}>
+              <Pressable
+                style={({ pressed }) => [styles.navBtn, pressed && styles.pressed]}
+                onPress={() => changeMonth(1)}
+                accessibilityRole="button"
+                accessibilityLabel="Next month"
+              >
                 <Text style={styles.navBtnText}>›</Text>
               </Pressable>
             </View>
@@ -100,9 +116,14 @@ export function DatePickerField({ label, value, onChange, placeholder = 'Select 
                   if (!day) return <View key={di} style={styles.dayCell} />;
                   const selected = selectedDate && isSameDay(day, selectedDate);
                   const isToday = isSameDay(day, today);
+                  const disabled = !!minDay && day.getTime() < minDay.getTime();
                   return (
                     <Pressable
                       key={di}
+                      disabled={disabled}
+                      accessibilityRole="button"
+                      accessibilityLabel={formatDate(day)}
+                      accessibilityState={{ selected: !!selected, disabled }}
                       style={({ pressed }) => [
                         styles.dayCell,
                         styles.dayCellPressable,
@@ -115,7 +136,9 @@ export function DatePickerField({ label, value, onChange, placeholder = 'Select 
                         setOpen(false);
                       }}
                     >
-                      <Text style={[styles.dayText, selected && styles.dayTextSelected]}>{day.getDate()}</Text>
+                      <Text style={[styles.dayText, selected && styles.dayTextSelected, disabled && styles.dayTextDisabled]}>
+                        {day.getDate()}
+                      </Text>
                     </Pressable>
                   );
                 })}
@@ -123,7 +146,7 @@ export function DatePickerField({ label, value, onChange, placeholder = 'Select 
             ))}
           </Pressable>
         </Pressable>
-      </Modal>
+      </AppModal>
     </View>
   );
 }
@@ -184,4 +207,5 @@ const styles = StyleSheet.create({
   dayCellSelected: { backgroundColor: colors.sage },
   dayText: { fontSize: 13, fontFamily: fonts.semiBold, color: colors.stone },
   dayTextSelected: { color: colors.white, fontFamily: fonts.extraBold },
+  dayTextDisabled: { color: colors.stoneLight },
 });

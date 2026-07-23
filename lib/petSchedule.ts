@@ -87,6 +87,8 @@ export function formatTimeRange(start: Date, end: Date): string {
   return `${startStr}–${endStr}`;
 }
 
+export type UpcomingKind = 'upcoming' | 'due' | 'overdue';
+
 export type UpcomingItem = {
   id: string;
   type: 'pee' | 'poo' | 'food' | 'medication';
@@ -94,16 +96,24 @@ export type UpcomingItem = {
   label: string;
   timeStart: Date;
   timeEnd: Date;
+  kind: UpcomingKind;
+  /** How far past the predicted time we are, in ms — 0 unless `kind` is 'overdue'. */
+  overdueBy: number;
 };
 
-/** Finds the next occurrence of an event repeating every `intervalHours`, anchored to `anchor`. */
-function nextRepeating(anchor: Date, intervalHours: number, now: Date): Date {
+export type RepeatingPrediction = { predicted: Date; overdueBy: number };
+
+/**
+ * Finds the next occurrence of an event repeating every `intervalHours`, anchored to `anchor`.
+ * Steps at most one interval past the anchor — a prediction whose time has already passed stays
+ * put and reports `overdueBy` (ms past predicted, 0 when still ahead) rather than silently
+ * rolling forward to the following interval and masking the miss.
+ */
+function nextRepeating(anchor: Date, intervalHours: number, now: Date): RepeatingPrediction {
   const intervalMs = intervalHours * HOUR_MS;
-  let next = new Date(anchor);
-  while (next.getTime() <= now.getTime()) {
-    next = new Date(next.getTime() + intervalMs);
-  }
-  return next;
+  const predicted =
+    anchor.getTime() > now.getTime() ? new Date(anchor) : new Date(anchor.getTime() + intervalMs);
+  return { predicted, overdueBy: Math.max(0, now.getTime() - predicted.getTime()) };
 }
 
 /** Uncertainty window around a predicted hold-time break: ~15% of the hold duration, clamped to 10-45 min. */
@@ -141,17 +151,28 @@ export function getUpcomingForPet(pet: Pet, logs: TimelineEntry[], now: Date = n
   const nextFeedIndex = todaysFeedTimes.findIndex((t) => t.getTime() > now.getTime());
   const nextFeedTime = nextFeedIndex === -1 ? new Date(todaysFeedTimes[0].getTime() + DAY_MS) : todaysFeedTimes[nextFeedIndex];
   const nextMeal = nameMeal(nextFeedIndex === -1 ? 0 : nextFeedIndex, todaysFeedTimes.length, nextFeedTime.getHours());
-  items.push({ id: 'food', type: 'food', icon: nextMeal.icon, label: nextMeal.name, timeStart: nextFeedTime, timeEnd: nextFeedTime });
+  items.push({
+    id: 'food',
+    type: 'food',
+    icon: nextMeal.icon,
+    label: nextMeal.name,
+    timeStart: nextFeedTime,
+    timeEnd: nextFeedTime,
+    kind: 'upcoming',
+    overdueBy: 0,
+  });
 
   const addHoldItem = (type: 'pee' | 'poo', icon: string, label: string, holdHours: number | null) => {
     if (holdHours == null) return;
     const lastLog = mostRecentLog(logs, type);
     const anchor = lastLog ? new Date(lastLog.timestamp) : scheduleAnchor;
-    const predicted = nextRepeating(anchor, holdHours, now);
+    const { predicted, overdueBy } = nextRepeating(anchor, holdHours, now);
     const buffer = bufferMsFor(holdHours);
+    const kind: UpcomingKind =
+      overdueBy > 0 ? 'overdue' : now.getTime() >= predicted.getTime() - buffer ? 'due' : 'upcoming';
     const timeStart = new Date(Math.max(now.getTime(), predicted.getTime() - buffer));
     const timeEnd = new Date(Math.max(timeStart.getTime(), predicted.getTime() + buffer));
-    items.push({ id: type, type, icon, label, timeStart, timeEnd });
+    items.push({ id: type, type, icon, label, timeStart, timeEnd, kind, overdueBy });
   };
 
   addHoldItem('pee', '💧', 'Pee break', pet.peeHoldHours);
@@ -179,6 +200,8 @@ export function getUpcomingMedications(pet: Pet, now: Date = new Date()): Upcomi
         label: med.name,
         timeStart: time,
         timeEnd: time,
+        kind: 'upcoming',
+        overdueBy: 0,
       };
       return item;
     })
@@ -186,12 +209,14 @@ export function getUpcomingMedications(pet: Pet, now: Date = new Date()): Upcomi
     .sort((a, b) => a.timeStart.getTime() - b.timeStart.getTime());
 }
 
+export type ScheduleRowStatus = 'done' | 'due' | 'upcoming';
+
 export type ScheduleRowItem = {
   id: string;
   icon: string;
   name: string;
   time: Date;
-  status: 'done' | 'upcoming';
+  status: ScheduleRowStatus;
 };
 
 /**
@@ -216,11 +241,12 @@ function nameMeal(index: number, total: number, hour: number): { name: string; i
 
 /**
  * Today's meals, one per configured feed time — only what's actually required for this pet.
- * A slot counts as done either because its time has passed, or because it's already been
- * explicitly logged today (logging "Dinner" early covers that slot right away rather than
- * waiting on the clock) — matched to slots in chronological order, so logging once covers
- * whichever meal comes first, logging twice covers the first two, and so on. `logs` is
- * optional so this still works as a pure time-based preview when log history isn't at hand.
+ * A slot counts as done only when a food log covers it (logging "Dinner" early covers that
+ * slot right away rather than waiting on the clock) — matched to slots in chronological order,
+ * so logging once covers whichever meal comes first, logging twice covers the first two, and
+ * so on. A slot whose time has passed *without* a covering log is 'due', not done — the clock
+ * alone never marks a meal fed. `logs` is optional so this still works as a pure time-based
+ * preview when log history isn't at hand (everything past then reads as due).
  */
 export function getTodaysMeals(pet: Pet, now: Date = new Date(), logs: TimelineEntry[] = []): ScheduleRowItem[] {
   const todayStart = startOfDay(now);
@@ -240,13 +266,17 @@ export function getTodaysMeals(pet: Pet, now: Date = new Date(), logs: TimelineE
       icon: meta.icon,
       name: meta.name,
       time,
-      status: timePassed || loggedCovered ? 'done' : 'upcoming',
+      status: loggedCovered ? 'done' : timePassed ? 'due' : 'upcoming',
     };
     return item;
   });
 }
 
-/** Today's medications, one per configured medication — independent of feed/hold calibration. */
+/**
+ * Today's medications, one per configured medication — independent of feed/hold calibration.
+ * Still purely time-based ('done' once the time passes): there's no medication log type yet
+ * to verify against, so meds can't use the logged-only 'done' semantics meals have.
+ */
 export function getTodaysMedications(pet: Pet, now: Date = new Date()): ScheduleRowItem[] {
   return pet.medications
     .map((med) => {
@@ -287,16 +317,55 @@ function averageIntervalHours(logs: TimelineEntry[], type: 'pee' | 'poo'): numbe
   return Math.max(1, Math.round(avg * 2) / 2); // round to nearest half-hour, minimum 1h
 }
 
-/** Usual feed times inferred from the most recent food logs' time-of-day (not their dates). */
+/** Minutes past midnight, local time, for a log's timestamp. */
+function minuteOfDay(timestamp: number): number {
+  const d = new Date(timestamp);
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+/** Distinct calendar days a bucket's logs were observed on. */
+function daysObserved(bucket: TimelineEntry[]): number {
+  return new Set(bucket.map((l) => startOfDay(new Date(l.timestamp)))).size;
+}
+
+/**
+ * Usual feed times inferred from food logs' time-of-day. Logs from the last week are bucketed
+ * by time-of-day (a log joins a bucket when it's within an hour of the bucket's average), so
+ * the same meal logged across several days collapses into one slot instead of counting once
+ * per day. Each bucket contributes its median time. Buckets observed on 2+ distinct days are
+ * preferred (a real recurring meal, not a one-off snack); when no bucket has that much history
+ * yet — e.g. a single day of logs — every bucket is used so inference can still bootstrap.
+ */
 function inferFeedTimes(logs: TimelineEntry[]): string[] {
-  const recentFood = logs
-    .filter((l) => l.type === 'food')
-    .sort((a, b) => b.timestamp - a.timestamp)
-    .slice(0, 3);
-  return recentFood
-    .map((l) => new Date(l.timestamp))
-    .sort((a, b) => a.getTime() - b.getTime())
-    .map((d) => formatClock(d));
+  const food = logs.filter((l) => l.type === 'food').sort((a, b) => b.timestamp - a.timestamp);
+  if (food.length === 0) return [];
+
+  const cutoff = food[0].timestamp - 7 * DAY_MS;
+  const recent = food
+    .filter((l) => l.timestamp >= cutoff)
+    .sort((a, b) => minuteOfDay(a.timestamp) - minuteOfDay(b.timestamp));
+
+  const buckets: TimelineEntry[][] = [];
+  for (const log of recent) {
+    const bucket = buckets[buckets.length - 1];
+    if (bucket) {
+      const avg = bucket.reduce((sum, l) => sum + minuteOfDay(l.timestamp), 0) / bucket.length;
+      if (minuteOfDay(log.timestamp) - avg <= 60) {
+        bucket.push(log);
+        continue;
+      }
+    }
+    buckets.push([log]);
+  }
+
+  const recurring = buckets.filter((b) => daysObserved(b) >= 2);
+  const usable = recurring.length > 0 ? recurring : buckets;
+
+  // Buckets (and logs within them) are already ordered by time-of-day, so the median element
+  // per bucket yields feed times in chronological order.
+  return usable
+    .map((bucket) => bucket[Math.floor((bucket.length - 1) / 2)])
+    .map((l) => formatClock(new Date(l.timestamp)));
 }
 
 /**

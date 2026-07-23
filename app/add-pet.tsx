@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, radius } from '../theme/colors';
@@ -9,12 +9,38 @@ import { TimePickerField } from '../components/TimePickerField';
 import { usePets } from '../context/PetsContext';
 
 const AVATAR_OPTIONS = ['🐶', '🐱', '🐰', '🐹', '🐦', '🐢', '🐍', '🐠'];
+const AVATAR_LABELS: Record<string, string> = {
+  '🐶': 'Dog',
+  '🐱': 'Cat',
+  '🐰': 'Rabbit',
+  '🐹': 'Hamster',
+  '🐦': 'Bird',
+  '🐢': 'Turtle',
+  '🐍': 'Snake',
+  '🐠': 'Fish',
+};
 const MAX_MEDICATIONS = 5;
+const MAX_FEED_TIMES = 6;
+const HOLD_HOURS_MIN = 0.5;
+const HOLD_HOURS_MAX = 24;
 
 type MedRow = { rowId: string; name: string; time: string };
+type FeedRow = { rowId: string; time: string };
+type FormErrors = { name?: string; peeHoldHours?: string; poopHoldHours?: string };
 
 function makeRowId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+/** Empty is fine (optional field); otherwise must be numeric, clamped to 0.5–24. */
+function parseHoldHours(raw: string): { value: number | null; error?: string } {
+  const trimmed = raw.trim();
+  if (!trimmed) return { value: null };
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return { value: null, error: `Enter a number between ${HOLD_HOURS_MIN} and ${HOLD_HOURS_MAX}` };
+  }
+  return { value: Math.min(HOLD_HOURS_MAX, Math.max(HOLD_HOURS_MIN, parsed)) };
 }
 
 export default function AddPetScreen() {
@@ -27,20 +53,32 @@ export default function AddPetScreen() {
   const [name, setName] = useState(editingPet?.name ?? '');
   const [breed, setBreed] = useState(editingPet?.breed ?? '');
   const [age, setAge] = useState(editingPet?.age ?? '');
-  const [feedTimes, setFeedTimes] = useState<string[]>(() => {
+  const [feedRows, setFeedRows] = useState<FeedRow[]>(() => {
     const existing = editingPet?.feedTimes ?? [];
-    return [0, 1, 2, 3].map((i) => existing[i] ?? '');
+    const rows = existing.map((time) => ({ rowId: makeRowId(), time }));
+    return rows.length > 0 ? rows : [{ rowId: makeRowId(), time: '' }, { rowId: makeRowId(), time: '' }];
   });
   const [peeHoldHours, setPeeHoldHours] = useState(editingPet?.peeHoldHours?.toString() ?? '');
   const [poopHoldHours, setPoopHoldHours] = useState(editingPet?.poopHoldHours?.toString() ?? '');
   const [medications, setMedications] = useState<MedRow[]>(
     () => editingPet?.medications.map((m) => ({ rowId: m.id, name: m.name, time: m.time })) ?? []
   );
+  const [errors, setErrors] = useState<FormErrors>({});
 
-  const canSave = name.trim().length > 0;
+  const clearError = (field: keyof FormErrors) => {
+    setErrors((prev) => (prev[field] ? { ...prev, [field]: undefined } : prev));
+  };
 
-  const setFeedTimeAt = (index: number, value: string) => {
-    setFeedTimes((prev) => prev.map((t, i) => (i === index ? value : t)));
+  const addFeedRow = () => {
+    setFeedRows((prev) => (prev.length >= MAX_FEED_TIMES ? prev : [...prev, { rowId: makeRowId(), time: '' }]));
+  };
+
+  const updateFeedRow = (rowId: string, time: string) => {
+    setFeedRows((prev) => prev.map((r) => (r.rowId === rowId ? { ...r, time } : r)));
+  };
+
+  const removeFeedRow = (rowId: string) => {
+    setFeedRows((prev) => prev.filter((r) => r.rowId !== rowId));
   };
 
   const addMedicationRow = () => {
@@ -56,17 +94,24 @@ export default function AddPetScreen() {
   };
 
   const handleSave = () => {
-    if (!canSave) return;
-    const peeHours = parseFloat(peeHoldHours);
-    const poopHours = parseFloat(poopHoldHours);
+    const pee = parseHoldHours(peeHoldHours);
+    const poop = parseHoldHours(poopHoldHours);
+    const nextErrors: FormErrors = {};
+    if (name.trim().length === 0) nextErrors.name = 'Give your pet a name to save';
+    if (pee.error) nextErrors.peeHoldHours = pee.error;
+    if (poop.error) nextErrors.poopHoldHours = poop.error;
+    if (nextErrors.name || nextErrors.peeHoldHours || nextErrors.poopHoldHours) {
+      setErrors(nextErrors);
+      return;
+    }
     const edits = {
       name: name.trim(),
       avatar,
       breed: breed.trim(),
       age: age.trim(),
-      feedTimes: feedTimes.map((t) => t.trim()).filter(Boolean),
-      peeHoldHours: Number.isFinite(peeHours) && peeHours > 0 ? peeHours : null,
-      poopHoldHours: Number.isFinite(poopHours) && poopHours > 0 ? poopHours : null,
+      feedTimes: feedRows.map((r) => r.time.trim()).filter(Boolean),
+      peeHoldHours: pee.value,
+      poopHoldHours: poop.value,
       medications: medications
         .map((m) => ({ id: m.rowId, name: m.name.trim(), time: m.time.trim() }))
         .filter((m) => m.name && m.time),
@@ -81,7 +126,11 @@ export default function AddPetScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.handle} />
         <View style={styles.titleRow}>
           <View style={{ width: 32 }} />
@@ -89,6 +138,8 @@ export default function AddPetScreen() {
           <Pressable
             style={({ pressed }) => [styles.closeBtn, pressed && styles.pressed]}
             onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
             hitSlop={8}
           >
             <Text style={styles.closeBtnText}>✕</Text>
@@ -103,6 +154,9 @@ export default function AddPetScreen() {
               <Pressable
                 key={emoji}
                 onPress={() => setAvatar(emoji)}
+                accessibilityRole="button"
+                accessibilityLabel={AVATAR_LABELS[emoji] ?? 'Pet type'}
+                accessibilityState={{ selected }}
                 style={({ pressed }) => [
                   styles.avatarChip,
                   selected && styles.avatarChipSelected,
@@ -115,7 +169,16 @@ export default function AddPetScreen() {
           })}
         </View>
 
-        <Field label="Name" value={name} onChangeText={setName} placeholder="e.g. Biscuit" />
+        <Field
+          label="Name"
+          value={name}
+          onChangeText={(v) => {
+            setName(v);
+            clearError('name');
+          }}
+          placeholder="e.g. Biscuit"
+          error={errors.name}
+        />
         <Field label="Breed" value={breed} onChangeText={setBreed} placeholder="e.g. Beagle" />
         <Field label="Age" value={age} onChangeText={setAge} placeholder="e.g. 1 yr" />
 
@@ -127,35 +190,61 @@ export default function AddPetScreen() {
 
         <View style={styles.formGroup}>
           <Text style={styles.formLabel}>Usual Feed Times</Text>
-          <View style={styles.feedTimesGrid}>
-            {feedTimes.map((time, i) => (
+          {feedRows.map((row, i) => (
+            <View key={row.rowId} style={styles.feedRow}>
               <TimePickerField
-                key={i}
-                value={time}
-                onChange={(v) => setFeedTimeAt(i, v)}
+                value={row.time}
+                onChange={(v) => updateFeedRow(row.rowId, v)}
                 placeholder={`Feed time ${i + 1}`}
                 style={styles.feedTimeInput}
               />
-            ))}
-          </View>
+              <Pressable
+                style={({ pressed }) => [styles.removeMedBtn, pressed && styles.pressed]}
+                onPress={() => removeFeedRow(row.rowId)}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove feed time ${i + 1}`}
+                hitSlop={8}
+              >
+                <Text style={styles.removeMedBtnText}>✕</Text>
+              </Pressable>
+            </View>
+          ))}
+          {feedRows.length < MAX_FEED_TIMES && (
+            <Pressable
+              style={({ pressed }) => [styles.addMedBtn, styles.addFeedBtn, pressed && styles.pressed]}
+              onPress={addFeedRow}
+              accessibilityRole="button"
+              accessibilityLabel="Add feed time"
+            >
+              <Text style={styles.addMedBtnText}>➕ Add Feed Time</Text>
+            </Pressable>
+          )}
         </View>
 
         <View style={styles.row2}>
           <Field
             label="Hold Pee (hrs)"
             value={peeHoldHours}
-            onChangeText={setPeeHoldHours}
+            onChangeText={(v) => {
+              setPeeHoldHours(v);
+              clearError('peeHoldHours');
+            }}
             placeholder="e.g. 4"
             keyboardType="numeric"
             style={{ flex: 1 }}
+            error={errors.peeHoldHours}
           />
           <Field
             label="Hold Poop (hrs)"
             value={poopHoldHours}
-            onChangeText={setPoopHoldHours}
+            onChangeText={(v) => {
+              setPoopHoldHours(v);
+              clearError('poopHoldHours');
+            }}
             placeholder="e.g. 6"
             keyboardType="numeric"
             style={{ flex: 1 }}
+            error={errors.poopHoldHours}
           />
         </View>
 
@@ -183,6 +272,8 @@ export default function AddPetScreen() {
             <Pressable
               style={({ pressed }) => [styles.removeMedBtn, pressed && styles.pressed]}
               onPress={() => removeMedicationRow(med.rowId)}
+              accessibilityRole="button"
+              accessibilityLabel={med.name.trim() ? `Remove ${med.name.trim()}` : 'Remove medication'}
               hitSlop={8}
             >
               <Text style={styles.removeMedBtnText}>✕</Text>
@@ -194,19 +285,23 @@ export default function AddPetScreen() {
           <Pressable
             style={({ pressed }) => [styles.addMedBtn, pressed && styles.pressed]}
             onPress={addMedicationRow}
+            accessibilityRole="button"
+            accessibilityLabel="Add medication"
           >
             <Text style={styles.addMedBtnText}>➕ Add Medication</Text>
           </Pressable>
         )}
 
         <Pressable
-          style={({ pressed }) => [styles.saveBtn, !canSave && styles.saveBtnDisabled, pressed && canSave && styles.saveBtnPressed]}
+          style={({ pressed }) => [styles.saveBtn, pressed && styles.saveBtnPressed]}
           onPress={handleSave}
-          disabled={!canSave}
+          accessibilityRole="button"
+          accessibilityLabel={isEditing ? 'Save changes' : 'Save pet'}
         >
           <Text style={styles.saveBtnText}>{isEditing ? 'Save Changes' : 'Save Pet'}</Text>
         </Pressable>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -214,6 +309,7 @@ export default function AddPetScreen() {
 function Field({
   label,
   style,
+  error,
   ...inputProps
 }: {
   label: string;
@@ -222,15 +318,21 @@ function Field({
   placeholder?: string;
   keyboardType?: 'default' | 'numeric';
   style?: object;
+  error?: string;
 }) {
   return (
     <View style={[styles.formGroup, style]}>
       <Text style={styles.formLabel}>{label}</Text>
       <TextInput
         {...inputProps}
-        style={[styles.input, inputProps.value ? styles.inputFilled : null]}
+        style={[
+          styles.input,
+          inputProps.value ? styles.inputFilled : null,
+          error ? styles.inputError : null,
+        ]}
         placeholderTextColor={colors.stoneLight}
       />
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
     </View>
   );
 }
@@ -277,9 +379,12 @@ const styles = StyleSheet.create({
     color: colors.stone,
   },
   inputFilled: { borderColor: colors.sage },
+  inputError: { borderColor: '#C0392B' },
+  errorText: { fontSize: 12, fontFamily: fonts.semiBold, color: '#C0392B' },
   helperText: { fontSize: 12, color: colors.stoneMid, lineHeight: 17, marginBottom: 14 },
-  feedTimesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  feedTimeInput: { width: '48%' },
+  feedRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 8 },
+  feedTimeInput: { flex: 1 },
+  addFeedBtn: { marginBottom: 0 },
   row2: { flexDirection: 'row', gap: 10 },
   medRow: { flexDirection: 'row', gap: 8, marginBottom: 10, alignItems: 'center' },
   medNameInput: { flex: 1.4 },
@@ -304,7 +409,6 @@ const styles = StyleSheet.create({
   },
   addMedBtnText: { fontSize: 13, fontFamily: fonts.bold, color: colors.stoneMid },
   saveBtn: { backgroundColor: colors.sage, borderRadius: radius.lg, paddingVertical: 16, alignItems: 'center', marginTop: 8 },
-  saveBtnDisabled: { backgroundColor: colors.stoneLight },
   saveBtnPressed: { opacity: 0.85, transform: [{ scale: 0.99 }] },
   saveBtnText: { color: colors.white, fontSize: 15, fontFamily: fonts.extraBold },
 });

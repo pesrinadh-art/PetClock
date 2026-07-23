@@ -7,6 +7,7 @@ import type { Pet, Reminder } from '../data/mockData';
 import {
   formatTimeRange,
   formatTimeUntil,
+  formatTimeUntilCompact,
   getPetStatus,
   getUpcomingForPet,
   getUpcomingMedications,
@@ -21,7 +22,10 @@ function toReminder(item: UpcomingItem, now: Date): Reminder {
     icon: item.icon,
     label: item.label,
     time: formatTimeRange(item.timeStart, item.timeEnd),
-    sub: formatTimeUntil(item.timeStart, now),
+    sub:
+      item.kind === 'overdue'
+        ? `Overdue ${formatTimeUntilCompact(new Date(now.getTime() + item.overdueBy), now)}`
+        : formatTimeUntil(item.timeStart, now),
   };
 }
 
@@ -47,6 +51,8 @@ export function UpcomingSection({ pet }: { pet: Pet }) {
             <Pressable
               style={({ pressed }) => [styles.noticeLink, pressed && styles.noticePressed]}
               onPress={() => router.push({ pathname: '/add-pet', params: { petId: pet.id } })}
+              accessibilityRole="button"
+              accessibilityLabel={`Add ${pet.name}'s schedule now`}
               hitSlop={4}
             >
               <Text style={styles.noticeLinkText}>📝 Add schedule now instead ›</Text>
@@ -70,6 +76,8 @@ export function UpcomingSection({ pet }: { pet: Pet }) {
             pressed && styles.noticePressed,
           ]}
           onPress={() => router.push({ pathname: '/add-pet', params: { petId: pet.id } })}
+          accessibilityRole="button"
+          accessibilityLabel={`Set up ${pet.name}'s schedule`}
         >
           <Text style={styles.noticeIcon}>📝</Text>
           <View style={{ flex: 1 }}>

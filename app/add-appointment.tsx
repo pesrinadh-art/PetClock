@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { router } from 'expo-router';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, radius } from '../theme/colors';
 import { fonts } from '../theme/fonts';
@@ -11,6 +11,7 @@ import { TimePickerField } from '../components/TimePickerField';
 import { type ApptType } from '../data/mockData';
 import { usePets } from '../context/PetsContext';
 import { useAppointments } from '../context/AppointmentsContext';
+import { formatApptTime, parseAppointmentDateTime } from '../lib/appointmentUtils';
 
 const TYPES: { key: ApptType; icon: string; label: string; bg: string; border: string }[] = [
   { key: 'vet', icon: '🏥', label: 'Vet Visit', bg: colors.apptVetLight, border: colors.apptVet },
@@ -19,141 +20,190 @@ const TYPES: { key: ApptType; icon: string; label: string; bg: string; border: s
   { key: 'other', icon: '📌', label: 'Other', bg: colors.apptOtherLight, border: colors.stoneLight },
 ];
 
-const NOTIF_OPTIONS = ['1 week before', '1 day before', '2 hours before', 'Set recurring reminder'];
+const MINUTES_PER_DAY = 24 * 60;
+
+const REMINDER_OPTIONS: { label: string; offsetMinutes: number }[] = [
+  { label: '1 week before', offsetMinutes: 7 * MINUTES_PER_DAY },
+  { label: '1 day before', offsetMinutes: MINUTES_PER_DAY },
+  { label: '2 hours before', offsetMinutes: 2 * 60 },
+];
+
+const DEFAULT_OFFSETS = [7 * MINUTES_PER_DAY, MINUTES_PER_DAY];
+
+function formatDisplayDate(dateTime: number): string {
+  return new Date(dateTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
 
 export default function AddAppointmentScreen() {
   const { pets } = usePets();
-  const { addAppointment } = useAppointments();
-  const [type, setType] = useState<ApptType>('vet');
-  const [selectedPets, setSelectedPets] = useState<string[]>([pets[0].id]);
-  const [title, setTitle] = useState('');
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
-  const [location, setLocation] = useState('');
-  const [notes, setNotes] = useState('');
-  const [notifs, setNotifs] = useState<boolean[]>([true, true, false, false]);
+  const { appointments, addAppointment, updateAppointment } = useAppointments();
+  const { apptId } = useLocalSearchParams<{ apptId?: string }>();
+  const editingAppt = apptId ? appointments.find((a) => a.id === apptId) : undefined;
+  const isEditing = !!editingAppt;
+
+  const [type, setType] = useState<ApptType>(editingAppt?.type ?? 'vet');
+  const [selectedPets, setSelectedPets] = useState<string[]>(
+    () => editingAppt?.petIds ?? (pets.length > 0 ? [pets[0].id] : [])
+  );
+  const [title, setTitle] = useState(editingAppt?.title ?? '');
+  const [date, setDate] = useState(editingAppt ? formatDisplayDate(editingAppt.dateTime) : '');
+  const [time, setTime] = useState(editingAppt?.hasTime ? formatApptTime(editingAppt.dateTime) : '');
+  const [location, setLocation] = useState(editingAppt?.location ?? '');
+  const [notes, setNotes] = useState(editingAppt?.notes ?? '');
+  const [reminderOffsets, setReminderOffsets] = useState<number[]>(editingAppt?.reminderOffsets ?? DEFAULT_OFFSETS);
 
   const togglePet = (id: string) => {
     setSelectedPets((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
   };
 
-  const toggleNotif = (index: number) => {
-    setNotifs((prev) => prev.map((v, i) => (i === index ? !v : v)));
+  const toggleReminder = (offsetMinutes: number) => {
+    setReminderOffsets((prev) =>
+      prev.includes(offsetMinutes) ? prev.filter((o) => o !== offsetMinutes) : [...prev, offsetMinutes]
+    );
   };
 
-  const canSave = title.trim().length > 0 && date.trim().length > 0;
+  const parsedDateTime = parseAppointmentDateTime(date.trim(), time.trim() || undefined);
+  const canSave = title.trim().length > 0 && !!parsedDateTime;
 
   const handleSave = () => {
-    if (!canSave) return;
-    const petNames = pets.filter((p) => selectedPets.includes(p.id)).map((p) => `${p.avatar} ${p.name}`);
-    addAppointment({
+    if (!canSave || !parsedDateTime) return;
+    const fields = {
       type,
       title: title.trim(),
-      petNames,
-      date: date.trim(),
-      time: time.trim() || undefined,
+      petIds: selectedPets,
+      dateTime: parsedDateTime.getTime(),
+      hasTime: time.trim().length > 0,
       location: location.trim() || undefined,
       notes: notes.trim() || undefined,
-      reminderEnabled: notifs.some(Boolean),
-    });
+      reminderOffsets,
+    };
+    if (isEditing && editingAppt) {
+      updateAppointment(editingAppt.id, fields);
+    } else {
+      addAppointment(fields);
+    }
     router.back();
   };
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.handle} />
-        <View style={styles.titleRow}>
-          <View style={{ width: 32 }} />
-          <Text style={styles.modalTitle}>New Appointment</Text>
-          <Pressable
-            style={({ pressed }) => [styles.closeBtn, pressed && styles.pressed]}
-            onPress={() => router.back()}
-            hitSlop={8}
-          >
-            <Text style={styles.closeBtnText}>✕</Text>
-          </Pressable>
-        </View>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <View style={styles.handle} />
+          <View style={styles.titleRow}>
+            <View style={{ width: 32 }} />
+            <Text style={styles.modalTitle}>{isEditing ? 'Edit Appointment' : 'New Appointment'}</Text>
+            <Pressable
+              style={({ pressed }) => [styles.closeBtn, pressed && styles.pressed]}
+              onPress={() => router.back()}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              hitSlop={8}
+            >
+              <Text style={styles.closeBtnText}>✕</Text>
+            </Pressable>
+          </View>
 
-        <SectionTitle>Type</SectionTitle>
-        <View style={styles.typeGrid}>
-          {TYPES.map((t) => {
-            const selected = type === t.key;
-            return (
-              <Pressable
-                key={t.key}
-                onPress={() => setType(t.key)}
-                style={({ pressed }) => [
-                  styles.typeChip,
-                  { backgroundColor: t.bg, borderColor: selected ? t.border : 'transparent' },
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text style={{ fontSize: 28 }}>{t.icon}</Text>
-                <Text style={styles.typeChipLabel}>{t.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <View style={styles.formGroup}>
-          <Text style={styles.formLabel}>Pet(s)</Text>
-          <View style={styles.petRow}>
-            {pets.map((p) => {
-              const selected = selectedPets.includes(p.id);
+          <SectionTitle>Type</SectionTitle>
+          <View style={styles.typeGrid}>
+            {TYPES.map((t) => {
+              const selected = type === t.key;
               return (
                 <Pressable
-                  key={p.id}
-                  onPress={() => togglePet(p.id)}
+                  key={t.key}
+                  onPress={() => setType(t.key)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t.label}
+                  accessibilityState={{ selected }}
                   style={({ pressed }) => [
-                    styles.petChip,
-                    selected
-                      ? { backgroundColor: colors.sagePale, borderColor: colors.sage }
-                      : { backgroundColor: colors.white, borderColor: colors.stoneLight },
+                    styles.typeChip,
+                    { backgroundColor: t.bg, borderColor: selected ? t.border : 'transparent' },
                     pressed && styles.pressed,
                   ]}
                 >
-                  <Text style={{ fontSize: 13, fontFamily: fonts.bold, color: selected ? colors.sage : colors.stoneMid }}>
-                    {p.avatar} {p.name}{selected ? ' ✓' : ''}
-                  </Text>
+                  <Text style={{ fontSize: 28 }}>{t.icon}</Text>
+                  <Text style={styles.typeChipLabel}>{t.label}</Text>
                 </Pressable>
               );
             })}
           </View>
-        </View>
 
-        <Field label="Title" value={title} onChangeText={setTitle} placeholder="e.g. Annual Checkup" />
-
-        <View style={styles.row2}>
-          <DatePickerField label="Date" value={date} onChange={setDate} placeholder="Jul 4, 2026" style={{ flex: 1, marginBottom: 14 }} />
-          <TimePickerField label="Time" value={time} onChange={setTime} placeholder="10:00 AM" style={{ flex: 1, marginBottom: 14 }} />
-        </View>
-
-        <Field label="Clinic / Location" value={location} onChangeText={setLocation} placeholder="City Vet Clinic" />
-        <Field label="Notes" value={notes} onChangeText={setNotes} placeholder="e.g. bring vaccination records…" />
-
-        <SectionTitle>Notifications</SectionTitle>
-        <View style={styles.notifList}>
-          {NOTIF_OPTIONS.map((label, i) => (
-            <View key={label} style={styles.notifOption}>
-              <Text style={styles.notifLabel}>🔔 {label}</Text>
-              <Toggle on={notifs[i]} onToggle={() => toggleNotif(i)} />
+          <View style={styles.formGroup}>
+            <Text style={styles.formLabel}>Pet(s)</Text>
+            <View style={styles.petRow}>
+              {pets.map((p) => {
+                const selected = selectedPets.includes(p.id);
+                return (
+                  <Pressable
+                    key={p.id}
+                    onPress={() => togglePet(p.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={p.name}
+                    accessibilityState={{ selected }}
+                    style={({ pressed }) => [
+                      styles.petChip,
+                      selected
+                        ? { backgroundColor: colors.sagePale, borderColor: colors.sage }
+                        : { backgroundColor: colors.white, borderColor: colors.stoneLight },
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text style={{ fontSize: 13, fontFamily: fonts.bold, color: selected ? colors.sage : colors.stoneMid }}>
+                      {p.avatar} {p.name}{selected ? ' ✓' : ''}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
-          ))}
-        </View>
+          </View>
 
-        <Pressable
-          style={({ pressed }) => [
-            styles.saveBtn,
-            !canSave && styles.saveBtnDisabled,
-            pressed && canSave && styles.saveBtnPressed,
-          ]}
-          onPress={handleSave}
-          disabled={!canSave}
-        >
-          <Text style={styles.saveBtnText}>Save Appointment</Text>
-        </Pressable>
-      </ScrollView>
+          <Field label="Title" value={title} onChangeText={setTitle} placeholder="e.g. Annual Checkup" />
+
+          <View style={styles.row2}>
+            <DatePickerField
+              label="Date"
+              value={date}
+              onChange={setDate}
+              placeholder="Jul 4, 2026"
+              minDate={new Date()}
+              style={{ flex: 1, marginBottom: 14 }}
+            />
+            <TimePickerField label="Time" value={time} onChange={setTime} placeholder="10:00 AM" style={{ flex: 1, marginBottom: 14 }} />
+          </View>
+
+          <Field label="Clinic / Location" value={location} onChangeText={setLocation} placeholder="City Vet Clinic" />
+          <Field label="Notes" value={notes} onChangeText={setNotes} placeholder="e.g. bring vaccination records…" />
+
+          <SectionTitle>Notifications</SectionTitle>
+          <View style={styles.notifList}>
+            {REMINDER_OPTIONS.map((opt) => (
+              <View key={opt.offsetMinutes} style={styles.notifOption}>
+                <Text style={styles.notifLabel}>🔔 {opt.label}</Text>
+                <Toggle
+                  on={reminderOffsets.includes(opt.offsetMinutes)}
+                  onToggle={() => toggleReminder(opt.offsetMinutes)}
+                  accessibilityLabel={`Remind ${opt.label}`}
+                />
+              </View>
+            ))}
+          </View>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.saveBtn,
+              !canSave && styles.saveBtnDisabled,
+              pressed && canSave && styles.saveBtnPressed,
+            ]}
+            onPress={handleSave}
+            disabled={!canSave}
+            accessibilityRole="button"
+            accessibilityLabel={isEditing ? 'Save changes' : 'Save appointment'}
+            accessibilityState={{ disabled: !canSave }}
+          >
+            <Text style={styles.saveBtnText}>{isEditing ? 'Save Changes' : 'Save Appointment'}</Text>
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -183,6 +233,7 @@ function Field({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.cream },
+  flex: { flex: 1 },
   content: { paddingHorizontal: 16, paddingBottom: 32 },
   handle: { width: 40, height: 4, backgroundColor: colors.stoneLight, borderRadius: 99, alignSelf: 'center', marginTop: 12, marginBottom: 10 },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },

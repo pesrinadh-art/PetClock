@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radius, shadow } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { formatClock } from '../lib/petSchedule';
@@ -8,12 +8,19 @@ export function ScheduleRow({
   item,
   accent,
   accentLight,
+  onLogNow,
 }: {
   item: ScheduleRowItem;
   accent: string;
   accentLight: string;
+  /** One-tap logging for rows in the 'due' state — the badge becomes a "Log now" button. */
+  onLogNow?: () => void;
 }) {
   const done = item.status === 'done';
+  const due = item.status === 'due';
+  const badgeBg = done ? colors.sagePale : due ? accent : accentLight;
+  const badgeColor = done ? colors.sage : due ? colors.white : accent;
+  const badgeLabel = done ? '✓ Done' : due ? (onLogNow ? 'Log now' : 'Due') : formatClock(item.time);
   return (
     <View style={styles.row}>
       <View style={[styles.icon, { backgroundColor: accentLight }]}>
@@ -23,11 +30,21 @@ export function ScheduleRow({
         <Text style={styles.name}>{item.name}</Text>
         <Text style={styles.sub}>Scheduled {formatClock(item.time)}</Text>
       </View>
-      <View style={[styles.badge, { backgroundColor: done ? colors.sagePale : accentLight }]}>
-        <Text style={[styles.badgeText, { color: done ? colors.sage : accent }]}>
-          {done ? '✓ Done' : formatClock(item.time)}
-        </Text>
-      </View>
+      {due && onLogNow ? (
+        <Pressable
+          style={({ pressed }) => [styles.badge, { backgroundColor: badgeBg }, pressed && styles.badgePressed]}
+          onPress={onLogNow}
+          accessibilityRole="button"
+          accessibilityLabel={`Log ${item.name} now`}
+          hitSlop={6}
+        >
+          <Text style={[styles.badgeText, { color: badgeColor }]}>{badgeLabel}</Text>
+        </Pressable>
+      ) : (
+        <View style={[styles.badge, { backgroundColor: badgeBg }]}>
+          <Text style={[styles.badgeText, { color: badgeColor }]}>{badgeLabel}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -53,5 +70,6 @@ const styles = StyleSheet.create({
   name: { fontSize: 14, fontFamily: fonts.extraBold, color: colors.stone },
   sub: { fontSize: 11, color: colors.stoneMid, marginTop: 2 },
   badge: { paddingVertical: 5, paddingHorizontal: 10, borderRadius: 99 },
+  badgePressed: { opacity: 0.8 },
   badgeText: { fontSize: 11, fontFamily: fonts.extraBold },
 });

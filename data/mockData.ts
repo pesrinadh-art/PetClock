@@ -84,14 +84,13 @@ export type Reminder = {
 
 
 export type TimelineEntry = {
+  /** Stable unique id, e.g. `pee-<timestamp>-<random>`. */
   id: string;
   petId: string;
   type: 'pee' | 'poo' | 'food' | 'vet';
   icon: string;
   label: string;
-  sub: string;
-  time: string;
-  /** Epoch ms — the source of truth for scheduling math; `time` is just its display form. */
+  /** Epoch ms — the source of truth; all display strings (clock/relative time) derive from it. */
   timestamp: number;
 };
 
@@ -102,10 +101,10 @@ function todayAt(hours: number, minutes: number): number {
 }
 
 export const timeline: TimelineEntry[] = [
-  { id: 't1', petId: 'mochi', type: 'pee', icon: '💧', label: 'Pee', sub: 'Outside walk', time: '12:31', timestamp: todayAt(12, 31) },
-  { id: 't2', petId: 'mochi', type: 'food', icon: '🍽️', label: 'Lunch', sub: '1 cup dry food', time: '12:00', timestamp: todayAt(12, 0) },
-  { id: 't3', petId: 'mochi', type: 'vet', icon: '🏥', label: 'Vet Checkup', sub: 'Annual · Dr. Patel · Done ✓', time: '10:00', timestamp: todayAt(10, 0) },
-  { id: 't4', petId: 'mochi', type: 'poo', icon: '💩', label: 'Poo', sub: 'Morning walk', time: '9:15', timestamp: todayAt(9, 15) },
+  { id: 't1', petId: 'mochi', type: 'pee', icon: '💧', label: 'Pee', timestamp: todayAt(12, 31) },
+  { id: 't2', petId: 'mochi', type: 'food', icon: '🍽️', label: 'Lunch', timestamp: todayAt(12, 0) },
+  { id: 't3', petId: 'mochi', type: 'vet', icon: '🏥', label: 'Vet Checkup', timestamp: todayAt(10, 0) },
+  { id: 't4', petId: 'mochi', type: 'poo', icon: '💩', label: 'Poo', timestamp: todayAt(9, 15) },
 ];
 
 export type ApptType = 'vet' | 'groom' | 'vaccine' | 'other';
@@ -114,46 +113,59 @@ export type Appointment = {
   id: string;
   type: ApptType;
   title: string;
-  petNames: string[];
-  date: string;
-  time?: string;
+  /** Pet ids (see `pets`) — names/avatars are resolved at render so renames don't break the link. */
+  petIds: string[];
+  /** Epoch ms — the source of truth for sorting and countdowns; formatted only at the view edge. */
+  dateTime: number;
+  /** Whether dateTime carries a meaningful time of day (vs. date only). */
+  hasTime: boolean;
   location?: string;
   notes?: string;
-  countdown: { label: string; kind: 'soon' | 'upcoming' | 'overdue' };
-  reminderEnabled?: boolean;
+  /** Reminder lead times in minutes before dateTime; empty = no reminders. */
+  reminderOffsets: number[];
 };
+
+function daysFromNowAt(days: number, hours: number, minutes: number): number {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  d.setHours(hours, minutes, 0, 0);
+  return d.getTime();
+}
+
+const MINUTES_PER_DAY = 24 * 60;
 
 export const appointments: Appointment[] = [
   {
+    // ~2 days out -> demonstrates the "soon" countdown.
     id: 'a1',
     type: 'vet',
     title: 'Annual Checkup',
-    petNames: ['🐶 Mochi'],
-    date: 'Fri, Jul 4',
-    time: '10:00 AM',
+    petIds: ['mochi'],
+    dateTime: daysFromNowAt(2, 10, 0),
+    hasTime: true,
     location: 'City Vet Clinic',
-    countdown: { label: 'In 2 days', kind: 'soon' },
-    reminderEnabled: true,
+    reminderOffsets: [MINUTES_PER_DAY],
   },
   {
+    // ~10 days out -> demonstrates the "upcoming" countdown.
     id: 'a2',
     type: 'groom',
     title: 'Full Groom & Bath',
-    petNames: ['🐶 Mochi', '🐱 Luna'],
-    date: 'Sat, Jul 12',
-    time: '2:00 PM',
+    petIds: ['mochi', 'luna'],
+    dateTime: daysFromNowAt(10, 14, 0),
+    hasTime: true,
     location: 'Paws & Claws',
-    countdown: { label: 'Jul 12', kind: 'upcoming' },
-    reminderEnabled: true,
+    reminderOffsets: [7 * MINUTES_PER_DAY, MINUTES_PER_DAY],
   },
   {
+    // ~12 days ago -> demonstrates the "overdue" state.
     id: 'a3',
     type: 'vaccine',
     title: 'Rabies Booster',
-    petNames: ['🐰 Peanut'],
-    date: 'Was Jun 20',
-    countdown: { label: 'Overdue!', kind: 'overdue' },
-    reminderEnabled: false,
+    petIds: ['peanut'],
+    dateTime: daysFromNowAt(-12, 9, 0),
+    hasTime: false,
+    reminderOffsets: [],
   },
 ];
 

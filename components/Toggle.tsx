@@ -2,7 +2,15 @@ import { useEffect, useRef } from 'react';
 import { Animated, Pressable } from 'react-native';
 import { colors } from '../theme/colors';
 
-export function Toggle({ on, onToggle }: { on: boolean; onToggle?: () => void }) {
+export function Toggle({
+  on,
+  onToggle,
+  accessibilityLabel,
+}: {
+  on: boolean;
+  onToggle?: () => void;
+  accessibilityLabel?: string;
+}) {
   const anim = useRef(new Animated.Value(on ? 1 : 0)).current;
 
   useEffect(() => {
@@ -21,7 +29,13 @@ export function Toggle({ on, onToggle }: { on: boolean; onToggle?: () => void })
   const translateX = anim.interpolate({ inputRange: [0, 1], outputRange: [2, 20] });
 
   return (
-    <Pressable onPress={onToggle} hitSlop={8}>
+    <Pressable
+      onPress={onToggle}
+      hitSlop={8}
+      accessibilityRole="switch"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ checked: on }}
+    >
       <Animated.View
         style={{
           width: 40,

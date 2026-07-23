@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, radius, shadow } from '../../theme/colors';
@@ -7,17 +7,21 @@ import { fonts } from '../../theme/fonts';
 import { TopNavBar } from '../../components/TopNavBar';
 import { SectionTitle } from '../../components/SectionTitle';
 import { PetListItem } from '../../components/PetListItem';
+import { AppModal } from '../../components/AppModal';
 import { usePets } from '../../context/PetsContext';
+import { useDeletePetCascade } from '../../hooks/useDeletePetCascade';
 import type { Pet } from '../../data/mockData';
 
 export default function PetsScreen() {
-  const { pets, removePet } = usePets();
+  const { pets } = usePets();
+  const deletePetCascade = useDeletePetCascade();
   const [pendingDelete, setPendingDelete] = useState<Pet | null>(null);
   const [blockedMessage, setBlockedMessage] = useState(false);
 
   const confirmDelete = () => {
     if (!pendingDelete) return;
-    const ok = removePet(pendingDelete.id);
+    // Cascades: also deletes the pet's logs and detaches it from appointments (D10).
+    const ok = deletePetCascade(pendingDelete.id);
     setPendingDelete(null);
     if (!ok) setBlockedMessage(true);
   };
@@ -39,12 +43,14 @@ export default function PetsScreen() {
         <Pressable
           style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
           onPress={() => router.push('/add-pet')}
+          accessibilityRole="button"
+          accessibilityLabel="Add pet"
         >
           <Text style={styles.addBtnText}>➕ Add Pet</Text>
         </Pressable>
       </ScrollView>
 
-      <Modal visible={!!pendingDelete} transparent animationType="fade" onRequestClose={() => setPendingDelete(null)}>
+      <AppModal visible={!!pendingDelete} transparent animationType="fade" onRequestClose={() => setPendingDelete(null)}>
         <Pressable style={styles.overlay} onPress={() => setPendingDelete(null)}>
           <Pressable style={styles.dialog} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.dialogTitle}>Remove {pendingDelete?.name}?</Text>
@@ -55,21 +61,25 @@ export default function PetsScreen() {
               <Pressable
                 style={({ pressed }) => [styles.dialogBtn, styles.cancelBtn, pressed && styles.pressed]}
                 onPress={() => setPendingDelete(null)}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
               >
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </Pressable>
               <Pressable
                 style={({ pressed }) => [styles.dialogBtn, styles.deleteBtn, pressed && styles.pressed]}
                 onPress={confirmDelete}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${pendingDelete?.name}`}
               >
                 <Text style={styles.deleteBtnText}>Remove</Text>
               </Pressable>
             </View>
           </Pressable>
         </Pressable>
-      </Modal>
+      </AppModal>
 
-      <Modal visible={blockedMessage} transparent animationType="fade" onRequestClose={() => setBlockedMessage(false)}>
+      <AppModal visible={blockedMessage} transparent animationType="fade" onRequestClose={() => setBlockedMessage(false)}>
         <Pressable style={styles.overlay} onPress={() => setBlockedMessage(false)}>
           <Pressable style={styles.dialog} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.dialogTitle}>Can't remove your last pet</Text>
@@ -77,12 +87,14 @@ export default function PetsScreen() {
             <Pressable
               style={({ pressed }) => [styles.dialogBtn, styles.cancelBtn, pressed && styles.pressed, { marginTop: 4 }]}
               onPress={() => setBlockedMessage(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Got it"
             >
               <Text style={styles.cancelBtnText}>Got it</Text>
             </Pressable>
           </Pressable>
         </Pressable>
-      </Modal>
+      </AppModal>
     </SafeAreaView>
   );
 }

@@ -1,27 +1,32 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { timeline as seedLogs, type TimelineEntry } from '../data/mockData';
-import { formatClock } from '../lib/petSchedule';
 
 type NewLog = {
   type: TimelineEntry['type'];
   icon: string;
   label: string;
-  sub: string;
+  /** @deprecated Display strings are derived from `timestamp` at render (D5). Ignored. */
+  sub?: string;
   timestamp?: number;
 };
 
 type LogsContextValue = {
   logs: TimelineEntry[];
   addLog: (petId: string, log: NewLog) => void;
+  removeLog: (id: string) => void;
+  removeLogsForPet: (petId: string) => void;
+  updateLog: (id: string, patch: Partial<Omit<TimelineEntry, 'id' | 'petId'>>) => void;
   getLogsForPet: (petId: string) => TimelineEntry[];
 };
 
 const LogsContext = createContext<LogsContextValue | null>(null);
 
+const EMPTY_LOGS: TimelineEntry[] = [];
+
 export function LogsProvider({ children }: { children: ReactNode }) {
   const [logs, setLogs] = useState<TimelineEntry[]>(seedLogs);
 
-  const addLog = (petId: string, log: NewLog) => {
+  const addLog = useCallback((petId: string, log: NewLog) => {
     const timestamp = log.timestamp ?? Date.now();
     const entry: TimelineEntry = {
       id: `${log.type}-${timestamp}-${Math.random().toString(36).slice(2, 7)}`,
@@ -29,17 +34,46 @@ export function LogsProvider({ children }: { children: ReactNode }) {
       type: log.type,
       icon: log.icon,
       label: log.label,
-      sub: log.sub,
-      time: formatClock(new Date(timestamp)),
       timestamp,
     };
     setLogs((prev) => [entry, ...prev]);
-  };
+  }, []);
 
-  const getLogsForPet = (petId: string) =>
-    logs.filter((l) => l.petId === petId).sort((a, b) => b.timestamp - a.timestamp);
+  const removeLog = useCallback((id: string) => {
+    setLogs((prev) => prev.filter((l) => l.id !== id));
+  }, []);
 
-  const value = useMemo(() => ({ logs, addLog, getLogsForPet }), [logs]);
+  // Bulk removal for the pet-delete cascade (D10) — one state update instead of
+  // the UI looping removeLog per entry.
+  const removeLogsForPet = useCallback((petId: string) => {
+    setLogs((prev) => prev.filter((l) => l.petId !== petId));
+  }, []);
+
+  const updateLog = useCallback((id: string, patch: Partial<Omit<TimelineEntry, 'id' | 'petId'>>) => {
+    setLogs((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+  }, []);
+
+  // Memoized per-pet index so getLogsForPet returns stable arrays between log changes (D28).
+  const logsByPet = useMemo(() => {
+    const byPet = new Map<string, TimelineEntry[]>();
+    for (const log of logs) {
+      const list = byPet.get(log.petId);
+      if (list) list.push(log);
+      else byPet.set(log.petId, [log]);
+    }
+    for (const list of byPet.values()) list.sort((a, b) => b.timestamp - a.timestamp);
+    return byPet;
+  }, [logs]);
+
+  const getLogsForPet = useCallback(
+    (petId: string) => logsByPet.get(petId) ?? EMPTY_LOGS,
+    [logsByPet],
+  );
+
+  const value = useMemo(
+    () => ({ logs, addLog, removeLog, removeLogsForPet, updateLog, getLogsForPet }),
+    [logs, addLog, removeLog, removeLogsForPet, updateLog, getLogsForPet],
+  );
 
   return <LogsContext.Provider value={value}>{children}</LogsContext.Provider>;
 }

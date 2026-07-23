@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 
@@ -8,10 +9,16 @@ export function TopNavBar() {
       <Text style={styles.logo}>
         Paw<Text style={{ color: colors.pooLight }}>Clock</Text>
       </Text>
-      <View style={styles.bell}>
+      <Pressable
+        style={({ pressed }) => [styles.bell, pressed && styles.bellPressed]}
+        onPress={() => router.push('/notifications')}
+        accessibilityRole="button"
+        accessibilityLabel="Notifications"
+        hitSlop={8}
+      >
         <Text style={{ fontSize: 16 }}>🔔</Text>
         <View style={styles.dot} />
-      </View>
+      </Pressable>
     </View>
   );
 }
@@ -34,6 +41,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  bellPressed: { opacity: 0.7, transform: [{ scale: 0.92 }] },
   dot: {
     position: 'absolute',
     top: 5,

@@ -15,7 +15,9 @@ import { colors } from '../theme/colors';
 import { PetsProvider } from '../context/PetsContext';
 import { LogsProvider } from '../context/LogsContext';
 import { AppointmentsProvider } from '../context/AppointmentsContext';
+import { NudgesProvider } from '../context/NudgesContext';
 import { AutoCalibrator } from '../components/AutoCalibrator';
+import { AppModalHost } from '../components/AppModal';
 
 // On web, a phone-sized frame makes it possible to sanity-check mobile
 // layouts from a normal desktop browser window instead of full-bleed width.
@@ -64,14 +66,18 @@ export default function RootLayout() {
       <PetsProvider>
         <LogsProvider>
           <AppointmentsProvider>
-            <AutoCalibrator />
-            <PhoneFrame>
-              <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="add-appointment" options={{ presentation: 'modal' }} />
-                <Stack.Screen name="add-pet" options={{ presentation: 'modal' }} />
-              </Stack>
-            </PhoneFrame>
+            <NudgesProvider>
+              <AutoCalibrator />
+              <PhoneFrame>
+                <AppModalHost>
+                  <Stack screenOptions={{ headerShown: false }}>
+                    <Stack.Screen name="(tabs)" />
+                    <Stack.Screen name="add-appointment" options={{ presentation: 'modal' }} />
+                    <Stack.Screen name="add-pet" options={{ presentation: 'modal' }} />
+                  </Stack>
+                </AppModalHost>
+              </PhoneFrame>
+            </NudgesProvider>
           </AppointmentsProvider>
         </LogsProvider>
       </PetsProvider>
