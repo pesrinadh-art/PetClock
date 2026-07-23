@@ -84,14 +84,13 @@ export type Reminder = {
 
 
 export type TimelineEntry = {
+  /** Stable unique id, e.g. `pee-<timestamp>-<random>`. */
   id: string;
   petId: string;
   type: 'pee' | 'poo' | 'food' | 'vet';
   icon: string;
   label: string;
-  sub: string;
-  time: string;
-  /** Epoch ms — the source of truth for scheduling math; `time` is just its display form. */
+  /** Epoch ms — the source of truth; all display strings (clock/relative time) derive from it. */
   timestamp: number;
 };
 
@@ -102,10 +101,10 @@ function todayAt(hours: number, minutes: number): number {
 }
 
 export const timeline: TimelineEntry[] = [
-  { id: 't1', petId: 'mochi', type: 'pee', icon: '💧', label: 'Pee', sub: 'Outside walk', time: '12:31', timestamp: todayAt(12, 31) },
-  { id: 't2', petId: 'mochi', type: 'food', icon: '🍽️', label: 'Lunch', sub: '1 cup dry food', time: '12:00', timestamp: todayAt(12, 0) },
-  { id: 't3', petId: 'mochi', type: 'vet', icon: '🏥', label: 'Vet Checkup', sub: 'Annual · Dr. Patel · Done ✓', time: '10:00', timestamp: todayAt(10, 0) },
-  { id: 't4', petId: 'mochi', type: 'poo', icon: '💩', label: 'Poo', sub: 'Morning walk', time: '9:15', timestamp: todayAt(9, 15) },
+  { id: 't1', petId: 'mochi', type: 'pee', icon: '💧', label: 'Pee', timestamp: todayAt(12, 31) },
+  { id: 't2', petId: 'mochi', type: 'food', icon: '🍽️', label: 'Lunch', timestamp: todayAt(12, 0) },
+  { id: 't3', petId: 'mochi', type: 'vet', icon: '🏥', label: 'Vet Checkup', timestamp: todayAt(10, 0) },
+  { id: 't4', petId: 'mochi', type: 'poo', icon: '💩', label: 'Poo', timestamp: todayAt(9, 15) },
 ];
 
 export type ApptType = 'vet' | 'groom' | 'vaccine' | 'other';
