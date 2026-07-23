@@ -73,6 +73,8 @@ export default function AppointmentsScreen() {
         <Pressable
           style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
           onPress={() => router.push('/add-appointment')}
+          accessibilityRole="button"
+          accessibilityLabel="Add appointment"
         >
           <Text style={styles.addBtnText}>➕ Add Appointment</Text>
         </Pressable>

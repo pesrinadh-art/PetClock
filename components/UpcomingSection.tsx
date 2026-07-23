@@ -51,6 +51,8 @@ export function UpcomingSection({ pet }: { pet: Pet }) {
             <Pressable
               style={({ pressed }) => [styles.noticeLink, pressed && styles.noticePressed]}
               onPress={() => router.push({ pathname: '/add-pet', params: { petId: pet.id } })}
+              accessibilityRole="button"
+              accessibilityLabel={`Add ${pet.name}'s schedule now`}
               hitSlop={4}
             >
               <Text style={styles.noticeLinkText}>📝 Add schedule now instead ›</Text>
@@ -74,6 +76,8 @@ export function UpcomingSection({ pet }: { pet: Pet }) {
             pressed && styles.noticePressed,
           ]}
           onPress={() => router.push({ pathname: '/add-pet', params: { petId: pet.id } })}
+          accessibilityRole="button"
+          accessibilityLabel={`Set up ${pet.name}'s schedule`}
         >
           <Text style={styles.noticeIcon}>📝</Text>
           <View style={{ flex: 1 }}>

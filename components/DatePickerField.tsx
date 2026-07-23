@@ -70,6 +70,8 @@ export function DatePickerField({ label, value, onChange, placeholder = 'Select 
       <Pressable
         style={({ pressed }) => [styles.field, value ? styles.fieldFilled : null, pressed && styles.pressed]}
         onPress={openPicker}
+        accessibilityRole="button"
+        accessibilityLabel={`${label ? `${label}: ` : ''}${value || placeholder}`}
       >
         <Text style={[styles.valueText, !value && styles.placeholderText]}>{value || placeholder}</Text>
         <Text style={styles.icon}>📅</Text>
@@ -79,13 +81,23 @@ export function DatePickerField({ label, value, onChange, placeholder = 'Select 
         <Pressable style={styles.overlay} onPress={() => setOpen(false)}>
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
             <View style={styles.header}>
-              <Pressable style={({ pressed }) => [styles.navBtn, pressed && styles.pressed]} onPress={() => changeMonth(-1)}>
+              <Pressable
+                style={({ pressed }) => [styles.navBtn, pressed && styles.pressed]}
+                onPress={() => changeMonth(-1)}
+                accessibilityRole="button"
+                accessibilityLabel="Previous month"
+              >
                 <Text style={styles.navBtnText}>‹</Text>
               </Pressable>
               <Text style={styles.headerTitle}>
                 {viewDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
               </Text>
-              <Pressable style={({ pressed }) => [styles.navBtn, pressed && styles.pressed]} onPress={() => changeMonth(1)}>
+              <Pressable
+                style={({ pressed }) => [styles.navBtn, pressed && styles.pressed]}
+                onPress={() => changeMonth(1)}
+                accessibilityRole="button"
+                accessibilityLabel="Next month"
+              >
                 <Text style={styles.navBtnText}>›</Text>
               </Pressable>
             </View>
@@ -109,6 +121,9 @@ export function DatePickerField({ label, value, onChange, placeholder = 'Select 
                     <Pressable
                       key={di}
                       disabled={disabled}
+                      accessibilityRole="button"
+                      accessibilityLabel={formatDate(day)}
+                      accessibilityState={{ selected: !!selected, disabled }}
                       style={({ pressed }) => [
                         styles.dayCell,
                         styles.dayCellPressable,

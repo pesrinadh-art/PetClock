@@ -52,6 +52,8 @@ export function LogButtons({ pet, onLog }: { pet: Pet; onLog?: (key: string) => 
         <Pressable
           key={b.key}
           onPress={() => onLog?.(b.key)}
+          accessibilityRole="button"
+          accessibilityLabel={`Log ${b.label.toLowerCase()} for ${pet.name}. ${b.sub}`}
           style={({ pressed }) => [
             styles.btn,
             { backgroundColor: b.bg, borderColor: b.border },

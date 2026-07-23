@@ -57,6 +57,9 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       onPress={openEdit}
       onLongPress={confirmDelete}
+      accessibilityRole="button"
+      accessibilityLabel={`${appt.title}, ${meta.label}, ${cd.label}`}
+      accessibilityHint="Opens the appointment to edit. Long press to delete."
     >
       <View style={[styles.accent, { backgroundColor: meta.accent }]} />
       <View style={styles.body}>
@@ -90,6 +93,8 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
           <Pressable
             style={({ pressed }) => [styles.notifRow, { backgroundColor: '#FDECEA' }, pressed && styles.pressed]}
             onPress={openEdit}
+            accessibilityRole="button"
+            accessibilityLabel={`Reschedule ${appt.title}`}
           >
             <Text style={[styles.notifText, { color: '#C0392B' }]}>🔴 Reschedule soon</Text>
             <Text style={{ fontSize: 12, fontFamily: fonts.extraBold, color: colors.apptVet }}>Reschedule ›</Text>
@@ -97,7 +102,7 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
         ) : (
           <View style={styles.notifRow}>
             <Text style={styles.notifText}>🔔 Remind me 1 day before</Text>
-            <Toggle on={reminderOn} onToggle={toggleReminder} />
+            <Toggle on={reminderOn} onToggle={toggleReminder} accessibilityLabel="Remind me 1 day before" />
           </View>
         )}
       </View>

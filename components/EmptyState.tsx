@@ -16,6 +16,8 @@ export function EmptyState({ icon, title, body }: { icon: string; title: string;
       <Pressable
         style={({ pressed }) => [styles.btn, pressed && styles.btnPressed]}
         onPress={() => router.push('/add-pet')}
+        accessibilityRole="button"
+        accessibilityLabel="Add your first pet"
       >
         <Text style={styles.btnText}>➕ Add Your First Pet</Text>
       </Pressable>

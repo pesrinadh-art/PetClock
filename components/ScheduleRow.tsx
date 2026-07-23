@@ -34,6 +34,8 @@ export function ScheduleRow({
         <Pressable
           style={({ pressed }) => [styles.badge, { backgroundColor: badgeBg }, pressed && styles.badgePressed]}
           onPress={onLogNow}
+          accessibilityRole="button"
+          accessibilityLabel={`Log ${item.name} now`}
           hitSlop={6}
         >
           <Text style={[styles.badgeText, { color: badgeColor }]}>{badgeLabel}</Text>

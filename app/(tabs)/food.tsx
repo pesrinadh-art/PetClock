@@ -56,7 +56,12 @@ export default function FoodScreen() {
 
         <SectionTitle>Today's Meals</SectionTitle>
         {meals.length === 0 ? (
-          <Pressable style={({ pressed }) => [styles.notice, pressed && styles.noticePressed]} onPress={editPet}>
+          <Pressable
+            style={({ pressed }) => [styles.notice, pressed && styles.noticePressed]}
+            onPress={editPet}
+            accessibilityRole="button"
+            accessibilityLabel={`Set up ${activePet.name}'s meal times`}
+          >
             <Text style={styles.noticeIcon}>🍽️</Text>
             <View style={{ flex: 1 }}>
               <Text style={styles.noticeTitle}>No meal times set</Text>
@@ -68,7 +73,12 @@ export default function FoodScreen() {
           meals.map((meal) => <ScheduleRow key={meal.id} item={meal} accent={colors.food} accentLight={colors.foodLight} />)
         )}
 
-        <Pressable style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]} onPress={editPet}>
+        <Pressable
+          style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
+          onPress={editPet}
+          accessibilityRole="button"
+          accessibilityLabel="Edit meal times"
+        >
           <Text style={styles.addBtnText}>➕ Edit Meal Times</Text>
         </Pressable>
 
@@ -76,7 +86,12 @@ export default function FoodScreen() {
 
         <SectionTitle>Medications</SectionTitle>
         {medications.length === 0 ? (
-          <Pressable style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]} onPress={editPet}>
+          <Pressable
+            style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
+            onPress={editPet}
+            accessibilityRole="button"
+            accessibilityLabel="Add medication"
+          >
             <Text style={styles.addBtnText}>➕ Add Medication</Text>
           </Pressable>
         ) : (
@@ -84,7 +99,12 @@ export default function FoodScreen() {
             {medications.map((med) => (
               <ScheduleRow key={med.id} item={med} accent={colors.medicine} accentLight={colors.medicineLight} />
             ))}
-            <Pressable style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]} onPress={editPet}>
+            <Pressable
+              style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
+              onPress={editPet}
+              accessibilityRole="button"
+              accessibilityLabel="Edit medications"
+            >
               <Text style={styles.addBtnText}>➕ Edit Medications</Text>
             </Pressable>
           </>

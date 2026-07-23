@@ -9,6 +9,16 @@ import { TimePickerField } from '../components/TimePickerField';
 import { usePets } from '../context/PetsContext';
 
 const AVATAR_OPTIONS = ['🐶', '🐱', '🐰', '🐹', '🐦', '🐢', '🐍', '🐠'];
+const AVATAR_LABELS: Record<string, string> = {
+  '🐶': 'Dog',
+  '🐱': 'Cat',
+  '🐰': 'Rabbit',
+  '🐹': 'Hamster',
+  '🐦': 'Bird',
+  '🐢': 'Turtle',
+  '🐍': 'Snake',
+  '🐠': 'Fish',
+};
 const MAX_MEDICATIONS = 5;
 const MAX_FEED_TIMES = 6;
 const HOLD_HOURS_MIN = 0.5;
@@ -128,6 +138,8 @@ export default function AddPetScreen() {
           <Pressable
             style={({ pressed }) => [styles.closeBtn, pressed && styles.pressed]}
             onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
             hitSlop={8}
           >
             <Text style={styles.closeBtnText}>✕</Text>
@@ -142,6 +154,9 @@ export default function AddPetScreen() {
               <Pressable
                 key={emoji}
                 onPress={() => setAvatar(emoji)}
+                accessibilityRole="button"
+                accessibilityLabel={AVATAR_LABELS[emoji] ?? 'Pet type'}
+                accessibilityState={{ selected }}
                 style={({ pressed }) => [
                   styles.avatarChip,
                   selected && styles.avatarChipSelected,
@@ -186,6 +201,8 @@ export default function AddPetScreen() {
               <Pressable
                 style={({ pressed }) => [styles.removeMedBtn, pressed && styles.pressed]}
                 onPress={() => removeFeedRow(row.rowId)}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove feed time ${i + 1}`}
                 hitSlop={8}
               >
                 <Text style={styles.removeMedBtnText}>✕</Text>
@@ -196,6 +213,8 @@ export default function AddPetScreen() {
             <Pressable
               style={({ pressed }) => [styles.addMedBtn, styles.addFeedBtn, pressed && styles.pressed]}
               onPress={addFeedRow}
+              accessibilityRole="button"
+              accessibilityLabel="Add feed time"
             >
               <Text style={styles.addMedBtnText}>➕ Add Feed Time</Text>
             </Pressable>
@@ -253,6 +272,8 @@ export default function AddPetScreen() {
             <Pressable
               style={({ pressed }) => [styles.removeMedBtn, pressed && styles.pressed]}
               onPress={() => removeMedicationRow(med.rowId)}
+              accessibilityRole="button"
+              accessibilityLabel={med.name.trim() ? `Remove ${med.name.trim()}` : 'Remove medication'}
               hitSlop={8}
             >
               <Text style={styles.removeMedBtnText}>✕</Text>
@@ -264,6 +285,8 @@ export default function AddPetScreen() {
           <Pressable
             style={({ pressed }) => [styles.addMedBtn, pressed && styles.pressed]}
             onPress={addMedicationRow}
+            accessibilityRole="button"
+            accessibilityLabel="Add medication"
           >
             <Text style={styles.addMedBtnText}>➕ Add Medication</Text>
           </Pressable>
@@ -272,6 +295,8 @@ export default function AddPetScreen() {
         <Pressable
           style={({ pressed }) => [styles.saveBtn, pressed && styles.saveBtnPressed]}
           onPress={handleSave}
+          accessibilityRole="button"
+          accessibilityLabel={isEditing ? 'Save changes' : 'Save pet'}
         >
           <Text style={styles.saveBtnText}>{isEditing ? 'Save Changes' : 'Save Pet'}</Text>
         </Pressable>

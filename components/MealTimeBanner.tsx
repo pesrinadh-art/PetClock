@@ -44,12 +44,16 @@ export function MealTimeBanner({ pet }: { pet: Pet }) {
           <Pressable
             style={({ pressed }) => [styles.btn, styles.doneBtn, pressed && styles.pressed]}
             onPress={handleDoneFeeding}
+            accessibilityRole="button"
+            accessibilityLabel={`Log ${dueMeal.name} as fed for ${pet.name}`}
           >
             <Text style={styles.doneBtnText}>✅ Done Feeding</Text>
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.btn, styles.snoozeBtn, pressed && styles.pressed]}
             onPress={handleSnooze}
+            accessibilityRole="button"
+            accessibilityLabel="Remind me in 30 minutes"
           >
             <Text style={styles.snoozeBtnText}>⏰ Remind in 30 min</Text>
           </Pressable>

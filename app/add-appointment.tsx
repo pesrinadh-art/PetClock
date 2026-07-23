@@ -96,6 +96,8 @@ export default function AddAppointmentScreen() {
             <Pressable
               style={({ pressed }) => [styles.closeBtn, pressed && styles.pressed]}
               onPress={() => router.back()}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
               hitSlop={8}
             >
               <Text style={styles.closeBtnText}>✕</Text>
@@ -110,6 +112,9 @@ export default function AddAppointmentScreen() {
                 <Pressable
                   key={t.key}
                   onPress={() => setType(t.key)}
+                  accessibilityRole="button"
+                  accessibilityLabel={t.label}
+                  accessibilityState={{ selected }}
                   style={({ pressed }) => [
                     styles.typeChip,
                     { backgroundColor: t.bg, borderColor: selected ? t.border : 'transparent' },
@@ -132,6 +137,9 @@ export default function AddAppointmentScreen() {
                   <Pressable
                     key={p.id}
                     onPress={() => togglePet(p.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={p.name}
+                    accessibilityState={{ selected }}
                     style={({ pressed }) => [
                       styles.petChip,
                       selected
@@ -171,7 +179,11 @@ export default function AddAppointmentScreen() {
             {REMINDER_OPTIONS.map((opt) => (
               <View key={opt.offsetMinutes} style={styles.notifOption}>
                 <Text style={styles.notifLabel}>🔔 {opt.label}</Text>
-                <Toggle on={reminderOffsets.includes(opt.offsetMinutes)} onToggle={() => toggleReminder(opt.offsetMinutes)} />
+                <Toggle
+                  on={reminderOffsets.includes(opt.offsetMinutes)}
+                  onToggle={() => toggleReminder(opt.offsetMinutes)}
+                  accessibilityLabel={`Remind ${opt.label}`}
+                />
               </View>
             ))}
           </View>
@@ -184,6 +196,9 @@ export default function AddAppointmentScreen() {
             ]}
             onPress={handleSave}
             disabled={!canSave}
+            accessibilityRole="button"
+            accessibilityLabel={isEditing ? 'Save changes' : 'Save appointment'}
+            accessibilityState={{ disabled: !canSave }}
           >
             <Text style={styles.saveBtnText}>{isEditing ? 'Save Changes' : 'Save Appointment'}</Text>
           </Pressable>
