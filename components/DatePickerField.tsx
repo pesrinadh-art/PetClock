@@ -40,15 +40,18 @@ type Props = {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  /** Earliest selectable day (inclusive, compared by calendar day); earlier cells are dimmed and disabled. */
+  minDate?: Date;
   style?: object;
 };
 
-export function DatePickerField({ label, value, onChange, placeholder = 'Select date', style }: Props) {
+export function DatePickerField({ label, value, onChange, placeholder = 'Select date', minDate, style }: Props) {
   const [open, setOpen] = useState(false);
   const [viewDate, setViewDate] = useState(() => parseDisplayDate(value) ?? new Date());
 
   const selectedDate = parseDisplayDate(value);
   const today = new Date();
+  const minDay = minDate ? new Date(minDate.getFullYear(), minDate.getMonth(), minDate.getDate()) : null;
   const weeks = getMonthWeeks(viewDate);
 
   const openPicker = () => {
@@ -100,9 +103,11 @@ export function DatePickerField({ label, value, onChange, placeholder = 'Select 
                   if (!day) return <View key={di} style={styles.dayCell} />;
                   const selected = selectedDate && isSameDay(day, selectedDate);
                   const isToday = isSameDay(day, today);
+                  const disabled = !!minDay && day.getTime() < minDay.getTime();
                   return (
                     <Pressable
                       key={di}
+                      disabled={disabled}
                       style={({ pressed }) => [
                         styles.dayCell,
                         styles.dayCellPressable,
@@ -115,7 +120,9 @@ export function DatePickerField({ label, value, onChange, placeholder = 'Select 
                         setOpen(false);
                       }}
                     >
-                      <Text style={[styles.dayText, selected && styles.dayTextSelected]}>{day.getDate()}</Text>
+                      <Text style={[styles.dayText, selected && styles.dayTextSelected, disabled && styles.dayTextDisabled]}>
+                        {day.getDate()}
+                      </Text>
                     </Pressable>
                   );
                 })}
@@ -184,4 +191,5 @@ const styles = StyleSheet.create({
   dayCellSelected: { backgroundColor: colors.sage },
   dayText: { fontSize: 13, fontFamily: fonts.semiBold, color: colors.stone },
   dayTextSelected: { color: colors.white, fontFamily: fonts.extraBold },
+  dayTextDisabled: { color: colors.stoneLight },
 });

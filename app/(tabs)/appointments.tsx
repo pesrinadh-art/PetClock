@@ -10,7 +10,7 @@ import { ApptTabs, type ApptFilter } from '../../components/ApptTabs';
 import { AppointmentCard } from '../../components/AppointmentCard';
 import { SectionTitle } from '../../components/SectionTitle';
 import { useAppointments } from '../../context/AppointmentsContext';
-import { parseAppointmentDateTime } from '../../lib/appointmentUtils';
+import { computeCountdown } from '../../lib/appointmentUtils';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -29,14 +29,13 @@ export default function AppointmentsScreen() {
     let thisWeek = 0;
     let overdue = 0;
     for (const a of appointments) {
-      if (a.countdown.kind === 'overdue') {
+      if (computeCountdown(a.dateTime, now.getTime()).kind === 'overdue') {
         overdue += 1;
         continue;
       }
-      const d = parseAppointmentDateTime(a.date, a.time);
-      if (!d) continue;
+      const d = new Date(a.dateTime);
       if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) thisMonth += 1;
-      const diffDays = Math.floor((d.getTime() - now.getTime()) / DAY_MS);
+      const diffDays = Math.floor((a.dateTime - now.getTime()) / DAY_MS);
       if (diffDays >= 0 && diffDays <= 7) thisWeek += 1;
     }
     return { thisMonth, thisWeek, overdue };
