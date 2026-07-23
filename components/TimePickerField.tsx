@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radius, shadow } from '../theme/colors';
 import { fonts } from '../theme/fonts';
+import { AppModal } from './AppModal';
 
 const ITEM_HEIGHT = 46;
 
@@ -45,7 +46,7 @@ export function TimePickerField({ label, value, onChange, placeholder = 'Select 
         <Text style={styles.icon}>🕐</Text>
       </Pressable>
 
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+      <AppModal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.overlay} onPress={() => setOpen(false)}>
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.sheetTitle}>{label || 'Select time'}</Text>
@@ -90,7 +91,7 @@ export function TimePickerField({ label, value, onChange, placeholder = 'Select 
             />
           </Pressable>
         </Pressable>
-      </Modal>
+      </AppModal>
     </View>
   );
 }

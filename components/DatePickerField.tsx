@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radius, shadow } from '../theme/colors';
 import { fonts } from '../theme/fonts';
+import { AppModal } from './AppModal';
 
 const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
@@ -74,7 +75,7 @@ export function DatePickerField({ label, value, onChange, placeholder = 'Select 
         <Text style={styles.icon}>📅</Text>
       </Pressable>
 
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+      <AppModal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.overlay} onPress={() => setOpen(false)}>
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
             <View style={styles.header}>
@@ -130,7 +131,7 @@ export function DatePickerField({ label, value, onChange, placeholder = 'Select 
             ))}
           </Pressable>
         </Pressable>
-      </Modal>
+      </AppModal>
     </View>
   );
 }

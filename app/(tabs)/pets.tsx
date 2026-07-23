@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, radius, shadow } from '../../theme/colors';
@@ -7,6 +7,7 @@ import { fonts } from '../../theme/fonts';
 import { TopNavBar } from '../../components/TopNavBar';
 import { SectionTitle } from '../../components/SectionTitle';
 import { PetListItem } from '../../components/PetListItem';
+import { AppModal } from '../../components/AppModal';
 import { usePets } from '../../context/PetsContext';
 import type { Pet } from '../../data/mockData';
 
@@ -44,7 +45,7 @@ export default function PetsScreen() {
         </Pressable>
       </ScrollView>
 
-      <Modal visible={!!pendingDelete} transparent animationType="fade" onRequestClose={() => setPendingDelete(null)}>
+      <AppModal visible={!!pendingDelete} transparent animationType="fade" onRequestClose={() => setPendingDelete(null)}>
         <Pressable style={styles.overlay} onPress={() => setPendingDelete(null)}>
           <Pressable style={styles.dialog} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.dialogTitle}>Remove {pendingDelete?.name}?</Text>
@@ -67,9 +68,9 @@ export default function PetsScreen() {
             </View>
           </Pressable>
         </Pressable>
-      </Modal>
+      </AppModal>
 
-      <Modal visible={blockedMessage} transparent animationType="fade" onRequestClose={() => setBlockedMessage(false)}>
+      <AppModal visible={blockedMessage} transparent animationType="fade" onRequestClose={() => setBlockedMessage(false)}>
         <Pressable style={styles.overlay} onPress={() => setBlockedMessage(false)}>
           <Pressable style={styles.dialog} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.dialogTitle}>Can't remove your last pet</Text>
@@ -82,7 +83,7 @@ export default function PetsScreen() {
             </Pressable>
           </Pressable>
         </Pressable>
-      </Modal>
+      </AppModal>
     </SafeAreaView>
   );
 }
