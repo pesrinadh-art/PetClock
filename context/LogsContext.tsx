@@ -14,6 +14,7 @@ type LogsContextValue = {
   logs: TimelineEntry[];
   addLog: (petId: string, log: NewLog) => void;
   removeLog: (id: string) => void;
+  removeLogsForPet: (petId: string) => void;
   updateLog: (id: string, patch: Partial<Omit<TimelineEntry, 'id' | 'petId'>>) => void;
   getLogsForPet: (petId: string) => TimelineEntry[];
 };
@@ -42,6 +43,12 @@ export function LogsProvider({ children }: { children: ReactNode }) {
     setLogs((prev) => prev.filter((l) => l.id !== id));
   }, []);
 
+  // Bulk removal for the pet-delete cascade (D10) — one state update instead of
+  // the UI looping removeLog per entry.
+  const removeLogsForPet = useCallback((petId: string) => {
+    setLogs((prev) => prev.filter((l) => l.petId !== petId));
+  }, []);
+
   const updateLog = useCallback((id: string, patch: Partial<Omit<TimelineEntry, 'id' | 'petId'>>) => {
     setLogs((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
   }, []);
@@ -64,8 +71,8 @@ export function LogsProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ logs, addLog, removeLog, updateLog, getLogsForPet }),
-    [logs, addLog, removeLog, updateLog, getLogsForPet],
+    () => ({ logs, addLog, removeLog, removeLogsForPet, updateLog, getLogsForPet }),
+    [logs, addLog, removeLog, removeLogsForPet, updateLog, getLogsForPet],
   );
 
   return <LogsContext.Provider value={value}>{children}</LogsContext.Provider>;

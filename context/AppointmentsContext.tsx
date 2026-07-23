@@ -19,6 +19,7 @@ type AppointmentsContextValue = {
   addAppointment: (input: NewAppointment) => void;
   updateAppointment: (id: string, patch: AppointmentPatch) => void;
   removeAppointment: (id: string) => void;
+  removePetFromAppointments: (petId: string) => void;
 };
 
 const AppointmentsContext = createContext<AppointmentsContextValue | null>(null);
@@ -53,9 +54,19 @@ export function AppointmentsProvider({ children }: { children: ReactNode }) {
     setAppointments((prev) => prev.filter((a) => a.id !== id));
   }, []);
 
+  // Pet-delete cascade (D10): detach the pet from every appointment; an appointment
+  // that referenced only this pet has no subject left, so it is dropped entirely.
+  const removePetFromAppointments = useCallback((petId: string) => {
+    setAppointments((prev) =>
+      prev
+        .map((a) => (a.petIds.includes(petId) ? { ...a, petIds: a.petIds.filter((id) => id !== petId) } : a))
+        .filter((a) => a.petIds.length > 0)
+    );
+  }, []);
+
   const value = useMemo(
-    () => ({ appointments, addAppointment, updateAppointment, removeAppointment }),
-    [appointments, addAppointment, updateAppointment, removeAppointment]
+    () => ({ appointments, addAppointment, updateAppointment, removeAppointment, removePetFromAppointments }),
+    [appointments, addAppointment, updateAppointment, removeAppointment, removePetFromAppointments]
   );
 
   return <AppointmentsContext.Provider value={value}>{children}</AppointmentsContext.Provider>;

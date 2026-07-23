@@ -8,16 +8,19 @@ import { TopNavBar } from '../../components/TopNavBar';
 import { SectionTitle } from '../../components/SectionTitle';
 import { PetListItem } from '../../components/PetListItem';
 import { usePets } from '../../context/PetsContext';
+import { useDeletePetCascade } from '../../hooks/useDeletePetCascade';
 import type { Pet } from '../../data/mockData';
 
 export default function PetsScreen() {
-  const { pets, removePet } = usePets();
+  const { pets } = usePets();
+  const deletePetCascade = useDeletePetCascade();
   const [pendingDelete, setPendingDelete] = useState<Pet | null>(null);
   const [blockedMessage, setBlockedMessage] = useState(false);
 
   const confirmDelete = () => {
     if (!pendingDelete) return;
-    const ok = removePet(pendingDelete.id);
+    // Cascades: also deletes the pet's logs and detaches it from appointments (D10).
+    const ok = deletePetCascade(pendingDelete.id);
     setPendingDelete(null);
     if (!ok) setBlockedMessage(true);
   };
