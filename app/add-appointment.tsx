@@ -25,7 +25,7 @@ export default function AddAppointmentScreen() {
   const { pets } = usePets();
   const { addAppointment } = useAppointments();
   const [type, setType] = useState<ApptType>('vet');
-  const [selectedPets, setSelectedPets] = useState<string[]>([pets[0].id]);
+  const [selectedPets, setSelectedPets] = useState<string[]>(() => (pets.length > 0 ? [pets[0].id] : []));
   const [title, setTitle] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');

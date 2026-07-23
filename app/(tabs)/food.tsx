@@ -8,6 +8,7 @@ import { PetSwitcher } from '../../components/PetSwitcher';
 import { HeroCard } from '../../components/HeroCard';
 import { SectionTitle } from '../../components/SectionTitle';
 import { ScheduleRow } from '../../components/ScheduleRow';
+import { EmptyState } from '../../components/EmptyState';
 import { usePets } from '../../context/PetsContext';
 import { useLogs } from '../../context/LogsContext';
 import { getTodaysMeals, getTodaysMedications } from '../../lib/petSchedule';
@@ -15,6 +16,15 @@ import { getTodaysMeals, getTodaysMedications } from '../../lib/petSchedule';
 export default function FoodScreen() {
   const { pets, activePet, activePetId, setActivePetId } = usePets();
   const { getLogsForPet } = useLogs();
+
+  if (!activePet) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <TopNavBar />
+        <EmptyState icon="🍽️" title="No pets yet" body="Add a pet to plan their meals and medications." />
+      </SafeAreaView>
+    );
+  }
 
   const now = new Date();
   const meals = getTodaysMeals(activePet, now, getLogsForPet(activePet.id));
