@@ -42,7 +42,9 @@ export default function AddAppointmentScreen() {
   const isEditing = !!editingAppt;
 
   const [type, setType] = useState<ApptType>(editingAppt?.type ?? 'vet');
-  const [selectedPets, setSelectedPets] = useState<string[]>(editingAppt?.petIds ?? [pets[0].id]);
+  const [selectedPets, setSelectedPets] = useState<string[]>(
+    () => editingAppt?.petIds ?? (pets.length > 0 ? [pets[0].id] : [])
+  );
   const [title, setTitle] = useState(editingAppt?.title ?? '');
   const [date, setDate] = useState(editingAppt ? formatDisplayDate(editingAppt.dateTime) : '');
   const [time, setTime] = useState(editingAppt?.hasTime ? formatApptTime(editingAppt.dateTime) : '');
