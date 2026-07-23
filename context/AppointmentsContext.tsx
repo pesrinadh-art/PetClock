@@ -1,60 +1,62 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { appointments as seedAppointments, type Appointment, type ApptType } from '../data/mockData';
-import { computeCountdown, parseAppointmentDateTime } from '../lib/appointmentUtils';
 
 type NewAppointment = {
   type: ApptType;
   title: string;
-  petNames: string[];
-  date: string;
-  time?: string;
+  petIds: string[];
+  dateTime: number;
+  hasTime: boolean;
   location?: string;
   notes?: string;
-  reminderEnabled?: boolean;
+  reminderOffsets?: number[];
 };
+
+type AppointmentPatch = Partial<Omit<Appointment, 'id'>>;
 
 type AppointmentsContextValue = {
   appointments: Appointment[];
   addAppointment: (input: NewAppointment) => void;
+  updateAppointment: (id: string, patch: AppointmentPatch) => void;
   removeAppointment: (id: string) => void;
 };
 
 const AppointmentsContext = createContext<AppointmentsContextValue | null>(null);
 
 function sortByDate(list: Appointment[]): Appointment[] {
-  return [...list].sort((a, b) => {
-    const aTime = parseAppointmentDateTime(a.date, a.time)?.getTime() ?? Infinity;
-    const bTime = parseAppointmentDateTime(b.date, b.time)?.getTime() ?? Infinity;
-    return aTime - bTime;
-  });
+  return [...list].sort((a, b) => a.dateTime - b.dateTime);
 }
 
 export function AppointmentsProvider({ children }: { children: ReactNode }) {
   const [appointments, setAppointments] = useState<Appointment[]>(seedAppointments);
 
-  const addAppointment = (input: NewAppointment) => {
-    const parsed = parseAppointmentDateTime(input.date, input.time);
-    const countdown = parsed ? computeCountdown(parsed) : { label: input.date || 'Scheduled', kind: 'upcoming' as const };
+  const addAppointment = useCallback((input: NewAppointment) => {
     const appointment: Appointment = {
       id: `appt-${Date.now()}`,
       type: input.type,
       title: input.title,
-      petNames: input.petNames,
-      date: input.date,
-      time: input.time,
+      petIds: input.petIds,
+      dateTime: input.dateTime,
+      hasTime: input.hasTime,
       location: input.location,
       notes: input.notes,
-      countdown,
-      reminderEnabled: input.reminderEnabled,
+      reminderOffsets: input.reminderOffsets ?? [],
     };
     setAppointments((prev) => sortByDate([...prev, appointment]));
-  };
+  }, []);
 
-  const removeAppointment = (id: string) => {
+  const updateAppointment = useCallback((id: string, patch: AppointmentPatch) => {
+    setAppointments((prev) => sortByDate(prev.map((a) => (a.id === id ? { ...a, ...patch } : a))));
+  }, []);
+
+  const removeAppointment = useCallback((id: string) => {
     setAppointments((prev) => prev.filter((a) => a.id !== id));
-  };
+  }, []);
 
-  const value = useMemo(() => ({ appointments, addAppointment, removeAppointment }), [appointments]);
+  const value = useMemo(
+    () => ({ appointments, addAppointment, updateAppointment, removeAppointment }),
+    [appointments, addAppointment, updateAppointment, removeAppointment]
+  );
 
   return <AppointmentsContext.Provider value={value}>{children}</AppointmentsContext.Provider>;
 }
