@@ -21,7 +21,7 @@ export function MealTimeBanner({ pet }: { pet: Pet }) {
   const now = new Date();
   const meals = getTodaysMeals(pet, now, getLogsForPet(pet.id));
   const dueMeal = meals.find(
-    (m) => m.status === 'upcoming' && m.time.getTime() <= now.getTime() && !isSnoozed(nudgeKey(pet.id, m.id), now)
+    (m) => m.status === 'due' && !isSnoozed(nudgeKey(pet.id, m.id), now)
   );
 
   if (!dueMeal) return null;

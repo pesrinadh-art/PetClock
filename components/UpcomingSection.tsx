@@ -7,6 +7,7 @@ import type { Pet, Reminder } from '../data/mockData';
 import {
   formatTimeRange,
   formatTimeUntil,
+  formatTimeUntilCompact,
   getPetStatus,
   getUpcomingForPet,
   getUpcomingMedications,
@@ -21,7 +22,10 @@ function toReminder(item: UpcomingItem, now: Date): Reminder {
     icon: item.icon,
     label: item.label,
     time: formatTimeRange(item.timeStart, item.timeEnd),
-    sub: formatTimeUntil(item.timeStart, now),
+    sub:
+      item.kind === 'overdue'
+        ? `Overdue ${formatTimeUntilCompact(new Date(now.getTime() + item.overdueBy), now)}`
+        : formatTimeUntil(item.timeStart, now),
   };
 }
 
