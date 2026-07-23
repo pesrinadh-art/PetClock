@@ -20,9 +20,7 @@ export function MealTimeBanner({ pet }: { pet: Pet }) {
 
   const now = new Date();
   const meals = getTodaysMeals(pet, now, getLogsForPet(pet.id));
-  const dueMeal = meals.find(
-    (m) => m.status === 'upcoming' && m.time.getTime() <= now.getTime() && (snoozedUntil[m.id] ?? 0) <= now.getTime()
-  );
+  const dueMeal = meals.find((m) => m.status === 'due' && (snoozedUntil[m.id] ?? 0) <= now.getTime());
 
   if (!dueMeal) return null;
 
