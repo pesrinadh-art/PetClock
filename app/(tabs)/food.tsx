@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,13 +10,18 @@ import { HeroCard } from '../../components/HeroCard';
 import { SectionTitle } from '../../components/SectionTitle';
 import { ScheduleRow } from '../../components/ScheduleRow';
 import { EmptyState } from '../../components/EmptyState';
+import { AppModal } from '../../components/AppModal';
 import { usePets } from '../../context/PetsContext';
 import { useLogs } from '../../context/LogsContext';
-import { getTodaysMeals, getTodaysMedications } from '../../lib/petSchedule';
+import { getTodaysMeals, getTodaysMedications, type ScheduleRowItem } from '../../lib/petSchedule';
+
+const HOUR_MS = 60 * 60 * 1000;
 
 export default function FoodScreen() {
   const { pets, activePet, activePetId, setActivePetId } = usePets();
-  const { getLogsForPet } = useLogs();
+  const { getLogsForPet, addLog } = useLogs();
+  // A meal tapped well before its scheduled time waits here for confirmation before logging.
+  const [pendingMeal, setPendingMeal] = useState<ScheduleRowItem | null>(null);
 
   if (!activePet) {
     return (
@@ -32,6 +38,26 @@ export default function FoodScreen() {
   const mealsDone = meals.filter((m) => m.status === 'done').length;
 
   const editPet = () => router.push({ pathname: '/add-pet', params: { petId: activePet.id } });
+
+  // Logs a food entry for the meal — mirrors MealTimeBanner's "Done Feeding" call so the row
+  // flips to "✓ Done" (getTodaysMeals matches the log to this slot by name).
+  const logMeal = (meal: ScheduleRowItem) => {
+    addLog(activePet.id, { type: 'food', icon: meal.icon, label: meal.name, sub: 'Logged just now' });
+  };
+
+  const handleMarkDone = (meal: ScheduleRowItem) => {
+    // Earlier than an hour before the scheduled time → confirm the early feeding first.
+    if (now.getTime() < meal.time.getTime() - HOUR_MS) {
+      setPendingMeal(meal);
+      return;
+    }
+    logMeal(meal);
+  };
+
+  const confirmPendingMeal = () => {
+    if (pendingMeal) logMeal(pendingMeal);
+    setPendingMeal(null);
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -70,7 +96,16 @@ export default function FoodScreen() {
             <Text style={styles.noticeChevron}>›</Text>
           </Pressable>
         ) : (
-          meals.map((meal) => <ScheduleRow key={meal.id} item={meal} accent={colors.food} accentLight={colors.foodLight} />)
+          meals.map((meal) => (
+            <ScheduleRow
+              key={meal.id}
+              item={meal}
+              accent={colors.food}
+              accentLight={colors.foodLight}
+              onLogNow={() => handleMarkDone(meal)}
+              logAccessibilityLabel={`Mark ${meal.name} as fed for ${activePet.name}`}
+            />
+          ))
         )}
 
         <Pressable
@@ -110,6 +145,37 @@ export default function FoodScreen() {
           </>
         )}
       </ScrollView>
+
+      <AppModal visible={!!pendingMeal} transparent animationType="fade" onRequestClose={() => setPendingMeal(null)}>
+        <Pressable style={styles.overlay} onPress={() => setPendingMeal(null)}>
+          <Pressable style={styles.dialog} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.dialogTitle}>
+              Aw, is it my {pendingMeal?.name.toLowerCase()} already? 🐶
+            </Text>
+            <Text style={styles.dialogBody}>
+              It's a little early — mark {pendingMeal?.name.toLowerCase()} as fed now?
+            </Text>
+            <View style={styles.dialogActions}>
+              <Pressable
+                style={({ pressed }) => [styles.dialogBtn, styles.cancelBtn, pressed && styles.pressed]}
+                onPress={() => setPendingMeal(null)}
+                accessibilityRole="button"
+                accessibilityLabel="Not yet"
+              >
+                <Text style={styles.cancelBtnText}>Not yet</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.dialogBtn, styles.confirmBtn, pressed && styles.pressed]}
+                onPress={confirmPendingMeal}
+                accessibilityRole="button"
+                accessibilityLabel={pendingMeal ? `Feed ${pendingMeal.name} now for ${activePet.name}` : 'Feed now'}
+              >
+                <Text style={styles.confirmBtnText}>Yes, feed now</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </AppModal>
     </SafeAreaView>
   );
 }
@@ -146,4 +212,28 @@ const styles = StyleSheet.create({
   noticeTitle: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.stone, marginBottom: 3 },
   noticeBody: { fontSize: 12, color: colors.stoneMid, lineHeight: 17 },
   noticeChevron: { fontSize: 20, color: colors.food, fontFamily: fonts.bold, alignSelf: 'center' },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  dialog: {
+    width: '100%',
+    maxWidth: 320,
+    backgroundColor: colors.white,
+    borderRadius: radius.lg,
+    padding: 20,
+    ...shadow.card,
+  },
+  dialogTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: colors.stone, marginBottom: 8 },
+  dialogBody: { fontSize: 13, color: colors.stoneMid, lineHeight: 19, marginBottom: 18 },
+  dialogActions: { flexDirection: 'row', gap: 10 },
+  dialogBtn: { flex: 1, borderRadius: radius.sm, paddingVertical: 12, alignItems: 'center' },
+  pressed: { opacity: 0.8 },
+  cancelBtn: { backgroundColor: colors.sagePale },
+  cancelBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.sage },
+  confirmBtn: { backgroundColor: colors.food },
+  confirmBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.white },
 });

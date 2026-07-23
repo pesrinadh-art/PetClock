@@ -242,31 +242,55 @@ function nameMeal(index: number, total: number, hour: number): { name: string; i
 /**
  * Today's meals, one per configured feed time — only what's actually required for this pet.
  * A slot counts as done only when a food log covers it (logging "Dinner" early covers that
- * slot right away rather than waiting on the clock) — matched to slots in chronological order,
- * so logging once covers whichever meal comes first, logging twice covers the first two, and
- * so on. A slot whose time has passed *without* a covering log is 'due', not done — the clock
- * alone never marks a meal fed. `logs` is optional so this still works as a pure time-based
- * preview when log history isn't at hand (everything past then reads as due).
+ * slot right away rather than waiting on the clock) — the clock alone never marks a meal fed.
+ *
+ * Matching food logs to slots is done by meal *name* first: a log labelled "Dinner" marks the
+ * Dinner slot done rather than whichever meal falls earliest in the day. This lets the Food
+ * screen mark any specific meal done (even out of order) and have that exact row flip. Any
+ * remaining logs that don't name-match a slot then cover the earliest still-uncovered slots in
+ * chronological order, so the total done count still equals the number of food logs (capped at
+ * the slot count) — MealTimeBanner, which only ever logs the currently-due meal, is unaffected.
+ * `logs` is optional so this still works as a pure time-based preview when log history isn't at
+ * hand (everything past then reads as due).
  */
 export function getTodaysMeals(pet: Pet, now: Date = new Date(), logs: TimelineEntry[] = []): ScheduleRowItem[] {
   const todayStart = startOfDay(now);
-  const foodLogsToday = logs.filter((l) => l.type === 'food' && l.timestamp >= todayStart).length;
+  const foodLogsToday = logs.filter((l) => l.type === 'food' && l.timestamp >= todayStart);
 
   const times = pet.feedTimes
     .map((t) => parseClockTime(t, now))
     .filter((d): d is Date => d !== null)
     .sort((a, b) => a.getTime() - b.getTime());
 
+  const metas = times.map((time, i) => nameMeal(i, times.length, time.getHours()));
+  const covered = new Array<boolean>(times.length).fill(false);
+  const unmatched = [...foodLogsToday];
+
+  // Pass 1: name match — a log covers the first slot whose meal name it shares.
+  for (let i = 0; i < metas.length; i++) {
+    const idx = unmatched.findIndex((l) => l.label === metas[i].name);
+    if (idx !== -1) {
+      covered[i] = true;
+      unmatched.splice(idx, 1);
+    }
+  }
+  // Pass 2: leftover logs cover the earliest still-uncovered slots, in order.
+  for (let i = 0; i < covered.length && unmatched.length > 0; i++) {
+    if (!covered[i]) {
+      covered[i] = true;
+      unmatched.shift();
+    }
+  }
+
   return times.map((time, i) => {
-    const meta = nameMeal(i, times.length, time.getHours());
+    const meta = metas[i];
     const timePassed = time.getTime() <= now.getTime();
-    const loggedCovered = i < foodLogsToday;
     const item: ScheduleRowItem = {
       id: `meal-${i}-${time.getTime()}`,
       icon: meta.icon,
       name: meta.name,
       time,
-      status: loggedCovered ? 'done' : timePassed ? 'due' : 'upcoming',
+      status: covered[i] ? 'done' : timePassed ? 'due' : 'upcoming',
     };
     return item;
   });
