@@ -148,7 +148,13 @@ export function getUpcomingForPet(pet: Pet, logs: TimelineEntry[], now: Date = n
   const scheduleAnchor = todaysFeedTimes[0];
   const items: UpcomingItem[] = [];
 
-  const nextFeedIndex = todaysFeedTimes.findIndex((t) => t.getTime() > now.getTime());
+  // Next feed = earliest future feed time that isn't already logged/done, so a meal marked
+  // done ahead of its time (e.g. Dinner logged early from the Food screen) drops out of
+  // Upcoming instead of lingering. Slot indexes align with getTodaysMeals (same parse/sort).
+  const meals = getTodaysMeals(pet, now, logs);
+  const nextFeedIndex = todaysFeedTimes.findIndex(
+    (t, i) => t.getTime() > now.getTime() && meals[i]?.status !== 'done'
+  );
   const nextFeedTime = nextFeedIndex === -1 ? new Date(todaysFeedTimes[0].getTime() + DAY_MS) : todaysFeedTimes[nextFeedIndex];
   const nextMeal = nameMeal(nextFeedIndex === -1 ? 0 : nextFeedIndex, todaysFeedTimes.length, nextFeedTime.getHours());
   items.push({
