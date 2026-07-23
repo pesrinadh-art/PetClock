@@ -123,7 +123,18 @@ no backend. The to-dos below are ordered by what unblocks what.
       continuously refine hold-times as more logs accumulate.
 - [ ] Walk tracking (duration/GPS optional).
 - [ ] Widgets / lock-screen countdown ("next break in 40 min").
-- [ ] Multi-household / pet-sitter share link (read-only or log-only access).
+- [ ] **Pet Walker Mode:** a scoped, time-boxed household role for a dog walker /
+      sitter (not a full co-owner). On accepting an invite, the walker's app shows
+      just the pet(s) they're covering — last pee/poo time and note front and
+      center — and a log-now action for pee/poo/food/meds. Logs the walker adds
+      write to the same shared log stream, so they appear live on the owner's
+      timeline and Home screen, same as a household member's log (realtime
+      channel + `source: 'walker'` tag so the owner can see who logged what).
+      Walker can log; can't edit the pet profile, schedule, or appointments.
+      Access expires automatically at a set time/date. Builds on the
+      `household_members` + `role`/`member_expires_at` design already sketched
+      as "Pet-sitter mode" in `docs/BACKEND_PLAN.md` §9 — this note pins the
+      exact UX: last-log visibility + one-tap logging + owner-visible sync.
 - [ ] Vet visit prep: export recent logs as PDF for the vet.
 
 ---
