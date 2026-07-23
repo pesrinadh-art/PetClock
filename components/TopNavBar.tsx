@@ -12,8 +12,8 @@ export function TopNavBar() {
       <Pressable
         style={({ pressed }) => [styles.bell, pressed && styles.bellPressed]}
         onPress={() => router.push('/notifications')}
-        accessibilityRole="button"
-        accessibilityLabel="Notifications"
+        role="button"
+        aria-label="Notifications"
         hitSlop={8}
       >
         <Text style={{ fontSize: 16 }}>🔔</Text>

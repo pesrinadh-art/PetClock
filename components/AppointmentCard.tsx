@@ -58,8 +58,8 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       onPress={openEdit}
       onLongPress={() => setPendingDelete(true)}
-      accessibilityRole="button"
-      accessibilityLabel={`${appt.title}, ${meta.label}, ${cd.label}`}
+      role="button"
+      aria-label={`${appt.title}, ${meta.label}, ${cd.label}`}
       accessibilityHint="Opens the appointment to edit. Long press to delete."
     >
       <View style={[styles.accent, { backgroundColor: meta.accent }]} />
@@ -94,8 +94,8 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
           <Pressable
             style={({ pressed }) => [styles.notifRow, { backgroundColor: '#FDECEA' }, pressed && styles.pressed]}
             onPress={openEdit}
-            accessibilityRole="button"
-            accessibilityLabel={`Reschedule ${appt.title}`}
+            role="button"
+            aria-label={`Reschedule ${appt.title}`}
           >
             <Text style={[styles.notifText, { color: '#C0392B' }]}>🔴 Reschedule soon</Text>
             <Text style={{ fontSize: 12, fontFamily: fonts.extraBold, color: colors.apptVet }}>Reschedule ›</Text>
@@ -103,7 +103,7 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
         ) : (
           <View style={styles.notifRow}>
             <Text style={styles.notifText}>🔔 Remind me 1 day before</Text>
-            <Toggle on={reminderOn} onToggle={toggleReminder} accessibilityLabel="Remind me 1 day before" />
+            <Toggle on={reminderOn} onToggle={toggleReminder} aria-label="Remind me 1 day before" />
           </View>
         )}
       </View>
@@ -122,16 +122,16 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
               <Pressable
                 style={({ pressed }) => [styles.dialogBtn, styles.cancelBtn, pressed && styles.dialogPressed]}
                 onPress={() => setPendingDelete(false)}
-                accessibilityRole="button"
-                accessibilityLabel="Cancel"
+                role="button"
+                aria-label="Cancel"
               >
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </Pressable>
               <Pressable
                 style={({ pressed }) => [styles.dialogBtn, styles.deleteBtn, pressed && styles.dialogPressed]}
                 onPress={confirmDelete}
-                accessibilityRole="button"
-                accessibilityLabel={`Delete ${appt.title}`}
+                role="button"
+                aria-label={`Delete ${appt.title}`}
               >
                 <Text style={styles.deleteBtnText}>Delete</Text>
               </Pressable>

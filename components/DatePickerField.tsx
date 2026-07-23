@@ -70,8 +70,8 @@ export function DatePickerField({ label, value, onChange, placeholder = 'Select 
       <Pressable
         style={({ pressed }) => [styles.field, value ? styles.fieldFilled : null, pressed && styles.pressed]}
         onPress={openPicker}
-        accessibilityRole="button"
-        accessibilityLabel={`${label ? `${label}: ` : ''}${value || placeholder}`}
+        role="button"
+        aria-label={`${label ? `${label}: ` : ''}${value || placeholder}`}
       >
         <Text style={[styles.valueText, !value && styles.placeholderText]}>{value || placeholder}</Text>
         <Text style={styles.icon}>📅</Text>
@@ -84,8 +84,8 @@ export function DatePickerField({ label, value, onChange, placeholder = 'Select 
               <Pressable
                 style={({ pressed }) => [styles.navBtn, pressed && styles.pressed]}
                 onPress={() => changeMonth(-1)}
-                accessibilityRole="button"
-                accessibilityLabel="Previous month"
+                role="button"
+                aria-label="Previous month"
               >
                 <Text style={styles.navBtnText}>‹</Text>
               </Pressable>
@@ -95,8 +95,8 @@ export function DatePickerField({ label, value, onChange, placeholder = 'Select 
               <Pressable
                 style={({ pressed }) => [styles.navBtn, pressed && styles.pressed]}
                 onPress={() => changeMonth(1)}
-                accessibilityRole="button"
-                accessibilityLabel="Next month"
+                role="button"
+                aria-label="Next month"
               >
                 <Text style={styles.navBtnText}>›</Text>
               </Pressable>
@@ -121,9 +121,10 @@ export function DatePickerField({ label, value, onChange, placeholder = 'Select 
                     <Pressable
                       key={di}
                       disabled={disabled}
-                      accessibilityRole="button"
-                      accessibilityLabel={formatDate(day)}
-                      accessibilityState={{ selected: !!selected, disabled }}
+                      role="button"
+                      aria-label={formatDate(day)}
+                      aria-selected={!!selected}
+                      aria-disabled={disabled}
                       style={({ pressed }) => [
                         styles.dayCell,
                         styles.dayCellPressable,

@@ -18,8 +18,8 @@ export default function NotificationsScreen() {
         <Pressable
           style={({ pressed }) => [styles.closeBtn, pressed && styles.pressed]}
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
-          accessibilityRole="button"
-          accessibilityLabel="Close notifications"
+          role="button"
+          aria-label="Close notifications"
           hitSlop={8}
         >
           <Text style={styles.closeBtnText}>✕</Text>

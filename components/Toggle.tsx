@@ -5,11 +5,11 @@ import { colors } from '../theme/colors';
 export function Toggle({
   on,
   onToggle,
-  accessibilityLabel,
+  'aria-label': ariaLabel,
 }: {
   on: boolean;
   onToggle?: () => void;
-  accessibilityLabel?: string;
+  'aria-label'?: string;
 }) {
   const anim = useRef(new Animated.Value(on ? 1 : 0)).current;
 
@@ -32,9 +32,9 @@ export function Toggle({
     <Pressable
       onPress={onToggle}
       hitSlop={8}
-      accessibilityRole="switch"
-      accessibilityLabel={accessibilityLabel}
-      accessibilityState={{ checked: on }}
+      role="switch"
+      aria-label={ariaLabel}
+      aria-checked={on}
     >
       <Animated.View
         style={{

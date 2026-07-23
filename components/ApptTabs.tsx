@@ -22,9 +22,9 @@ export function ApptTabs({ value, onChange }: { value: ApptFilter; onChange: (v:
           <Pressable
             key={t.key}
             onPress={() => onChange(t.key)}
-            accessibilityRole="tab"
-            accessibilityLabel={`${t.label} appointments`}
-            accessibilityState={{ selected }}
+            role="tab"
+            aria-label={`${t.label} appointments`}
+            aria-selected={selected}
             style={({ pressed }) => [
               styles.tab,
               {

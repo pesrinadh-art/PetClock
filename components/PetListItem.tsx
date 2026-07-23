@@ -24,8 +24,8 @@ export function PetListItem({
       <Pressable
         style={({ pressed }) => [styles.iconBtn, styles.editBtn, pressed && styles.iconBtnPressed]}
         onPress={onEdit}
-        accessibilityRole="button"
-        accessibilityLabel={`Edit ${pet.name}`}
+        role="button"
+        aria-label={`Edit ${pet.name}`}
         hitSlop={8}
       >
         <Text style={styles.iconBtnText}>✏️</Text>
@@ -33,8 +33,8 @@ export function PetListItem({
       <Pressable
         style={({ pressed }) => [styles.iconBtn, styles.deleteBtn, pressed && styles.iconBtnPressed]}
         onPress={onDelete}
-        accessibilityRole="button"
-        accessibilityLabel={`Delete ${pet.name}`}
+        role="button"
+        aria-label={`Delete ${pet.name}`}
         hitSlop={8}
       >
         <Text style={styles.iconBtnText}>🗑️</Text>
