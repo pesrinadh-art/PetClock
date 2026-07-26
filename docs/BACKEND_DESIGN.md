@@ -128,6 +128,60 @@ returning false, and embeds a volatile function in a CHECK. Same guarantee, clea
 `birthdate: null` until the FE ships its birthdate picker; `age`/`meta` render client-side
 from whatever exists. Nothing blocks on the picker.
 
+### Δ7 — Predictions do NOT roll forward *(found during implementation)*
+`BACKEND_PLAN.md:374` rolls the prediction forward in a loop until it lands in the future:
+
+```sql
+while v_predicted <= now() loop
+  v_predicted := v_predicted + make_interval(hours => v_hold::float);
+end loop;
+```
+
+That is the **pre-D7 client behaviour**, which the FE deliberately abandoned.
+`lib/petSchedule.ts:112` now steps *at most one interval* and reports `overdueBy`,
+explicitly so a missed break surfaces as overdue instead of silently sliding to the next
+cycle and masking the miss. Keeping the plan's loop would put the server a whole cycle
+ahead of the app's own UI — the app would say "overdue 2h" while the server had moved on.
+
+Since the plan's own stated invariant is *"the client function and the SQL function
+implement the identical algorithm, so optimistic UI and server pushes agree"*, the loop
+goes. Re-fire suppression is handled where it belongs: the dispatcher rolls `notify_at`
+forward one cycle **after sending**, which never touches `predicted_at`.
+
+Two further defects in the same function, fixed in passing:
+- `make_interval(hours => …)` takes an **int**, so a 4.5 h hold silently truncated to 4 h.
+  Multiplying an interval by a float is exact.
+- The plan had **no trigger on `feed_times`**, so a pet's first feed time would never start
+  predictions until an unrelated edit happened to fire a different trigger.
+
+Verified by `003_prediction_math.sql` (18 assertions, incl. every buffer clamp boundary).
+
+### Δ8 — `infer_schedule` bucketing and window
+Two deliberate divergences from `inferScheduleFromLogs()`:
+1. Feed-time bucketing is **gap-based** (new bucket when the time-of-day gap to the previous
+   log exceeds 60 min) rather than the client's running-average comparison, which is
+   order-dependent and not expressible as a window function. Results agree on every
+   realistic feeding pattern, and this only ever produces a *suggestion*.
+2. Hold gaps use a **14-day window**; the client uses all history. Bounded work per call,
+   and months-old intervals should not anchor a "current" schedule.
+
+Exact parity is impossible in principle anyway: the server infers from *all* caregivers'
+logs — the whole reason inference moved server-side — and no single client sees that set.
+What is tested is the confidence gate and the arithmetic (`005_infer_schedule.sql`).
+
+### Δ9 — Explicit revokes on read-only tables *(found by test 22)*
+Supabase's default privileges grant `ALL` on new `public` tables to `anon` and
+`authenticated`. RLS still blocks writes to `notifications` / `prediction_state` — neither
+has an INSERT/UPDATE/DELETE policy, so no row qualifies — but that protection is *implicit*
+and would evaporate the moment someone added a permissive policy. `0010` revokes the grants
+outright, turning a silent zero-row UPDATE into a loud `42501`.
+
+This matters most for `notifications`: it is the idempotency spine, and a client able to
+update it could reset a row's status to `'sent'`, re-claim an already-actioned notification,
+and defeat gate 1.
+
+---
+
 Everything else in BACKEND_PLAN §2–§7 is adopted as written: 14 tables + `app` schema,
 `recompute_prediction` PL/pgSQL port, dual idempotency gates in `log-action`,
 `dedupe_key` unique constraint, quiet hours, HS256 action tokens (3 h, single-use via
