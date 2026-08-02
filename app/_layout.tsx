@@ -12,6 +12,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Platform, View } from 'react-native';
 import { colors } from '../theme/colors';
+import { SessionProvider } from '../context/SessionContext';
 import { PetsProvider } from '../context/PetsContext';
 import { LogsProvider } from '../context/LogsContext';
 import { AppointmentsProvider } from '../context/AppointmentsContext';
@@ -64,6 +65,10 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
+      {/* Session/household bootstrap sits ABOVE the data providers: in synced mode it
+          resolves auth + household and hot-swaps `repos` before (or shortly after) the
+          contexts hydrate; in local mode it is inert. */}
+      <SessionProvider>
       <PetsProvider>
         <LogsProvider>
           <AppointmentsProvider>
@@ -87,6 +92,7 @@ export default function RootLayout() {
           </AppointmentsProvider>
         </LogsProvider>
       </PetsProvider>
+      </SessionProvider>
     </SafeAreaProvider>
   );
 }
