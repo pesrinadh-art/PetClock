@@ -15,11 +15,12 @@ export function PetListItem({
   return (
     <View style={styles.row}>
       <View style={styles.avatar}>
-        <Text style={{ fontSize: 24 }}>{pet.avatar}</Text>
+        <Text style={{ fontSize: 24 }}>{pet.avatarEmoji}</Text>
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.name}>{pet.name}</Text>
-        <Text style={styles.sub}>{[pet.breed, pet.age].filter(Boolean).join(' · ') || 'No details yet'}</Text>
+        {/* birthdate/age picker is post-SYNC-1; show breed only for now. */}
+        <Text style={styles.sub}>{pet.breed || 'No details yet'}</Text>
       </View>
       <Pressable
         style={({ pressed }) => [styles.iconBtn, styles.editBtn, pressed && styles.iconBtnPressed]}

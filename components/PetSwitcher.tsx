@@ -29,7 +29,7 @@ export function PetSwitcher({ pets, activeId, onSelect }: Props) {
             aria-selected={active}
             style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && styles.pressed]}
           >
-            <Text style={styles.avatar}>{pet.avatar}</Text>
+            <Text style={styles.avatar}>{pet.avatarEmoji}</Text>
             <Text style={styles.name}>{pet.name}</Text>
           </Pressable>
         );

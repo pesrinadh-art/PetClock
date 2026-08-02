@@ -9,6 +9,7 @@ import { computeCountdown, formatApptDate, formatApptTime } from '../lib/appoint
 import { useAppointments } from '../context/AppointmentsContext';
 import { usePets } from '../context/PetsContext';
 import type { Appointment, ApptType } from '../data/mockData';
+import { allDayToHasTime } from '../lib/db/models';
 
 const TYPE_META: Record<ApptType, { label: string; icon: string; accent: string; badgeBg: string }> = {
   vet: { label: 'Vet Visit', icon: '🏥', accent: colors.apptVet, badgeBg: colors.apptVetLight },
@@ -31,10 +32,11 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
   const [pendingDelete, setPendingDelete] = useState(false);
   const meta = TYPE_META[appt.type];
   // Computed at render so the badge stays live; integrates with a useNow tick at merge.
-  const cd = computeCountdown(appt.dateTime);
+  const cd = computeCountdown(appt.startsAt);
   const countdown = COUNTDOWN_STYLE[cd.kind];
   const overdue = cd.kind === 'overdue';
-  const reminderOn = appt.reminderOffsets.length > 0;
+  const reminderOn = appt.reminderOffsetsMinutes.length > 0;
+  const hasTime = allDayToHasTime(appt.allDay);
 
   const apptPets = appt.petIds
     .map((id) => pets.find((p) => p.id === id))
@@ -50,7 +52,7 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
   };
 
   const toggleReminder = () => {
-    updateAppointment(appt.id, { reminderOffsets: reminderOn ? [] : [MINUTES_PER_DAY] });
+    updateAppointment(appt.id, { reminderOffsetsMinutes: reminderOn ? [] : [MINUTES_PER_DAY] });
   };
 
   return (
@@ -79,14 +81,14 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
         <View style={styles.petRow}>
           {apptPets.map((p) => (
             <View key={p.id} style={styles.petChip}>
-              <Text style={styles.petChipText}>{p.avatar} {p.name}</Text>
+              <Text style={styles.petChipText}>{p.avatarEmoji} {p.name}</Text>
             </View>
           ))}
         </View>
 
         <View style={styles.detailsRow}>
-          <Text style={styles.detail}>📅 {formatApptDate(appt.dateTime)}</Text>
-          {appt.hasTime && <Text style={styles.detail}>🕐 {formatApptTime(appt.dateTime)}</Text>}
+          <Text style={styles.detail}>📅 {formatApptDate(appt.startsAt)}</Text>
+          {hasTime && <Text style={styles.detail}>🕐 {formatApptTime(appt.startsAt)}</Text>}
           {appt.location && <Text style={styles.detail}>📍 {appt.location}</Text>}
         </View>
 

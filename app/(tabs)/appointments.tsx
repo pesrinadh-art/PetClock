@@ -29,13 +29,13 @@ export default function AppointmentsScreen() {
     let thisWeek = 0;
     let overdue = 0;
     for (const a of appointments) {
-      if (computeCountdown(a.dateTime, now.getTime()).kind === 'overdue') {
+      if (computeCountdown(a.startsAt, now.getTime()).kind === 'overdue') {
         overdue += 1;
         continue;
       }
-      const d = new Date(a.dateTime);
+      const d = new Date(a.startsAt);
       if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) thisMonth += 1;
-      const diffDays = Math.floor((a.dateTime - now.getTime()) / DAY_MS);
+      const diffDays = Math.floor((d.getTime() - now.getTime()) / DAY_MS);
       if (diffDays >= 0 && diffDays <= 7) thisWeek += 1;
     }
     return { thisMonth, thisWeek, overdue };

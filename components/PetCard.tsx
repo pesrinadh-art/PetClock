@@ -4,13 +4,18 @@ import { fonts } from '../theme/fonts';
 import type { Pet } from '../data/mockData';
 import { countLogsToday, formatTimeUntilCompact, getPetStatus, getUpcomingForPet } from '../lib/petSchedule';
 import { useLogs } from '../context/LogsContext';
+import { usePets } from '../context/PetsContext';
 
 export function PetCard({ pet }: { pet: Pet }) {
   const { getLogsForPet } = useLogs();
+  const { getFeedTimesForPet } = usePets();
   const petLogs = getLogsForPet(pet.id);
-  const status = getPetStatus(pet);
+  const feedTimes = getFeedTimesForPet(pet.id);
+  const status = getPetStatus(pet, feedTimes);
   const now = new Date();
 
+  // birthdate/age is a post-SYNC-1 picker; show breed only (or "—") where meta was.
+  const meta = pet.breed || '—';
   let metaSuffix = '';
   let holdTimeDisplay = '—';
   let nextBreakDisplay = '—';
@@ -22,7 +27,7 @@ export function PetCard({ pet }: { pet: Pet }) {
   } else {
     const tightestHold = Math.min(pet.peeHoldHours ?? Infinity, pet.poopHoldHours ?? Infinity);
     holdTimeDisplay = `${tightestHold}h`;
-    const nextPottyBreak = getUpcomingForPet(pet, petLogs, now).find((u) => u.type !== 'food');
+    const nextPottyBreak = getUpcomingForPet(pet, feedTimes, petLogs, now).find((u) => u.type !== 'food');
     if (nextPottyBreak) nextBreakDisplay = formatTimeUntilCompact(nextPottyBreak.timeStart, now);
   }
 
@@ -31,11 +36,11 @@ export function PetCard({ pet }: { pet: Pet }) {
       <Text style={styles.pawWatermark}>🐾</Text>
       <View style={styles.top}>
         <View style={styles.avatar}>
-          <Text style={{ fontSize: 26 }}>{pet.avatar}</Text>
+          <Text style={{ fontSize: 26 }}>{pet.avatarEmoji}</Text>
         </View>
         <View>
           <Text style={styles.name}>{pet.name}</Text>
-          <Text style={styles.meta}>{pet.meta}{metaSuffix}</Text>
+          <Text style={styles.meta}>{meta}{metaSuffix}</Text>
         </View>
       </View>
       <View style={styles.stats}>

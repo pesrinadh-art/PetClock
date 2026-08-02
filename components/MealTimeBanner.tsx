@@ -3,6 +3,7 @@ import { colors, radius, shadow } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import type { Pet } from '../data/mockData';
 import { useLogs } from '../context/LogsContext';
+import { usePets } from '../context/PetsContext';
 import { nudgeKey, useNudges } from '../context/NudgesContext';
 import { getTodaysMeals } from '../lib/petSchedule';
 
@@ -16,10 +17,11 @@ const SNOOZE_MS = 30 * 60 * 1000;
  */
 export function MealTimeBanner({ pet }: { pet: Pet }) {
   const { getLogsForPet, addLog } = useLogs();
+  const { getFeedTimesForPet } = usePets();
   const { snooze, isSnoozed } = useNudges();
 
   const now = new Date();
-  const meals = getTodaysMeals(pet, now, getLogsForPet(pet.id));
+  const meals = getTodaysMeals(getFeedTimesForPet(pet.id), now, getLogsForPet(pet.id));
   const dueMeal = meals.find(
     (m) => m.status === 'due' && !isSnoozed(nudgeKey(pet.id, m.id), now)
   );
@@ -27,7 +29,8 @@ export function MealTimeBanner({ pet }: { pet: Pet }) {
   if (!dueMeal) return null;
 
   const handleDoneFeeding = () => {
-    addLog(pet.id, { type: 'food', icon: dueMeal.icon, label: dueMeal.name, sub: 'Logged just now' });
+    // Δ1: reference the slot by feedTimeId so this exact meal row flips to done.
+    addLog(pet.id, { type: 'food', feedTimeId: dueMeal.feedTimeId ?? null });
   };
 
   const handleSnooze = () => {

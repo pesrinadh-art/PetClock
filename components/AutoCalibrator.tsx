@@ -10,29 +10,35 @@ import { getPetStatus, inferScheduleFromLogs } from '../lib/petSchedule';
  * the calibrating message's promise to start predicting once there's enough logged history.
  */
 export function AutoCalibrator() {
-  const { pets, updatePet } = usePets();
+  const { pets, updatePet, getFeedTimesForPet, getMedicationsForPet } = usePets();
   const { getLogsForPet } = useLogs();
 
   useEffect(() => {
     const now = new Date();
     for (const pet of pets) {
-      if (getPetStatus(pet, now).kind !== 'needsInfo') continue;
+      const feedTimes = getFeedTimesForPet(pet.id);
+      if (getPetStatus(pet, feedTimes, now).kind !== 'needsInfo') continue;
 
       const inferred = inferScheduleFromLogs(getLogsForPet(pet.id));
       if (!inferred) continue;
 
+      // Feed times/medications write through their own collections (via updatePet). Meds are
+      // left unchanged — pass the existing rows back as primitive inputs.
       updatePet(pet.id, {
         name: pet.name,
-        avatar: pet.avatar,
-        breed: pet.breed,
-        age: pet.age,
+        avatarEmoji: pet.avatarEmoji,
+        breed: pet.breed ?? '',
         feedTimes: inferred.feedTimes,
         peeHoldHours: inferred.peeHoldHours,
         poopHoldHours: inferred.poopHoldHours,
-        medications: pet.medications,
+        medications: getMedicationsForPet(pet.id).map((m) => ({
+          name: m.name,
+          localTime: m.localTime,
+          dosage: m.dosage,
+        })),
       });
     }
-  }, [pets, getLogsForPet, updatePet]);
+  }, [pets, getLogsForPet, getFeedTimesForPet, getMedicationsForPet, updatePet]);
 
   return null;
 }

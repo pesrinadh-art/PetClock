@@ -2,15 +2,17 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radius, shadow } from '../theme/colors';
 import { fonts } from '../theme/fonts';
-import type { TimelineEntry } from '../data/mockData';
+import type { FeedTime, LogEntry, LogType } from '../data/mockData';
 import { useLogs } from '../context/LogsContext';
-import { formatClock } from '../lib/petSchedule';
+import { describeLog, formatClock } from '../lib/petSchedule';
 
-const DOT_BG: Record<TimelineEntry['type'], string> = {
+const DOT_BG: Record<LogType, string> = {
   pee: '#FFF8DB',
   poo: '#FBF0EA',
   food: colors.foodLight,
+  medication: colors.medicineLight,
   vet: colors.apptVetLight,
+  other: colors.sagePale,
 };
 
 const MINUTE_MS = 60 * 1000;
@@ -28,35 +30,46 @@ function formatRelative(timestamp: number, now: Date): string {
   return `${days} day${days === 1 ? '' : 's'} ago`;
 }
 
-export function Timeline({ entries, now }: { entries: TimelineEntry[]; now: Date }) {
+export function Timeline({
+  entries,
+  feedTimes = [],
+  now,
+}: {
+  entries: LogEntry[];
+  /** The pet's feed times, so food logs resolve to their meal-slot name (Δ3). */
+  feedTimes?: FeedTime[];
+  now: Date;
+}) {
   const { removeLog, updateLog } = useLogs();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const adjustTime = (entry: TimelineEntry, deltaMinutes: number) => {
-    const next = Math.min(entry.timestamp + deltaMinutes * MINUTE_MS, now.getTime());
-    updateLog(entry.id, { timestamp: next });
+  const adjustTime = (entry: LogEntry, deltaMinutes: number) => {
+    const nextMs = Math.min(new Date(entry.occurredAt).getTime() + deltaMinutes * MINUTE_MS, now.getTime());
+    updateLog(entry.id, { occurredAt: new Date(nextMs).toISOString() });
   };
 
   return (
     <View style={styles.list}>
       {entries.map((e) => {
         const expanded = expandedId === e.id;
+        const { icon, label } = describeLog(e, feedTimes, now);
+        const occurredMs = new Date(e.occurredAt).getTime();
         return (
           <View key={e.id} style={styles.card}>
             <Pressable
               role="button"
-              aria-label={`${e.label}, ${formatRelative(e.timestamp, now)}. Tap to edit or delete.`}
+              aria-label={`${label}, ${formatRelative(occurredMs, now)}. Tap to edit or delete.`}
               style={styles.item}
               onPress={() => setExpandedId(expanded ? null : e.id)}
             >
-              <View style={[styles.dot, { backgroundColor: DOT_BG[e.type] }]}>
-                <Text style={{ fontSize: 16 }}>{e.icon}</Text>
+              <View style={[styles.dot, { backgroundColor: DOT_BG[e.type] ?? colors.sagePale }]}>
+                <Text style={{ fontSize: 16 }}>{icon}</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.label}>{e.label}</Text>
-                <Text style={styles.sub}>{formatRelative(e.timestamp, now)}</Text>
+                <Text style={styles.label}>{label}</Text>
+                <Text style={styles.sub}>{formatRelative(occurredMs, now)}</Text>
               </View>
-              <Text style={styles.time}>{formatClock(new Date(e.timestamp))}</Text>
+              <Text style={styles.time}>{formatClock(new Date(occurredMs))}</Text>
             </Pressable>
             {expanded && (
               <View style={styles.actions}>
@@ -78,7 +91,7 @@ export function Timeline({ entries, now }: { entries: TimelineEntry[]; now: Date
                 </Pressable>
                 <Pressable
                   role="button"
-                  aria-label={`Delete ${e.label} log`}
+                  aria-label={`Delete ${label} log`}
                   style={[styles.actionBtn, styles.deleteBtn]}
                   onPress={() => {
                     setExpandedId(null);

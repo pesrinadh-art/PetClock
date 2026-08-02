@@ -18,7 +18,7 @@ import { getTodaysMeals, getTodaysMedications, type ScheduleRowItem } from '../.
 const HOUR_MS = 60 * 60 * 1000;
 
 export default function FoodScreen() {
-  const { pets, activePet, activePetId, setActivePetId } = usePets();
+  const { pets, activePet, activePetId, setActivePetId, getFeedTimesForPet, getMedicationsForPet } = usePets();
   const { getLogsForPet, addLog } = useLogs();
   // A meal tapped well before its scheduled time waits here for confirmation before logging.
   const [pendingMeal, setPendingMeal] = useState<ScheduleRowItem | null>(null);
@@ -33,16 +33,16 @@ export default function FoodScreen() {
   }
 
   const now = new Date();
-  const meals = getTodaysMeals(activePet, now, getLogsForPet(activePet.id));
-  const medications = getTodaysMedications(activePet, now);
+  const meals = getTodaysMeals(getFeedTimesForPet(activePet.id), now, getLogsForPet(activePet.id));
+  const medications = getTodaysMedications(getMedicationsForPet(activePet.id), now);
   const mealsDone = meals.filter((m) => m.status === 'done').length;
 
   const editPet = () => router.push({ pathname: '/add-pet', params: { petId: activePet.id } });
 
   // Logs a food entry for the meal — mirrors MealTimeBanner's "Done Feeding" call so the row
-  // flips to "✓ Done" (getTodaysMeals matches the log to this slot by name).
+  // flips to "✓ Done" (getTodaysMeals matches the log to this slot by feedTimeId, Δ1).
   const logMeal = (meal: ScheduleRowItem) => {
-    addLog(activePet.id, { type: 'food', icon: meal.icon, label: meal.name, sub: 'Logged just now' });
+    addLog(activePet.id, { type: 'food', feedTimeId: meal.feedTimeId ?? null });
   };
 
   const handleMarkDone = (meal: ScheduleRowItem) => {
