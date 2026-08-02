@@ -18,6 +18,7 @@ import { AppointmentsProvider } from '../context/AppointmentsContext';
 import { NudgesProvider } from '../context/NudgesContext';
 import { AutoCalibrator } from '../components/AutoCalibrator';
 import { AppModalHost } from '../components/AppModal';
+import { HydrationGate } from '../components/HydrationGate';
 
 // On web, a phone-sized frame makes it possible to sanity-check mobile
 // layouts from a normal desktop browser window instead of full-bleed width.
@@ -67,17 +68,21 @@ export default function RootLayout() {
         <LogsProvider>
           <AppointmentsProvider>
             <NudgesProvider>
-              <AutoCalibrator />
-              <PhoneFrame>
-                <AppModalHost>
-                  <Stack screenOptions={{ headerShown: false }}>
-                    <Stack.Screen name="(tabs)" />
-                    <Stack.Screen name="add-appointment" options={{ presentation: 'modal' }} />
-                    <Stack.Screen name="add-pet" options={{ presentation: 'modal' }} />
-                    <Stack.Screen name="notifications" options={{ presentation: 'modal' }} />
-                  </Stack>
-                </AppModalHost>
-              </PhoneFrame>
+              {/* Under all three data providers: gate the reveal on hydration so
+                  the app never flashes empty content before AsyncStorage loads. */}
+              <HydrationGate>
+                <AutoCalibrator />
+                <PhoneFrame>
+                  <AppModalHost>
+                    <Stack screenOptions={{ headerShown: false }}>
+                      <Stack.Screen name="(tabs)" />
+                      <Stack.Screen name="add-appointment" options={{ presentation: 'modal' }} />
+                      <Stack.Screen name="add-pet" options={{ presentation: 'modal' }} />
+                      <Stack.Screen name="notifications" options={{ presentation: 'modal' }} />
+                    </Stack>
+                  </AppModalHost>
+                </PhoneFrame>
+              </HydrationGate>
             </NudgesProvider>
           </AppointmentsProvider>
         </LogsProvider>

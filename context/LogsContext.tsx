@@ -1,5 +1,7 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import { timeline as seedLogs, type TimelineEntry } from '../data/mockData';
+import { createContext, useCallback, useContext, useMemo, type ReactNode } from 'react';
+import { type TimelineEntry } from '../data/mockData';
+import { usePersistedCollection } from '../hooks/usePersistedCollection';
+import { repos } from '../lib/repo/types';
 
 type NewLog = {
   type: TimelineEntry['type'];
@@ -12,6 +14,8 @@ type NewLog = {
 
 type LogsContextValue = {
   logs: TimelineEntry[];
+  /** True once the logs collection has been read from storage (Wave-3 splash gate). */
+  hydrated: boolean;
   addLog: (petId: string, log: NewLog) => void;
   removeLog: (id: string) => void;
   removeLogsForPet: (petId: string) => void;
@@ -24,34 +28,32 @@ const LogsContext = createContext<LogsContextValue | null>(null);
 const EMPTY_LOGS: TimelineEntry[] = [];
 
 export function LogsProvider({ children }: { children: ReactNode }) {
-  const [logs, setLogs] = useState<TimelineEntry[]>(seedLogs);
+  // Persisted, storage-backed state (see usePersistedCollection; Pets is the reference).
+  const { items: logs, hydrated } = usePersistedCollection(repos.logs);
 
+  // Repo mints id/timestamp and inserts newest-first; usePersistedCollection re-pulls state.
   const addLog = useCallback((petId: string, log: NewLog) => {
-    const timestamp = log.timestamp ?? Date.now();
-    const entry: TimelineEntry = {
-      id: `${log.type}-${timestamp}-${Math.random().toString(36).slice(2, 7)}`,
-      petId,
-      type: log.type,
-      icon: log.icon,
-      label: log.label,
-      timestamp,
-    };
-    setLogs((prev) => [entry, ...prev]);
+    void repos.logs.add(petId, log);
   }, []);
 
   const removeLog = useCallback((id: string) => {
-    setLogs((prev) => prev.filter((l) => l.id !== id));
+    void repos.logs.remove(id);
   }, []);
 
-  // Bulk removal for the pet-delete cascade (D10) — one state update instead of
+  // Bulk removal for the pet-delete cascade (D10) — one repo op instead of
   // the UI looping removeLog per entry.
   const removeLogsForPet = useCallback((petId: string) => {
-    setLogs((prev) => prev.filter((l) => l.petId !== petId));
+    void repos.logs.removeForPet(petId);
   }, []);
 
-  const updateLog = useCallback((id: string, patch: Partial<Omit<TimelineEntry, 'id' | 'petId'>>) => {
-    setLogs((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
-  }, []);
+  const updateLog = useCallback(
+    (id: string, patch: Partial<Omit<TimelineEntry, 'id' | 'petId'>>) => {
+      const existing = logs.find((l) => l.id === id);
+      if (!existing) return;
+      void repos.logs.upsert({ ...existing, ...patch });
+    },
+    [logs],
+  );
 
   // Memoized per-pet index so getLogsForPet returns stable arrays between log changes (D28).
   const logsByPet = useMemo(() => {
@@ -71,8 +73,8 @@ export function LogsProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ logs, addLog, removeLog, removeLogsForPet, updateLog, getLogsForPet }),
-    [logs, addLog, removeLog, removeLogsForPet, updateLog, getLogsForPet],
+    () => ({ logs, hydrated, addLog, removeLog, removeLogsForPet, updateLog, getLogsForPet }),
+    [logs, hydrated, addLog, removeLog, removeLogsForPet, updateLog, getLogsForPet],
   );
 
   return <LogsContext.Provider value={value}>{children}</LogsContext.Provider>;

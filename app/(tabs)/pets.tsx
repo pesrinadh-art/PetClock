@@ -10,6 +10,9 @@ import { PetListItem } from '../../components/PetListItem';
 import { AppModal } from '../../components/AppModal';
 import { usePets } from '../../context/PetsContext';
 import { useDeletePetCascade } from '../../hooks/useDeletePetCascade';
+// TODO(FE-5): move to Settings — the demo-data / reset escape hatch lives here
+// temporarily on the empty Pets tab until the Settings screen (FE-5) exists.
+import { loadDemoData, resetAll } from '../../lib/repo/types';
 import type { Pet } from '../../data/mockData';
 
 export default function PetsScreen() {
@@ -17,6 +20,8 @@ export default function PetsScreen() {
   const deletePetCascade = useDeletePetCascade();
   const [pendingDelete, setPendingDelete] = useState<Pet | null>(null);
   const [blockedMessage, setBlockedMessage] = useState(false);
+  // TODO(FE-5): move to Settings.
+  const [confirmReset, setConfirmReset] = useState(false);
 
   const confirmDelete = () => {
     if (!pendingDelete) return;
@@ -48,6 +53,32 @@ export default function PetsScreen() {
         >
           <Text style={styles.addBtnText}>➕ Add Pet</Text>
         </Pressable>
+
+        {/* TODO(FE-5): move to Settings — temporary demo-data escape hatch shown
+            only when there are no pets (a fresh install starts empty). */}
+        {pets.length === 0 && (
+          <View style={styles.demoBox}>
+            <Text style={styles.demoText}>
+              Just exploring? Load sample pets, logs and appointments to try PawClock out.
+            </Text>
+            <Pressable
+              style={({ pressed }) => [styles.demoBtn, pressed && styles.pressed]}
+              onPress={() => void loadDemoData()}
+              role="button"
+              aria-label="Load demo data"
+            >
+              <Text style={styles.demoBtnText}>Load demo data</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.resetLink, pressed && styles.pressed]}
+              onPress={() => setConfirmReset(true)}
+              role="button"
+              aria-label="Reset all data"
+            >
+              <Text style={styles.resetLinkText}>Reset all data</Text>
+            </Pressable>
+          </View>
+        )}
       </ScrollView>
 
       <AppModal visible={!!pendingDelete} transparent animationType="fade" onRequestClose={() => setPendingDelete(null)}>
@@ -73,6 +104,39 @@ export default function PetsScreen() {
                 aria-label={`Remove ${pendingDelete?.name}`}
               >
                 <Text style={styles.deleteBtnText}>Remove</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </AppModal>
+
+      {/* TODO(FE-5): move to Settings — destructive reset confirm (reuses AppModal). */}
+      <AppModal visible={confirmReset} transparent animationType="fade" onRequestClose={() => setConfirmReset(false)}>
+        <Pressable style={styles.overlay} onPress={() => setConfirmReset(false)}>
+          <Pressable style={styles.dialog} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.dialogTitle}>Reset all data?</Text>
+            <Text style={styles.dialogBody}>
+              This clears every pet, log and appointment on this device. This can't be undone.
+            </Text>
+            <View style={styles.dialogActions}>
+              <Pressable
+                style={({ pressed }) => [styles.dialogBtn, styles.cancelBtn, pressed && styles.pressed]}
+                onPress={() => setConfirmReset(false)}
+                role="button"
+                aria-label="Cancel"
+              >
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.dialogBtn, styles.deleteBtn, pressed && styles.pressed]}
+                onPress={() => {
+                  setConfirmReset(false);
+                  void resetAll();
+                }}
+                role="button"
+                aria-label="Reset all data"
+              >
+                <Text style={styles.deleteBtnText}>Reset</Text>
               </Pressable>
             </View>
           </Pressable>
@@ -114,6 +178,18 @@ const styles = StyleSheet.create({
   },
   addBtnPressed: { backgroundColor: colors.sagePale, borderColor: colors.sage },
   addBtnText: { fontSize: 14, fontFamily: fonts.bold, color: colors.stoneMid },
+  // TODO(FE-5): move to Settings — styling for the temporary demo/reset affordance.
+  demoBox: { marginTop: 24, alignItems: 'center', gap: 12, paddingHorizontal: 8 },
+  demoText: { fontSize: 13, color: colors.stoneMid, textAlign: 'center', lineHeight: 19 },
+  demoBtn: {
+    backgroundColor: colors.sage,
+    borderRadius: radius.lg,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  demoBtnText: { color: colors.white, fontSize: 14, fontFamily: fonts.extraBold },
+  resetLink: { paddingVertical: 6, paddingHorizontal: 8 },
+  resetLinkText: { fontSize: 12, fontFamily: fonts.bold, color: colors.stoneLight },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',

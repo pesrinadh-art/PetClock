@@ -1,5 +1,8 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import { pets as seedPets, type Medication, type Pet } from '../data/mockData';
+import { type Medication, type Pet } from '../data/mockData';
+import { usePersistedCollection } from '../hooks/usePersistedCollection';
+import { newId } from '../lib/id';
+import { repos } from '../lib/repo/types';
 
 type ScheduleFields = {
   feedTimes: string[];
@@ -26,6 +29,8 @@ type PetEdits = {
 
 type PetsContextValue = {
   pets: Pet[];
+  /** True once the pets collection has been read from storage (Wave-3 splash gate). */
+  hydrated: boolean;
   activePet: Pet | null;
   activePetId: string;
   setActivePetId: (id: string) => void;
@@ -37,10 +42,11 @@ type PetsContextValue = {
 const PetsContext = createContext<PetsContextValue | null>(null);
 
 export function PetsProvider({ children }: { children: ReactNode }) {
-  const [pets, setPets] = useState<Pet[]>(seedPets);
-  // Shared across every screen with a pet switcher, so picking Luna on Home keeps her
-  // selected when you jump to Food instead of each screen tracking its own local pet.
-  const [selectedPetId, setSelectedPetId] = useState(seedPets[0]?.id ?? '');
+  // Persisted, storage-backed state (reference integration — see usePersistedCollection).
+  const { items: pets, hydrated } = usePersistedCollection(repos.pets);
+  // Selection is in-memory only, never persisted: it's shared across every screen with a
+  // pet switcher, so picking Luna on Home keeps her selected when you jump to Food.
+  const [selectedPetId, setSelectedPetId] = useState('');
   // Derived, never repointed imperatively: if the selected pet was just deleted we fall
   // back to the first pet, and with no pets at all it's null so screens can render an
   // empty state instead of crashing (D27).
@@ -48,54 +54,55 @@ export function PetsProvider({ children }: { children: ReactNode }) {
   const activePetId = activePet?.id ?? '';
 
   const addPet = useCallback((pet: NewPet) => {
-    const id = `${pet.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`;
+    // Client-generated uuid v4 (frozen contract) — the entity's stable id.
+    const id = newId();
     const meta = pet.meta ?? [pet.breed, pet.age].filter(Boolean).join(' · ');
-    setPets((prev) => [
-      ...prev,
-      {
-        id,
-        name: pet.name,
-        avatar: pet.avatar,
-        breed: pet.breed,
-        age: pet.age,
-        meta,
-        feedTimes: pet.feedTimes ?? [],
-        peeHoldHours: pet.peeHoldHours ?? null,
-        poopHoldHours: pet.poopHoldHours ?? null,
-        medications: pet.medications ?? [],
-        createdAt: Date.now(),
-      },
-    ]);
-  }, []);
-
-  const removePet = useCallback((id: string) => {
-    let removed = false;
-    setPets((prev) => {
-      // Check against prev, not the render-scoped pets array — two rapid deletes would
-      // otherwise both see the same stale list and race past the last-pet guard (D12).
-      if (prev.length <= 1) return prev;
-      const next = prev.filter((p) => p.id !== id);
-      if (next.length === prev.length) return prev;
-      removed = true;
-      return next;
+    // Repo persists + notifies; usePersistedCollection re-pulls and updates state.
+    void repos.pets.upsert({
+      id,
+      name: pet.name,
+      avatar: pet.avatar,
+      breed: pet.breed,
+      age: pet.age,
+      meta,
+      feedTimes: pet.feedTimes ?? [],
+      peeHoldHours: pet.peeHoldHours ?? null,
+      poopHoldHours: pet.poopHoldHours ?? null,
+      medications: pet.medications ?? [],
+      createdAt: Date.now(),
     });
-    // No active-pet repointing needed: activePet is derived with a first-pet fallback.
-    return removed;
   }, []);
 
-  const updatePet = useCallback((id: string, edits: PetEdits) => {
-    setPets((prev) =>
-      prev.map((p) =>
-        p.id === id
-          ? { ...p, ...edits, meta: [edits.breed, edits.age].filter(Boolean).join(' · ') }
-          : p
-      )
-    );
-  }, []);
+  const removePet = useCallback(
+    (id: string): boolean => {
+      // Last-pet guard + existence check for the boolean the caller acts on. The
+      // authoritative, race-safe guard for the cascade path lives in the repo
+      // (deleteCascade) so two rapid deletes can never drop the final pet (D12).
+      if (pets.length <= 1 || !pets.some((p) => p.id === id)) return false;
+      void repos.pets.remove(id);
+      // No active-pet repointing needed: activePet is derived with a first-pet fallback.
+      return true;
+    },
+    [pets],
+  );
+
+  const updatePet = useCallback(
+    (id: string, edits: PetEdits) => {
+      const existing = pets.find((p) => p.id === id);
+      if (!existing) return;
+      void repos.pets.upsert({
+        ...existing,
+        ...edits,
+        meta: [edits.breed, edits.age].filter(Boolean).join(' · '),
+      });
+    },
+    [pets],
+  );
 
   const value = useMemo(
     () => ({
       pets,
+      hydrated,
       activePet,
       activePetId,
       setActivePetId: setSelectedPetId,
@@ -103,7 +110,7 @@ export function PetsProvider({ children }: { children: ReactNode }) {
       removePet,
       updatePet,
     }),
-    [pets, activePet, activePetId, addPet, removePet, updatePet]
+    [pets, hydrated, activePet, activePetId, addPet, removePet, updatePet]
   );
 
   return <PetsContext.Provider value={value}>{children}</PetsContext.Provider>;
