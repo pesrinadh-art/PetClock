@@ -2,17 +2,20 @@ import { createContext, useCallback, useContext, useMemo, type ReactNode } from 
 import { type Appointment, type ApptType } from '../data/mockData';
 import { usePersistedCollection } from '../hooks/usePersistedCollection';
 import { newId } from '../lib/id';
+import { LOCAL_HOUSEHOLD_ID } from '../lib/localHousehold';
 import { repos } from '../lib/repo/types';
 
 type NewAppointment = {
   type: ApptType;
   title: string;
   petIds: string[];
-  dateTime: number;
-  hasTime: boolean;
-  location?: string;
-  notes?: string;
-  reminderOffsets?: number[];
+  /** ISO. Replaces the old epoch `dateTime`. */
+  startsAt: string;
+  /** Δ2: inverse of the old `hasTime`. */
+  allDay: boolean;
+  location?: string | null;
+  notes?: string | null;
+  reminderOffsetsMinutes?: number[];
 };
 
 type AppointmentPatch = Partial<Omit<Appointment, 'id'>>;
@@ -31,23 +34,26 @@ const AppointmentsContext = createContext<AppointmentsContextValue | null>(null)
 
 export function AppointmentsProvider({ children }: { children: ReactNode }) {
   // Persisted, storage-backed state (see usePersistedCollection; Pets is the reference).
-  // The repo keeps the collection sorted by dateTime on upsert, so no local sort is needed.
+  // The repo keeps the collection sorted by startsAt on upsert, so no local sort is needed.
   const { items: appointments, hydrated } = usePersistedCollection(repos.appointments);
 
   const addAppointment = useCallback((input: NewAppointment) => {
     const appointment: Appointment = {
       // Client-generated uuid v4 (frozen contract) — the entity's stable id.
       id: newId(),
+      householdId: LOCAL_HOUSEHOLD_ID,
       type: input.type,
       title: input.title,
       petIds: input.petIds,
-      dateTime: input.dateTime,
-      hasTime: input.hasTime,
-      location: input.location,
-      notes: input.notes,
-      reminderOffsets: input.reminderOffsets ?? [],
+      startsAt: input.startsAt,
+      allDay: input.allDay,
+      location: input.location ?? null,
+      notes: input.notes ?? null,
+      completedAt: null,
+      reminderOffsetsMinutes: input.reminderOffsetsMinutes ?? [],
+      deletedAt: null,
     };
-    // Repo persists (sorted by dateTime) + notifies; usePersistedCollection re-pulls.
+    // Repo persists (sorted by startsAt) + notifies; usePersistedCollection re-pulls.
     void repos.appointments.upsert(appointment);
   }, []);
 
