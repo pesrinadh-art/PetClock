@@ -3,7 +3,56 @@
 Living record of the BE track. Companion to `docs/BACKEND_DESIGN.md` (the design) and
 `docs/BACKEND_PLAN.md` (the original plan, now partly superseded).
 
-**Last updated:** 2026-08-02 · **Branch:** `BE-foundations` · **PR:** [#5](https://github.com/pesrinadh-art/PetClock/pull/5)
+**Last updated:** 2026-08-02 · **Branch:** `BE-3-push-loop` · **BE-1 PR:** [#5](https://github.com/pesrinadh-art/PetClock/pull/5) (merged)
+
+---
+
+## Status: BE-1 and BE-3 complete and verified
+
+**100 pgTAP assertions across 6 suites, all green.** The full push pipeline is live on
+staging: `pg_cron` → `pg_net` → Vault → Edge Function → Postgres, verified by an actual
+round trip returning `200 {"due":0,...}`.
+
+### BE-3 — flagship push loop
+
+| Deliverable | State |
+|---|---|
+| `dispatch-notifications` | deployed; four due-queries, dedupe-key gate, quiet hours |
+| `log-action` | deployed; both idempotency gates |
+| `check-receipts` | deployed; `DeviceNotRegistered` → token revoked |
+| `_shared/` helpers | env, admin client, action tokens, Expo push |
+| Migrations `0011`–`0014` | due-queries, claim gate, retention, reconciliation |
+| `ACTION_TOKEN_SECRET` | generated and set |
+| Vault secrets | set — **cron is no longer inert** |
+| Retention | `prune_notifications`, 90 days, nightly |
+| Reconciliation | `reconcile_predictions`, nightly safety net |
+
+### End-to-end verification against staging
+
+| Scenario | Result |
+|---|---|
+| Dispatcher first run | 4 due, 4 notification rows written |
+| Dispatcher replayed twice | `skipped: 2`, **nothing re-sent** |
+| Alice taps Yes | 1 log written |
+| Alice's phone retries same tap | `replayed`, no duplicate |
+| **Bob taps Yes seconds later** | `replayed`, **still exactly 1 log** |
+| Manual in-app log, then stale tap | notification `superseded`, **0 logs from the tap** |
+| Forged action token | `401 INVALID_TOKEN` |
+
+### Two live bugs found and fixed during BE-3
+
+Both were invisible in normal operation. Both now have permanent regression guards in
+`006_dispatch.sql`.
+
+1. **Gate 1 was silently disabled** (`0014`). `claim_notification` returned a composite
+   type, and PostgREST serializes a NULL composite as `{"id": null, ...}` — a *truthy*
+   object. So `if (!claimed)` never fired, every caller "won" the claim, and two caregivers
+   tapping Yes wrote **two logs for one pee**. Observed on staging. Fixed by returning a
+   scalar uuid, which serializes as JSON `null`.
+2. **Permanently-due predictions** (`0013`). `notify_at` advanced by one hold from
+   `predicted_at`; for a stale prediction that still landed in the past, so the row never
+   left the due window and the dispatcher retried a doomed INSERT **every minute forever**.
+   Fixed with `greatest(next cycle, now + hold)`.
 
 ---
 
