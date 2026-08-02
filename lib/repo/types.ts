@@ -1,4 +1,5 @@
 import type { Appointment, FeedTime, LogEntry, LogType, Medication, Pet } from '../db/models';
+import { ReposFacade } from './facade';
 import { createLocalRepos } from './local';
 // Side-effect import: runs SplashScreen.preventAutoHideAsync() at boot (see lib/splash.ts).
 // Placed here because every context imports `repos` from this module during app start-up.
@@ -70,8 +71,25 @@ export interface PawclockRepos {
   resetAll(): Promise<void>;
 }
 
-/** The one-line swap point: replace `createLocalRepos()` with the synced repo at SYNC 1. */
-export const repos: PawclockRepos = createLocalRepos();
+/**
+ * The single stable repo surface every context imports. It is backed by the LOCAL repo by
+ * default, so with `EXPO_PUBLIC_USE_SUPABASE` off (or a failed session) behaviour is
+ * identical to today — offline, on-device. In synced mode `SessionContext` calls
+ * {@link activateSyncedRepos} once a session + household id exist; the facade hot-swaps the
+ * backing impl and re-hydrates every mounted collection. Default and fallback are always
+ * the working local repo, so the app is never broken by the flag or a session failure.
+ */
+const facade = new ReposFacade(createLocalRepos());
+
+export const repos: PawclockRepos = facade.repos;
+
+/**
+ * Swap `repos` to a Supabase-backed implementation and re-pull every mounted collection.
+ * Idempotent per session — `SessionContext` gates it on `ready` and guards double-calls.
+ */
+export function activateSyncedRepos(impl: PawclockRepos): void {
+  facade.swap(impl);
+}
 
 // Convenience named re-exports for the Wave-3 Settings affordances.
 export const loadDemoData = (): Promise<void> => repos.loadDemoData();
