@@ -2,5 +2,13 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true
-  }
+  },
+  "exclude": [
+    "node_modules",
+    // Deno, not React Native. These use Deno globals and npm: / .ts import specifiers
+    // that the app's TypeScript config cannot resolve, so including them makes
+    // `npx tsc --noEmit` fail for everyone. They are typechecked by `deno check`
+    // instead — see supabase/functions/deno.json.
+    "supabase/functions"
+  ]
 }
