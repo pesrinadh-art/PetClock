@@ -1,18 +1,21 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   appointments as demoAppointments,
+  feedTimes as demoFeedTimes,
+  medications as demoMedications,
   pets as demoPets,
   timeline as demoTimeline,
-  type Appointment,
-  type Pet,
-  type TimelineEntry,
 } from '../../data/mockData';
+import type { Appointment, FeedTime, LogEntry, Medication, Pet } from '../db/models';
 import { newId } from '../id';
+import { LOCAL_HOUSEHOLD_ID } from '../localHousehold';
 import type { EntityRepo, NewLogInput, PawclockRepos } from './types';
 
 // Each collection lives under its own key so a mutation to one never rewrites the
 // others; `seeded` is the first-run flag that keeps a fresh install EMPTY.
 const KEY_PETS = 'pawclock:pets';
+const KEY_FEED_TIMES = 'pawclock:feedTimes';
+const KEY_MEDICATIONS = 'pawclock:medications';
 const KEY_LOGS = 'pawclock:logs';
 const KEY_APPOINTMENTS = 'pawclock:appointments';
 const KEY_SEEDED = 'pawclock:seeded';
@@ -135,6 +138,8 @@ export function createLocalRepos(): PawclockRepos {
         if (!flag) {
           await AsyncStorage.multiSet([
             [KEY_PETS, '[]'],
+            [KEY_FEED_TIMES, '[]'],
+            [KEY_MEDICATIONS, '[]'],
             [KEY_LOGS, '[]'],
             [KEY_APPOINTMENTS, '[]'],
             [KEY_SEEDED, '1'],
@@ -146,38 +151,63 @@ export function createLocalRepos(): PawclockRepos {
   };
 
   const petsCol = new LocalCollection<Pet>(KEY_PETS, ensureSeeded);
-  const logsCol = new LocalCollection<TimelineEntry>(KEY_LOGS, ensureSeeded);
+  const feedTimesCol = new LocalCollection<FeedTime>(KEY_FEED_TIMES, ensureSeeded);
+  const medicationsCol = new LocalCollection<Medication>(KEY_MEDICATIONS, ensureSeeded);
+  const logsCol = new LocalCollection<LogEntry>(KEY_LOGS, ensureSeeded);
   const apptsCol = new LocalCollection<Appointment>(
     KEY_APPOINTMENTS,
     ensureSeeded,
-    (a, b) => a.dateTime - b.dateTime,
+    (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
   );
 
   // ---- pets.deleteCascade (D10) — replaces the old hook-level cascade ----
   const deleteCascade = async (petId: string): Promise<void> => {
-    // Ensure all three caches are hydrated before we read/guard against them.
-    await Promise.all([petsCol.list(), logsCol.list(), apptsCol.list()]);
+    // Ensure all caches are hydrated before we read/guard against them.
+    await Promise.all([
+      petsCol.list(),
+      feedTimesCol.list(),
+      medicationsCol.list(),
+      logsCol.list(),
+      apptsCol.list(),
+    ]);
     // Authoritative, race-safe last-pet guard: never delete the final pet, and
     // no-op if the pet is already gone (two rapid deletes can't both pass).
     const pets = petsCol.peek();
     if (pets.length <= 1 || !pets.some((p) => p.id === petId)) return;
     await petsCol.mutate((cache) => cache.filter((p) => p.id !== petId));
+    await feedTimesCol.mutate((cache) => cache.filter((f) => f.petId !== petId));
+    await medicationsCol.mutate((cache) => cache.filter((m) => m.petId !== petId));
     await logsCol.mutate((cache) => cache.filter((l) => l.petId !== petId));
     await apptsCol.mutate((cache) => detachPet(cache, petId));
   };
 
+  // ---- pets feed-time / medication collection replacers ----
+  const replaceFeedTimes = async (petId: string, feedTimes: FeedTime[]): Promise<void> => {
+    await feedTimesCol.mutate((cache) => [...cache.filter((f) => f.petId !== petId), ...feedTimes]);
+  };
+  const replaceMedications = async (petId: string, medications: Medication[]): Promise<void> => {
+    await medicationsCol.mutate((cache) => [...cache.filter((m) => m.petId !== petId), ...medications]);
+  };
+
   // ---- logs extras ----
-  const addLog = async (petId: string, input: NewLogInput): Promise<TimelineEntry> => {
-    const timestamp = input.timestamp ?? Date.now();
-    const entry: TimelineEntry = {
+  const addLog = async (petId: string, input: NewLogInput): Promise<LogEntry> => {
+    const occurredAt = input.occurredAt ?? new Date().toISOString();
+    const entry: LogEntry = {
       // The id doubles as the offline idempotency key; minted once here as a
       // client-generated uuid v4 (frozen contract — CLAUDE.md).
       id: newId(),
+      householdId: LOCAL_HOUSEHOLD_ID,
       petId,
       type: input.type,
-      icon: input.icon,
-      label: input.label,
-      timestamp,
+      occurredAt,
+      note: input.note ?? null,
+      source: 'manual',
+      feedTimeId: input.feedTimeId ?? null,
+      medicationId: input.medicationId ?? null,
+      notificationId: null,
+      createdBy: null,
+      createdAt: new Date().toISOString(),
+      deletedAt: null,
     };
     // Newest-first, matching the previous in-memory LogsContext ordering.
     await logsCol.mutate((cache) => [entry, ...cache]);
@@ -197,6 +227,8 @@ export function createLocalRepos(): PawclockRepos {
   const loadDemoData = async (): Promise<void> => {
     await AsyncStorage.setItem(KEY_SEEDED, '1');
     await petsCol.replaceAll(demoPets);
+    await feedTimesCol.replaceAll(demoFeedTimes);
+    await medicationsCol.replaceAll(demoMedications);
     await logsCol.replaceAll(demoTimeline);
     await apptsCol.replaceAll(demoAppointments);
   };
@@ -204,6 +236,8 @@ export function createLocalRepos(): PawclockRepos {
   const resetAll = async (): Promise<void> => {
     await AsyncStorage.setItem(KEY_SEEDED, '1');
     await petsCol.replaceAll([]);
+    await feedTimesCol.replaceAll([]);
+    await medicationsCol.replaceAll([]);
     await logsCol.replaceAll([]);
     await apptsCol.replaceAll([]);
   };
@@ -215,6 +249,20 @@ export function createLocalRepos(): PawclockRepos {
       remove: petsCol.remove,
       subscribe: petsCol.subscribe,
       deleteCascade,
+      replaceFeedTimes,
+      replaceMedications,
+    },
+    feedTimes: {
+      list: feedTimesCol.list,
+      upsert: feedTimesCol.upsert,
+      remove: feedTimesCol.remove,
+      subscribe: feedTimesCol.subscribe,
+    },
+    medications: {
+      list: medicationsCol.list,
+      upsert: medicationsCol.upsert,
+      remove: medicationsCol.remove,
+      subscribe: medicationsCol.subscribe,
     },
     logs: {
       list: logsCol.list,

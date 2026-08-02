@@ -7,6 +7,7 @@ import { fonts } from '../theme/fonts';
 import { SectionTitle } from '../components/SectionTitle';
 import { TimePickerField } from '../components/TimePickerField';
 import { usePets } from '../context/PetsContext';
+import { parseClockTime } from '../lib/petSchedule';
 
 const AVATAR_OPTIONS = ['🐶', '🐱', '🐰', '🐹', '🐦', '🐢', '🐍', '🐠'];
 const AVATAR_LABELS: Record<string, string> = {
@@ -32,6 +33,21 @@ function makeRowId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+// TimePickerField speaks "h:mm AM/PM"; storage (FeedTime/Medication.localTime) is "HH:MM" 24h.
+function to24h(display: string): string {
+  const parsed = parseClockTime(display, new Date());
+  if (!parsed) return '';
+  return `${String(parsed.getHours()).padStart(2, '0')}:${String(parsed.getMinutes()).padStart(2, '0')}`;
+}
+function to12h(stored: string): string {
+  const parsed = parseClockTime(stored, new Date());
+  if (!parsed) return '';
+  const h = parsed.getHours();
+  const period = h < 12 ? 'AM' : 'PM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(parsed.getMinutes()).padStart(2, '0')} ${period}`;
+}
+
 /** Optional — empty is fine (returns null). When provided, must be numeric, clamped to 0.5–24. */
 function parseHoldHours(raw: string): { value: number | null; error?: string } {
   const trimmed = raw.trim();
@@ -44,24 +60,29 @@ function parseHoldHours(raw: string): { value: number | null; error?: string } {
 }
 
 export default function AddPetScreen() {
-  const { pets, addPet, updatePet } = usePets();
+  const { pets, addPet, updatePet, getFeedTimesForPet, getMedicationsForPet } = usePets();
   const { petId } = useLocalSearchParams<{ petId?: string }>();
   const editingPet = petId ? pets.find((p) => p.id === petId) : undefined;
   const isEditing = !!editingPet;
 
-  const [avatar, setAvatar] = useState(editingPet?.avatar ?? AVATAR_OPTIONS[0]);
+  const [avatar, setAvatar] = useState(editingPet?.avatarEmoji ?? AVATAR_OPTIONS[0]);
   const [name, setName] = useState(editingPet?.name ?? '');
   const [breed, setBreed] = useState(editingPet?.breed ?? '');
-  const [age, setAge] = useState(editingPet?.age ?? '');
   const [feedRows, setFeedRows] = useState<FeedRow[]>(() => {
-    const existing = editingPet?.feedTimes ?? [];
-    const rows = existing.map((time) => ({ rowId: makeRowId(), time }));
+    // Feed times live in their own collection now; display them in the picker's 12h format.
+    const existing = editingPet ? getFeedTimesForPet(editingPet.id) : [];
+    const rows = existing.map((ft) => ({ rowId: makeRowId(), time: to12h(ft.localTime) }));
     return rows.length > 0 ? rows : [{ rowId: makeRowId(), time: '' }, { rowId: makeRowId(), time: '' }];
   });
   const [peeHoldHours, setPeeHoldHours] = useState(editingPet?.peeHoldHours?.toString() ?? '');
   const [poopHoldHours, setPoopHoldHours] = useState(editingPet?.poopHoldHours?.toString() ?? '');
   const [medications, setMedications] = useState<MedRow[]>(
-    () => editingPet?.medications.map((m) => ({ rowId: m.id, name: m.name, time: m.time })) ?? []
+    () =>
+      (editingPet ? getMedicationsForPet(editingPet.id) : []).map((m) => ({
+        rowId: m.id,
+        name: m.name,
+        time: to12h(m.localTime),
+      }))
   );
   const [errors, setErrors] = useState<FormErrors>({});
 
@@ -96,7 +117,8 @@ export default function AddPetScreen() {
   const handleSave = () => {
     const pee = parseHoldHours(peeHoldHours);
     const poop = parseHoldHours(poopHoldHours);
-    const feedTimes = feedRows.map((r) => r.time.trim()).filter(Boolean);
+    // Convert picker's "h:mm AM/PM" to storage "HH:MM" for the FeedTime collection.
+    const feedTimes = feedRows.map((r) => to24h(r.time.trim())).filter(Boolean);
     const nextErrors: FormErrors = {};
     if (name.trim().length === 0) nextErrors.name = 'Give your pet a name to save';
     if (pee.error) nextErrors.peeHoldHours = pee.error;
@@ -105,17 +127,18 @@ export default function AddPetScreen() {
       setErrors(nextErrors);
       return;
     }
+    // TODO(post-SYNC-1): species + birthdate pickers — species defaults to 'other' and the
+    // free-text age field is dropped this wave (birthdate stays null).
     const edits = {
       name: name.trim(),
-      avatar,
+      avatarEmoji: avatar,
       breed: breed.trim(),
-      age: age.trim(),
       feedTimes,
       peeHoldHours: pee.value,
       poopHoldHours: poop.value,
       medications: medications
-        .map((m) => ({ id: m.rowId, name: m.name.trim(), time: m.time.trim() }))
-        .filter((m) => m.name && m.time),
+        .map((m) => ({ name: m.name.trim(), localTime: to24h(m.time.trim()) }))
+        .filter((m) => m.name && m.localTime),
     };
     if (isEditing) {
       updatePet(editingPet.id, edits);
@@ -181,7 +204,8 @@ export default function AddPetScreen() {
           error={errors.name}
         />
         <Field label="Breed" value={breed} onChangeText={setBreed} placeholder="e.g. Beagle" />
-        <Field label="Age" value={age} onChangeText={setAge} placeholder="e.g. 1 yr" />
+        {/* TODO(post-SYNC-1): species + birthdate pickers — the free-text Age field is dropped
+            this wave (birthdate stays null; breed alone shows where age used to). */}
 
         <SectionTitle>Feeding & Potty Schedule</SectionTitle>
         <Text style={styles.helperText}>

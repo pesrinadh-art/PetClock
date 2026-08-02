@@ -11,14 +11,15 @@ import { LogButtons } from '../../components/LogButtons';
 import { Timeline } from '../../components/Timeline';
 import { SectionTitle } from '../../components/SectionTitle';
 import { EmptyState } from '../../components/EmptyState';
-import { type TimelineEntry } from '../../data/mockData';
+import { type LogType } from '../../data/mockData';
 import { usePets } from '../../context/PetsContext';
 import { useLogs } from '../../context/LogsContext';
 import { useNow } from '../../hooks/useNow';
 
-const LOG_META: Record<string, { icon: string; label: string; type: TimelineEntry['type'] }> = {
-  pee: { icon: '💧', label: 'Pee', type: 'pee' },
-  poo: { icon: '💩', label: 'Poo', type: 'poo' },
+// Home only logs pee/poo directly; icon/label are derived at the view edge now (Δ3).
+const LOG_TYPES: Record<string, LogType> = {
+  pee: 'pee',
+  poo: 'poo',
 };
 
 function startOfDay(date: Date): number {
@@ -28,7 +29,7 @@ function startOfDay(date: Date): number {
 }
 
 export default function HomeScreen() {
-  const { pets, activePet, activePetId, setActivePetId } = usePets();
+  const { pets, activePet, activePetId, setActivePetId, getFeedTimesForPet } = usePets();
   const { getLogsForPet, addLog } = useLogs();
   const now = useNow();
 
@@ -42,15 +43,16 @@ export default function HomeScreen() {
   }
 
   const handleLog = (key: string) => {
-    const meta = LOG_META[key];
-    if (!meta) return;
-    addLog(activePet.id, { type: meta.type, icon: meta.icon, label: meta.label });
+    const type = LOG_TYPES[key];
+    if (!type) return;
+    addLog(activePet.id, { type });
   };
 
   const petLogs = getLogsForPet(activePet.id);
+  const feedTimes = getFeedTimesForPet(activePet.id);
   const todaysLogs = useMemo(() => {
     const todayStart = startOfDay(now);
-    return petLogs.filter((l) => l.timestamp >= todayStart);
+    return petLogs.filter((l) => !l.deletedAt && new Date(l.occurredAt).getTime() >= todayStart);
   }, [petLogs, now]);
 
   return (
@@ -69,7 +71,7 @@ export default function HomeScreen() {
         <LogButtons pet={activePet} onLog={handleLog} />
 
         <SectionTitle>Today's Log</SectionTitle>
-        <Timeline entries={todaysLogs} now={now} />
+        <Timeline entries={todaysLogs} feedTimes={feedTimes} now={now} />
       </ScrollView>
     </SafeAreaView>
   );

@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../theme/colors';
 import { fonts } from '../theme/fonts';
-import type { Pet, TimelineEntry } from '../data/mockData';
+import type { LogEntry, Pet } from '../data/mockData';
 import { useLogs } from '../context/LogsContext';
 import { formatClock } from '../lib/petSchedule';
 
@@ -14,10 +14,12 @@ type LogButtonSpec = {
   border: string;
 };
 
-function mostRecentLog(logs: TimelineEntry[], type: 'pee' | 'poo') {
-  const matches = logs.filter((l) => l.type === type);
+function mostRecentLog(logs: LogEntry[], type: 'pee' | 'poo') {
+  const matches = logs.filter((l) => l.type === type && !l.deletedAt);
   if (matches.length === 0) return null;
-  return matches.reduce((latest, l) => (l.timestamp > latest.timestamp ? l : latest));
+  return matches.reduce((latest, l) =>
+    new Date(l.occurredAt).getTime() > new Date(latest.occurredAt).getTime() ? l : latest,
+  );
 }
 
 export function LogButtons({ pet, onLog }: { pet: Pet; onLog?: (key: string) => void }) {
@@ -32,7 +34,7 @@ export function LogButtons({ pet, onLog }: { pet: Pet; onLog?: (key: string) => 
       key: 'pee',
       emoji: '💧',
       label: 'Pee',
-      sub: lastPee ? `Last ${formatClock(new Date(lastPee.timestamp))}` : 'No logs yet',
+      sub: lastPee ? `Last ${formatClock(new Date(lastPee.occurredAt))}` : 'No logs yet',
       bg: '#FFF8DB',
       border: colors.pee,
     },
@@ -40,7 +42,7 @@ export function LogButtons({ pet, onLog }: { pet: Pet; onLog?: (key: string) => 
       key: 'poo',
       emoji: '💩',
       label: 'Poo',
-      sub: lastPoo ? `Last ${formatClock(new Date(lastPoo.timestamp))}` : 'No logs yet',
+      sub: lastPoo ? `Last ${formatClock(new Date(lastPoo.occurredAt))}` : 'No logs yet',
       bg: '#FBF0EA',
       border: colors.pooLight,
     },

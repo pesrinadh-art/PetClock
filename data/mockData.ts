@@ -1,78 +1,116 @@
-export type Medication = {
-  id: string;
-  name: string;
-  /** Time of day it's given, e.g. '8:00 AM'. Assumed daily. */
-  time: string;
-  dosage?: string;
-};
+/**
+ * Demo data source — reshaped to the FROZEN CONTRACT types in `lib/db/models.ts`
+ * (SYNC-1 model migration). This file no longer defines the domain types; it only
+ * exports sample rows in the contract shapes so "Load demo data" works offline.
+ *
+ * FeedTimes and Medications are their own collections (keyed by petId), matching
+ * the contract where a food log can reference a feed_time by id. Logs carry
+ * `type` + `occurredAt` (ISO) with no stored icon/label — those are derived at the
+ * view edge (Δ3). Appointments carry `startsAt` (ISO) + `allDay`.
+ */
+import type {
+  Appointment,
+  FeedTime,
+  LogEntry,
+  Medication,
+  Pet,
+} from '../lib/db/models';
+import { LOCAL_HOUSEHOLD_ID } from '../lib/localHousehold';
 
-export type Pet = {
-  id: string;
-  name: string;
-  avatar: string;
-  breed: string;
-  age: string;
-  meta: string;
-  /** Usual feeding times, e.g. ['7:00 AM', '12:00 PM', '6:30 PM']. Empty = not set. */
-  feedTimes: string[];
-  /** How long the pet can comfortably hold pee, in hours. null = not set. */
-  peeHoldHours: number | null;
-  /** How long the pet can comfortably hold poop, in hours. null = not set. */
-  poopHoldHours: number | null;
-  /** Daily medications, if any — independent of the feed/hold calibration status. */
-  medications: Medication[];
-  /** When the pet profile was created — drives the calibration countdown. */
-  createdAt: number;
-};
+// Re-export the contract types the rest of the app imports as its domain models,
+// so existing `from '../data/mockData'` type imports keep resolving during the swap.
+export type { Appointment, FeedTime, LogEntry, Medication, Pet } from '../lib/db/models';
+export type { ApptType, LogType, Species } from '../lib/db/models';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+function daysAgoISO(days: number): string {
+  return new Date(Date.now() - days * DAY_MS).toISOString();
+}
+
+function todayAtISO(hours: number, minutes: number): string {
+  const d = new Date();
+  d.setHours(hours, minutes, 0, 0);
+  return d.toISOString();
+}
+
+function daysFromNowAtISO(days: number, hours: number, minutes: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  d.setHours(hours, minutes, 0, 0);
+  return d.toISOString();
+}
+
+const NOW_ISO = new Date().toISOString();
 
 export const pets: Pet[] = [
   {
     // No schedule set, created ~1.2 days ago -> demonstrates the "calibrating" state.
-    // Has a medication -> demonstrates medication reminders showing even while calibrating.
+    // Has a medication (separate collection) -> meds show even while calibrating.
     id: 'mochi',
+    householdId: LOCAL_HOUSEHOLD_ID,
     name: 'Mochi',
-    avatar: '🐶',
+    avatarEmoji: '🐶',
+    species: 'dog',
     breed: 'Golden Retriever',
-    age: '2 yrs',
-    meta: 'Golden Retriever · 2 yrs',
-    feedTimes: [],
+    birthdate: null,
+    weightKg: null,
     peeHoldHours: null,
     poopHoldHours: null,
-    medications: [{ id: 'mochi-med-1', name: 'Joint supplement', time: '6:00 PM' }],
-    createdAt: Date.now() - 1.2 * DAY_MS,
+    calibrationStartedAt: daysAgoISO(1.2),
+    archivedAt: null,
+    createdAt: daysAgoISO(1.2),
+    updatedAt: NOW_ISO,
   },
   {
     // Full schedule set -> demonstrates the "ready" state with computed reminders.
     id: 'luna',
+    householdId: LOCAL_HOUSEHOLD_ID,
     name: 'Luna',
-    avatar: '🐱',
+    avatarEmoji: '🐱',
+    species: 'cat',
     breed: 'Tabby Cat',
-    age: '1 yr',
-    meta: 'Tabby Cat · 1 yr',
-    feedTimes: ['7:30 AM', '6:00 PM'],
+    birthdate: null,
+    weightKg: null,
     peeHoldHours: 4,
     poopHoldHours: 6,
-    medications: [{ id: 'luna-med-1', name: 'Allergy pill', time: '8:00 AM' }],
-    createdAt: Date.now() - 10 * DAY_MS,
+    calibrationStartedAt: daysAgoISO(10),
+    archivedAt: null,
+    createdAt: daysAgoISO(10),
+    updatedAt: NOW_ISO,
   },
   {
     // No schedule set, created 5 days ago -> demonstrates the "needs info" prompt.
     id: 'peanut',
+    householdId: LOCAL_HOUSEHOLD_ID,
     name: 'Peanut',
-    avatar: '🐰',
+    avatarEmoji: '🐰',
+    species: 'rabbit',
     breed: 'Rabbit',
-    age: '3 yrs',
-    meta: 'Rabbit · 3 yrs',
-    feedTimes: [],
+    birthdate: null,
+    weightKg: null,
     peeHoldHours: null,
     poopHoldHours: null,
-    medications: [],
-    createdAt: Date.now() - 5 * DAY_MS,
+    calibrationStartedAt: daysAgoISO(5),
+    archivedAt: null,
+    createdAt: daysAgoISO(5),
+    updatedAt: NOW_ISO,
   },
 ];
 
+// Feed times are their own collection now (was Pet.feedTimes: string[]). "HH:MM" 24h.
+export const feedTimes: FeedTime[] = [
+  { id: 'luna-feed-1', petId: 'luna', localTime: '07:30', label: null, active: true },
+  { id: 'luna-feed-2', petId: 'luna', localTime: '18:00', label: null, active: true },
+];
+
+// Medications are their own collection now (was Pet.medications). "HH:MM" 24h.
+export const medications: Medication[] = [
+  { id: 'mochi-med-1', petId: 'mochi', name: 'Joint supplement', dosage: null, localTime: '18:00', active: true },
+  { id: 'luna-med-1', petId: 'luna', name: 'Allergy pill', dosage: null, localTime: '08:00', active: true },
+];
+
+/** View-model for the horizontal reminder strip — derived, never stored. */
 export type Reminder = {
   id: string;
   type: 'pee' | 'poo' | 'food' | 'appt' | 'medication';
@@ -82,54 +120,31 @@ export type Reminder = {
   sub: string;
 };
 
-
-export type TimelineEntry = {
-  /** Stable unique id, e.g. `pee-<timestamp>-<random>`. */
-  id: string;
-  petId: string;
-  type: 'pee' | 'poo' | 'food' | 'vet';
-  icon: string;
-  label: string;
-  /** Epoch ms — the source of truth; all display strings (clock/relative time) derive from it. */
-  timestamp: number;
-};
-
-function todayAt(hours: number, minutes: number): number {
-  const d = new Date();
-  d.setHours(hours, minutes, 0, 0);
-  return d.getTime();
-}
-
-export const timeline: TimelineEntry[] = [
-  { id: 't1', petId: 'mochi', type: 'pee', icon: '💧', label: 'Pee', timestamp: todayAt(12, 31) },
-  { id: 't2', petId: 'mochi', type: 'food', icon: '🍽️', label: 'Lunch', timestamp: todayAt(12, 0) },
-  { id: 't3', petId: 'mochi', type: 'vet', icon: '🏥', label: 'Vet Checkup', timestamp: todayAt(10, 0) },
-  { id: 't4', petId: 'mochi', type: 'poo', icon: '💩', label: 'Poo', timestamp: todayAt(9, 15) },
+// Mochi has no feed times, so this food log carries no feedTimeId and renders as a
+// generic "Meal" at the view edge (Δ3) rather than the old stored "Lunch" label.
+export const timeline: LogEntry[] = [
+  logEntry('t1', 'mochi', 'pee', todayAtISO(12, 31)),
+  logEntry('t2', 'mochi', 'food', todayAtISO(12, 0)),
+  logEntry('t3', 'mochi', 'vet', todayAtISO(10, 0)),
+  logEntry('t4', 'mochi', 'poo', todayAtISO(9, 15)),
 ];
 
-export type ApptType = 'vet' | 'groom' | 'vaccine' | 'other';
-
-export type Appointment = {
-  id: string;
-  type: ApptType;
-  title: string;
-  /** Pet ids (see `pets`) — names/avatars are resolved at render so renames don't break the link. */
-  petIds: string[];
-  /** Epoch ms — the source of truth for sorting and countdowns; formatted only at the view edge. */
-  dateTime: number;
-  /** Whether dateTime carries a meaningful time of day (vs. date only). */
-  hasTime: boolean;
-  location?: string;
-  notes?: string;
-  /** Reminder lead times in minutes before dateTime; empty = no reminders. */
-  reminderOffsets: number[];
-};
-
-function daysFromNowAt(days: number, hours: number, minutes: number): number {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  d.setHours(hours, minutes, 0, 0);
-  return d.getTime();
+function logEntry(id: string, petId: string, type: LogEntry['type'], occurredAt: string): LogEntry {
+  return {
+    id,
+    householdId: LOCAL_HOUSEHOLD_ID,
+    petId,
+    type,
+    occurredAt,
+    note: null,
+    source: 'manual',
+    feedTimeId: null,
+    medicationId: null,
+    notificationId: null,
+    createdBy: null,
+    createdAt: occurredAt,
+    deletedAt: null,
+  };
 }
 
 const MINUTES_PER_DAY = 24 * 60;
@@ -138,34 +153,46 @@ export const appointments: Appointment[] = [
   {
     // ~2 days out -> demonstrates the "soon" countdown.
     id: 'a1',
+    householdId: LOCAL_HOUSEHOLD_ID,
     type: 'vet',
     title: 'Annual Checkup',
     petIds: ['mochi'],
-    dateTime: daysFromNowAt(2, 10, 0),
-    hasTime: true,
+    startsAt: daysFromNowAtISO(2, 10, 0),
+    allDay: false,
     location: 'City Vet Clinic',
-    reminderOffsets: [MINUTES_PER_DAY],
+    notes: null,
+    completedAt: null,
+    reminderOffsetsMinutes: [MINUTES_PER_DAY],
+    deletedAt: null,
   },
   {
     // ~10 days out -> demonstrates the "upcoming" countdown.
     id: 'a2',
+    householdId: LOCAL_HOUSEHOLD_ID,
     type: 'groom',
     title: 'Full Groom & Bath',
     petIds: ['mochi', 'luna'],
-    dateTime: daysFromNowAt(10, 14, 0),
-    hasTime: true,
+    startsAt: daysFromNowAtISO(10, 14, 0),
+    allDay: false,
     location: 'Paws & Claws',
-    reminderOffsets: [7 * MINUTES_PER_DAY, MINUTES_PER_DAY],
+    notes: null,
+    completedAt: null,
+    reminderOffsetsMinutes: [7 * MINUTES_PER_DAY, MINUTES_PER_DAY],
+    deletedAt: null,
   },
   {
-    // ~12 days ago -> demonstrates the "overdue" state.
+    // ~12 days ago -> demonstrates the "overdue" state. Date-only (allDay).
     id: 'a3',
+    householdId: LOCAL_HOUSEHOLD_ID,
     type: 'vaccine',
     title: 'Rabies Booster',
     petIds: ['peanut'],
-    dateTime: daysFromNowAt(-12, 9, 0),
-    hasTime: false,
-    reminderOffsets: [],
+    startsAt: daysFromNowAtISO(-12, 9, 0),
+    allDay: true,
+    location: null,
+    notes: null,
+    completedAt: null,
+    reminderOffsetsMinutes: [],
+    deletedAt: null,
   },
 ];
-

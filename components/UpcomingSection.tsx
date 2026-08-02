@@ -14,6 +14,7 @@ import {
   type UpcomingItem,
 } from '../lib/petSchedule';
 import { useLogs } from '../context/LogsContext';
+import { usePets } from '../context/PetsContext';
 
 function toReminder(item: UpcomingItem, now: Date): Reminder {
   return {
@@ -31,12 +32,15 @@ function toReminder(item: UpcomingItem, now: Date): Reminder {
 
 export function UpcomingSection({ pet }: { pet: Pet }) {
   const { getLogsForPet } = useLogs();
-  const status = getPetStatus(pet);
+  const { getFeedTimesForPet, getMedicationsForPet } = usePets();
+  const feedTimes = getFeedTimesForPet(pet.id);
+  const medications = getMedicationsForPet(pet.id);
+  const status = getPetStatus(pet, feedTimes);
   const now = new Date();
 
   // Medications are user-specified fixed times, not something we're learning — so they
   // show up regardless of whether the pee/poop calibration below is done.
-  const medicationItems = getUpcomingMedications(pet, now);
+  const medicationItems = getUpcomingMedications(medications, now);
 
   if (status.kind === 'calibrating') {
     return (
@@ -95,7 +99,7 @@ export function UpcomingSection({ pet }: { pet: Pet }) {
     );
   }
 
-  const holdItems = getUpcomingForPet(pet, getLogsForPet(pet.id), now);
+  const holdItems = getUpcomingForPet(pet, feedTimes, getLogsForPet(pet.id), now);
   const reminders = [...holdItems, ...medicationItems]
     .sort((a, b) => a.timeStart.getTime() - b.timeStart.getTime())
     .slice(0, 5)

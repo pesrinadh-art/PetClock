@@ -12,6 +12,7 @@ import { type ApptType } from '../data/mockData';
 import { usePets } from '../context/PetsContext';
 import { useAppointments } from '../context/AppointmentsContext';
 import { formatApptTime, parseAppointmentDateTime } from '../lib/appointmentUtils';
+import { allDayToHasTime, hasTimeToAllDay } from '../lib/db/models';
 
 const TYPES: { key: ApptType; icon: string; label: string; bg: string; border: string }[] = [
   { key: 'vet', icon: '🏥', label: 'Vet Visit', bg: colors.apptVetLight, border: colors.apptVet },
@@ -30,8 +31,8 @@ const REMINDER_OPTIONS: { label: string; offsetMinutes: number }[] = [
 
 const DEFAULT_OFFSETS = [7 * MINUTES_PER_DAY, MINUTES_PER_DAY];
 
-function formatDisplayDate(dateTime: number): string {
-  return new Date(dateTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+function formatDisplayDate(startsAt: string): string {
+  return new Date(startsAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 export default function AddAppointmentScreen() {
@@ -46,11 +47,15 @@ export default function AddAppointmentScreen() {
     () => editingAppt?.petIds ?? (pets.length > 0 ? [pets[0].id] : [])
   );
   const [title, setTitle] = useState(editingAppt?.title ?? '');
-  const [date, setDate] = useState(editingAppt ? formatDisplayDate(editingAppt.dateTime) : '');
-  const [time, setTime] = useState(editingAppt?.hasTime ? formatApptTime(editingAppt.dateTime) : '');
+  const [date, setDate] = useState(editingAppt ? formatDisplayDate(editingAppt.startsAt) : '');
+  const [time, setTime] = useState(
+    editingAppt && allDayToHasTime(editingAppt.allDay) ? formatApptTime(editingAppt.startsAt) : ''
+  );
   const [location, setLocation] = useState(editingAppt?.location ?? '');
   const [notes, setNotes] = useState(editingAppt?.notes ?? '');
-  const [reminderOffsets, setReminderOffsets] = useState<number[]>(editingAppt?.reminderOffsets ?? DEFAULT_OFFSETS);
+  const [reminderOffsets, setReminderOffsets] = useState<number[]>(
+    editingAppt?.reminderOffsetsMinutes ?? DEFAULT_OFFSETS
+  );
 
   const togglePet = (id: string) => {
     setSelectedPets((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
@@ -71,11 +76,11 @@ export default function AddAppointmentScreen() {
       type,
       title: title.trim(),
       petIds: selectedPets,
-      dateTime: parsedDateTime.getTime(),
-      hasTime: time.trim().length > 0,
-      location: location.trim() || undefined,
-      notes: notes.trim() || undefined,
-      reminderOffsets,
+      startsAt: parsedDateTime.toISOString(),
+      allDay: hasTimeToAllDay(time.trim().length > 0),
+      location: location.trim() || null,
+      notes: notes.trim() || null,
+      reminderOffsetsMinutes: reminderOffsets,
     };
     if (isEditing && editingAppt) {
       updateAppointment(editingAppt.id, fields);
@@ -149,7 +154,7 @@ export default function AddAppointmentScreen() {
                     ]}
                   >
                     <Text style={{ fontSize: 13, fontFamily: fonts.bold, color: selected ? colors.sage : colors.stoneMid }}>
-                      {p.avatar} {p.name}{selected ? ' ✓' : ''}
+                      {p.avatarEmoji} {p.name}{selected ? ' ✓' : ''}
                     </Text>
                   </Pressable>
                 );
