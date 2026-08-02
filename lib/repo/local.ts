@@ -7,6 +7,7 @@ import {
   type Pet,
   type TimelineEntry,
 } from '../../data/mockData';
+import { newId } from '../id';
 import type { EntityRepo, NewLogInput, PawclockRepos } from './types';
 
 // Each collection lives under its own key so a mutation to one never rewrites the
@@ -169,8 +170,9 @@ export function createLocalRepos(): PawclockRepos {
   const addLog = async (petId: string, input: NewLogInput): Promise<TimelineEntry> => {
     const timestamp = input.timestamp ?? Date.now();
     const entry: TimelineEntry = {
-      // The id doubles as the offline idempotency key; minted once here.
-      id: `${input.type}-${timestamp}-${Math.random().toString(36).slice(2, 7)}`,
+      // The id doubles as the offline idempotency key; minted once here as a
+      // client-generated uuid v4 (frozen contract — CLAUDE.md).
+      id: newId(),
       petId,
       type: input.type,
       icon: input.icon,

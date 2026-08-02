@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { type Medication, type Pet } from '../data/mockData';
 import { usePersistedCollection } from '../hooks/usePersistedCollection';
+import { newId } from '../lib/id';
 import { repos } from '../lib/repo/types';
 
 type ScheduleFields = {
@@ -53,7 +54,8 @@ export function PetsProvider({ children }: { children: ReactNode }) {
   const activePetId = activePet?.id ?? '';
 
   const addPet = useCallback((pet: NewPet) => {
-    const id = `${pet.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`;
+    // Client-generated uuid v4 (frozen contract) — the entity's stable id.
+    const id = newId();
     const meta = pet.meta ?? [pet.breed, pet.age].filter(Boolean).join(' · ');
     // Repo persists + notifies; usePersistedCollection re-pulls and updates state.
     void repos.pets.upsert({

@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from 'react';
 import { type Appointment, type ApptType } from '../data/mockData';
 import { usePersistedCollection } from '../hooks/usePersistedCollection';
+import { newId } from '../lib/id';
 import { repos } from '../lib/repo/types';
 
 type NewAppointment = {
@@ -35,7 +36,8 @@ export function AppointmentsProvider({ children }: { children: ReactNode }) {
 
   const addAppointment = useCallback((input: NewAppointment) => {
     const appointment: Appointment = {
-      id: `appt-${Date.now()}`,
+      // Client-generated uuid v4 (frozen contract) — the entity's stable id.
+      id: newId(),
       type: input.type,
       title: input.title,
       petIds: input.petIds,
