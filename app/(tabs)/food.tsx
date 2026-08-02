@@ -85,8 +85,8 @@ export default function FoodScreen() {
           <Pressable
             style={({ pressed }) => [styles.notice, pressed && styles.noticePressed]}
             onPress={editPet}
-            accessibilityRole="button"
-            accessibilityLabel={`Set up ${activePet.name}'s meal times`}
+            role="button"
+            aria-label={`Set up ${activePet.name}'s meal times`}
           >
             <Text style={styles.noticeIcon}>🍽️</Text>
             <View style={{ flex: 1 }}>
@@ -111,8 +111,8 @@ export default function FoodScreen() {
         <Pressable
           style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
           onPress={editPet}
-          accessibilityRole="button"
-          accessibilityLabel="Edit meal times"
+          role="button"
+          aria-label="Edit meal times"
         >
           <Text style={styles.addBtnText}>➕ Edit Meal Times</Text>
         </Pressable>
@@ -124,8 +124,8 @@ export default function FoodScreen() {
           <Pressable
             style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
             onPress={editPet}
-            accessibilityRole="button"
-            accessibilityLabel="Add medication"
+            role="button"
+            aria-label="Add medication"
           >
             <Text style={styles.addBtnText}>➕ Add Medication</Text>
           </Pressable>
@@ -137,8 +137,8 @@ export default function FoodScreen() {
             <Pressable
               style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
               onPress={editPet}
-              accessibilityRole="button"
-              accessibilityLabel="Edit medications"
+              role="button"
+              aria-label="Edit medications"
             >
               <Text style={styles.addBtnText}>➕ Edit Medications</Text>
             </Pressable>
@@ -159,16 +159,16 @@ export default function FoodScreen() {
               <Pressable
                 style={({ pressed }) => [styles.dialogBtn, styles.cancelBtn, pressed && styles.pressed]}
                 onPress={() => setPendingMeal(null)}
-                accessibilityRole="button"
-                accessibilityLabel="Not yet"
+                role="button"
+                aria-label="Not yet"
               >
                 <Text style={styles.cancelBtnText}>Not yet</Text>
               </Pressable>
               <Pressable
                 style={({ pressed }) => [styles.dialogBtn, styles.confirmBtn, pressed && styles.pressed]}
                 onPress={confirmPendingMeal}
-                accessibilityRole="button"
-                accessibilityLabel={pendingMeal ? `Feed ${pendingMeal.name} now for ${activePet.name}` : 'Feed now'}
+                role="button"
+                aria-label={pendingMeal ? `Feed ${pendingMeal.name} now for ${activePet.name}` : 'Feed now'}
               >
                 <Text style={styles.confirmBtnText}>Yes, feed now</Text>
               </Pressable>

@@ -1,7 +1,9 @@
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { colors, radius, shadow } from '../theme/colors';
 import { fonts } from '../theme/fonts';
+import { AppModal } from './AppModal';
 import { Toggle } from './Toggle';
 import { computeCountdown, formatApptDate, formatApptTime } from '../lib/appointmentUtils';
 import { useAppointments } from '../context/AppointmentsContext';
@@ -26,6 +28,7 @@ const MINUTES_PER_DAY = 24 * 60;
 export function AppointmentCard({ appt }: { appt: Appointment }) {
   const { updateAppointment, removeAppointment } = useAppointments();
   const { pets } = usePets();
+  const [pendingDelete, setPendingDelete] = useState(false);
   const meta = TYPE_META[appt.type];
   // Computed at render so the badge stays live; integrates with a useNow tick at merge.
   const cd = computeCountdown(appt.dateTime);
@@ -42,10 +45,8 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
   };
 
   const confirmDelete = () => {
-    Alert.alert('Delete appointment?', `"${appt.title}" will be removed.`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => removeAppointment(appt.id) },
-    ]);
+    setPendingDelete(false);
+    removeAppointment(appt.id);
   };
 
   const toggleReminder = () => {
@@ -56,9 +57,9 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
     <Pressable
       style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
       onPress={openEdit}
-      onLongPress={confirmDelete}
-      accessibilityRole="button"
-      accessibilityLabel={`${appt.title}, ${meta.label}, ${cd.label}`}
+      onLongPress={() => setPendingDelete(true)}
+      role="button"
+      aria-label={`${appt.title}, ${meta.label}, ${cd.label}`}
       accessibilityHint="Opens the appointment to edit. Long press to delete."
     >
       <View style={[styles.accent, { backgroundColor: meta.accent }]} />
@@ -93,8 +94,8 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
           <Pressable
             style={({ pressed }) => [styles.notifRow, { backgroundColor: '#FDECEA' }, pressed && styles.pressed]}
             onPress={openEdit}
-            accessibilityRole="button"
-            accessibilityLabel={`Reschedule ${appt.title}`}
+            role="button"
+            aria-label={`Reschedule ${appt.title}`}
           >
             <Text style={[styles.notifText, { color: '#C0392B' }]}>🔴 Reschedule soon</Text>
             <Text style={{ fontSize: 12, fontFamily: fonts.extraBold, color: colors.apptVet }}>Reschedule ›</Text>
@@ -102,10 +103,42 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
         ) : (
           <View style={styles.notifRow}>
             <Text style={styles.notifText}>🔔 Remind me 1 day before</Text>
-            <Toggle on={reminderOn} onToggle={toggleReminder} accessibilityLabel="Remind me 1 day before" />
+            <Toggle on={reminderOn} onToggle={toggleReminder} aria-label="Remind me 1 day before" />
           </View>
         )}
       </View>
+
+      <AppModal
+        visible={pendingDelete}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPendingDelete(false)}
+      >
+        <Pressable style={styles.overlay} onPress={() => setPendingDelete(false)}>
+          <Pressable style={styles.dialog} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.dialogTitle}>Delete appointment?</Text>
+            <Text style={styles.dialogBody}>"{appt.title}" will be removed. This can't be undone.</Text>
+            <View style={styles.dialogActions}>
+              <Pressable
+                style={({ pressed }) => [styles.dialogBtn, styles.cancelBtn, pressed && styles.dialogPressed]}
+                onPress={() => setPendingDelete(false)}
+                role="button"
+                aria-label="Cancel"
+              >
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.dialogBtn, styles.deleteBtn, pressed && styles.dialogPressed]}
+                onPress={confirmDelete}
+                role="button"
+                aria-label={`Delete ${appt.title}`}
+              >
+                <Text style={styles.deleteBtnText}>Delete</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </AppModal>
     </Pressable>
   );
 }
@@ -137,4 +170,28 @@ const styles = StyleSheet.create({
   },
   notifText: { fontSize: 12, fontFamily: fonts.bold, color: colors.stone },
   pressed: { opacity: 0.75 },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  dialog: {
+    width: '100%',
+    maxWidth: 320,
+    backgroundColor: colors.white,
+    borderRadius: radius.lg,
+    padding: 20,
+    ...shadow.card,
+  },
+  dialogTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: colors.stone, marginBottom: 8 },
+  dialogBody: { fontSize: 13, color: colors.stoneMid, lineHeight: 19, marginBottom: 18 },
+  dialogActions: { flexDirection: 'row', gap: 10 },
+  dialogBtn: { flex: 1, borderRadius: radius.sm, paddingVertical: 12, alignItems: 'center' },
+  dialogPressed: { opacity: 0.8 },
+  cancelBtn: { backgroundColor: colors.sagePale },
+  cancelBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.sage },
+  deleteBtn: { backgroundColor: '#C0392B' },
+  deleteBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.white },
 });

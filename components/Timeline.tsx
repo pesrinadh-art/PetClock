@@ -44,8 +44,8 @@ export function Timeline({ entries, now }: { entries: TimelineEntry[]; now: Date
         return (
           <View key={e.id} style={styles.card}>
             <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`${e.label}, ${formatRelative(e.timestamp, now)}. Tap to edit or delete.`}
+              role="button"
+              aria-label={`${e.label}, ${formatRelative(e.timestamp, now)}. Tap to edit or delete.`}
               style={styles.item}
               onPress={() => setExpandedId(expanded ? null : e.id)}
             >
@@ -61,24 +61,24 @@ export function Timeline({ entries, now }: { entries: TimelineEntry[]; now: Date
             {expanded && (
               <View style={styles.actions}>
                 <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Move this log 15 minutes earlier"
+                  role="button"
+                  aria-label="Move this log 15 minutes earlier"
                   style={styles.actionBtn}
                   onPress={() => adjustTime(e, -15)}
                 >
                   <Text style={styles.actionText}>−15 min</Text>
                 </Pressable>
                 <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Move this log 15 minutes later"
+                  role="button"
+                  aria-label="Move this log 15 minutes later"
                   style={styles.actionBtn}
                   onPress={() => adjustTime(e, 15)}
                 >
                   <Text style={styles.actionText}>+15 min</Text>
                 </Pressable>
                 <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Delete ${e.label} log`}
+                  role="button"
+                  aria-label={`Delete ${e.label} log`}
                   style={[styles.actionBtn, styles.deleteBtn]}
                   onPress={() => {
                     setExpandedId(null);

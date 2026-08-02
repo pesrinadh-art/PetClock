@@ -19,7 +19,7 @@ export function ScheduleRow({
    * button on both 'due' and 'upcoming' rows. Once a covering log lands the row flips to "✓ Done".
    */
   onLogNow?: () => void;
-  /** accessibilityLabel for the mark-done control, e.g. "Mark Dinner as fed for Biscuit". */
+  /** aria-label for the mark-done control, e.g. "Mark Dinner as fed for Biscuit". */
   logAccessibilityLabel?: string;
 }) {
   const done = item.status === 'done';
@@ -41,8 +41,8 @@ export function ScheduleRow({
         <Pressable
           style={({ pressed }) => [styles.badge, styles.logBadge, { backgroundColor: accent }, pressed && styles.badgePressed]}
           onPress={onLogNow}
-          accessibilityRole="button"
-          accessibilityLabel={logAccessibilityLabel ?? `Mark ${item.name} as done`}
+          role="button"
+          aria-label={logAccessibilityLabel ?? `Mark ${item.name} as done`}
           hitSlop={6}
         >
           <Text style={[styles.badgeText, { color: colors.white }]}>Mark done</Text>

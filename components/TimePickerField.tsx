@@ -41,8 +41,8 @@ export function TimePickerField({ label, value, onChange, placeholder = 'Select 
       <Pressable
         style={({ pressed }) => [styles.field, value ? styles.fieldFilled : null, pressed && styles.pressed]}
         onPress={() => setOpen(true)}
-        accessibilityRole="button"
-        accessibilityLabel={`${label ? `${label}: ` : ''}${value || placeholder}`}
+        role="button"
+        aria-label={`${label ? `${label}: ` : ''}${value || placeholder}`}
       >
         <Text style={[styles.valueText, !value && styles.placeholderText]}>{value || placeholder}</Text>
         <Text style={styles.icon}>🕐</Text>
@@ -67,8 +67,8 @@ export function TimePickerField({ label, value, onChange, placeholder = 'Select 
                         onChange('');
                         setOpen(false);
                       }}
-                      accessibilityRole="button"
-                      accessibilityLabel="Clear time"
+                      role="button"
+                      aria-label="Clear time"
                     >
                       <Text style={styles.clearText}>✕ Clear</Text>
                     </Pressable>
@@ -77,9 +77,9 @@ export function TimePickerField({ label, value, onChange, placeholder = 'Select 
                 const selected = item === value;
                 return (
                   <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={item}
-                    accessibilityState={{ selected }}
+                    role="button"
+                    aria-label={item}
+                    aria-selected={selected}
                     style={({ pressed }) => [
                       styles.option,
                       selected && styles.optionSelected,

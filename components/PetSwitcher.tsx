@@ -24,9 +24,9 @@ export function PetSwitcher({ pets, activeId, onSelect }: Props) {
           <Pressable
             key={pet.id}
             onPress={() => onSelect(pet.id)}
-            accessibilityRole="button"
-            accessibilityLabel={`Switch to ${pet.name}`}
-            accessibilityState={{ selected: active }}
+            role="button"
+            aria-label={`Switch to ${pet.name}`}
+            aria-selected={active}
             style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && styles.pressed]}
           >
             <Text style={styles.avatar}>{pet.avatar}</Text>
@@ -37,8 +37,8 @@ export function PetSwitcher({ pets, activeId, onSelect }: Props) {
       <Pressable
         style={({ pressed }) => [styles.add, pressed && styles.pressed]}
         onPress={() => router.push('/add-pet')}
-        accessibilityRole="button"
-        accessibilityLabel="Add pet"
+        role="button"
+        aria-label="Add pet"
       >
         <Text style={{ fontSize: 20, color: colors.stoneLight }}>+</Text>
       </Pressable>

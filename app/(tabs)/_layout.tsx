@@ -70,8 +70,8 @@ export default function TabsLayout() {
 
       <Pressable
         onPress={() => router.push(fabTarget)}
-        accessibilityRole="button"
-        accessibilityLabel={fabTarget === '/add-pet' ? 'Add pet' : 'Add appointment'}
+        role="button"
+        aria-label={fabTarget === '/add-pet' ? 'Add pet' : 'Add appointment'}
         style={({ pressed }) => [
           {
             position: 'absolute',

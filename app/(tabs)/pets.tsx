@@ -43,8 +43,8 @@ export default function PetsScreen() {
         <Pressable
           style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
           onPress={() => router.push('/add-pet')}
-          accessibilityRole="button"
-          accessibilityLabel="Add pet"
+          role="button"
+          aria-label="Add pet"
         >
           <Text style={styles.addBtnText}>➕ Add Pet</Text>
         </Pressable>
@@ -61,16 +61,16 @@ export default function PetsScreen() {
               <Pressable
                 style={({ pressed }) => [styles.dialogBtn, styles.cancelBtn, pressed && styles.pressed]}
                 onPress={() => setPendingDelete(null)}
-                accessibilityRole="button"
-                accessibilityLabel="Cancel"
+                role="button"
+                aria-label="Cancel"
               >
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </Pressable>
               <Pressable
                 style={({ pressed }) => [styles.dialogBtn, styles.deleteBtn, pressed && styles.pressed]}
                 onPress={confirmDelete}
-                accessibilityRole="button"
-                accessibilityLabel={`Remove ${pendingDelete?.name}`}
+                role="button"
+                aria-label={`Remove ${pendingDelete?.name}`}
               >
                 <Text style={styles.deleteBtnText}>Remove</Text>
               </Pressable>
@@ -87,8 +87,8 @@ export default function PetsScreen() {
             <Pressable
               style={({ pressed }) => [styles.dialogBtn, styles.cancelBtn, pressed && styles.pressed, { marginTop: 4 }]}
               onPress={() => setBlockedMessage(false)}
-              accessibilityRole="button"
-              accessibilityLabel="Got it"
+              role="button"
+              aria-label="Got it"
             >
               <Text style={styles.cancelBtnText}>Got it</Text>
             </Pressable>
