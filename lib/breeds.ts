@@ -130,22 +130,37 @@ export const BREEDS: readonly Breed[] = [
 ];
 
 /**
- * Case-insensitive breed suggestions. Prefix matches rank above substring matches; ties keep
- * alphabetical order. When `species` is given, only that species is searched. Returns at most
- * `limit` names. An empty/whitespace query returns [] so the dropdown stays hidden.
+ * Case-insensitive breed suggestions. Ranking, highest priority first:
+ *   1. preferred species (when `species` is given) before the other species,
+ *   2. prefix matches before substring matches,
+ *   3. alphabetical order for ties.
+ * Species is a *priority*, not a filter: other-species matches are surfaced BELOW the
+ * preferred ones rather than dropped, so the user can always find the breed they're typing.
+ * Returns ALL matches by default (no hard cap); pass `limit` only to truncate. An
+ * empty/whitespace query returns [] so the dropdown stays hidden.
  */
-export function suggestBreeds(query: string, species?: BreedSpecies, limit = 6): string[] {
+export function suggestBreeds(query: string, species?: BreedSpecies, limit?: number): string[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
-  const pool = species ? BREEDS.filter((b) => b.species === species) : BREEDS;
 
-  const prefix: string[] = [];
-  const substring: string[] = [];
-  for (const { name } of pool) {
+  type Ranked = { name: string; preferred: boolean; kind: 0 | 1 };
+  const ranked: Ranked[] = [];
+  for (const { name, species: sp } of BREEDS) {
     const lower = name.toLowerCase();
     if (lower === q) continue; // no point suggesting the exact value already typed
-    if (lower.startsWith(q)) prefix.push(name);
-    else if (lower.includes(q)) substring.push(name);
+    let kind: 0 | 1;
+    if (lower.startsWith(q)) kind = 0; // prefix
+    else if (lower.includes(q)) kind = 1; // substring
+    else continue;
+    ranked.push({ name, preferred: species ? sp === species : true, kind });
   }
-  return [...prefix, ...substring].slice(0, limit);
+
+  ranked.sort((a, b) => {
+    if (a.preferred !== b.preferred) return a.preferred ? -1 : 1;
+    if (a.kind !== b.kind) return a.kind - b.kind;
+    return a.name.localeCompare(b.name);
+  });
+
+  const names = ranked.map((r) => r.name);
+  return typeof limit === 'number' ? names.slice(0, limit) : names;
 }

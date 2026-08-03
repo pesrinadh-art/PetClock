@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors, radius, shadow } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { suggestBreeds, type BreedSpecies } from '../lib/breeds';
@@ -62,23 +62,34 @@ export function BreedAutocomplete({ label, value, onChange, placeholder, species
           autoCapitalize="words"
         />
         {open ? (
+          // Solid opaque popover that fully occludes the fields behind it. A ScrollView with a
+          // bounded maxHeight lets the full (uncapped) match list scroll inside the popover
+          // instead of pushing layout. keyboardShouldPersistTaps keeps taps working while the
+          // input is focused; nestedScrollEnabled lets it scroll inside the parent ScrollView.
           <View style={styles.dropdown}>
-            {suggestions.map((name, i) => (
-              <Pressable
-                key={name}
-                // onPressIn beats the input's onBlur on web/native, so the tap always registers.
-                onPress={() => pick(name)}
-                role="button"
-                aria-label={`Use breed ${name}`}
-                style={({ pressed }) => [
-                  styles.option,
-                  i === suggestions.length - 1 && styles.optionLast,
-                  pressed && styles.optionPressed,
-                ]}
-              >
-                <Text style={styles.optionText}>{name}</Text>
-              </Pressable>
-            ))}
+            <ScrollView
+              style={styles.dropdownScroll}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator
+            >
+              {suggestions.map((name, i) => (
+                <Pressable
+                  key={name}
+                  // onPress after keyboardShouldPersistTaps means the tap always registers.
+                  onPress={() => pick(name)}
+                  role="button"
+                  aria-label={`Use breed ${name}`}
+                  style={({ pressed }) => [
+                    styles.option,
+                    i === suggestions.length - 1 && styles.optionLast,
+                    pressed && styles.optionPressed,
+                  ]}
+                >
+                  <Text style={styles.optionText}>{name}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
           </View>
         ) : null}
       </View>
@@ -87,7 +98,9 @@ export function BreedAutocomplete({ label, value, onChange, placeholder, species
 }
 
 const styles = StyleSheet.create({
-  formGroup: { marginBottom: 14, gap: 5 },
+  // position:'relative' + a high zIndex here so the whole field (and its absolute popover)
+  // stacks ABOVE the sibling form fields rendered below it on react-native-web.
+  formGroup: { marginBottom: 14, gap: 5, position: 'relative', zIndex: 1000 },
   formLabel: {
     fontSize: 11,
     fontFamily: fonts.extraBold,
@@ -96,7 +109,7 @@ const styles = StyleSheet.create({
     color: colors.stoneMid,
   },
   // Establishes the positioning context and stacking for the absolute dropdown.
-  inputWrap: { position: 'relative', zIndex: 20 },
+  inputWrap: { position: 'relative', zIndex: 1000 },
   input: {
     backgroundColor: colors.white,
     borderWidth: 2,
@@ -115,14 +128,20 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     marginTop: 4,
+    maxHeight: 240,
+    // SOLID opaque surface — set explicitly (not via a shadow token) so the popover fully
+    // occludes the fields behind it on every platform.
     backgroundColor: colors.white,
     borderWidth: 2,
     borderColor: colors.stoneLight,
     borderRadius: radius.sm,
     overflow: 'hidden',
-    zIndex: 30,
+    // Float above sibling fields: zIndex for web/iOS ordering, elevation for Android.
     ...shadow.card,
+    zIndex: 1000,
+    elevation: 1000,
   },
+  dropdownScroll: { maxHeight: 240 },
   option: {
     paddingVertical: 11,
     paddingHorizontal: 14,
