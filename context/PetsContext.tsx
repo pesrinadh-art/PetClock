@@ -56,6 +56,19 @@ function buildFeedRows(petId: string, times: string[]): FeedTime[] {
   return times.map((localTime) => ({ id: newId(), petId, localTime, label: null, active: true }));
 }
 
+/**
+ * Fire-and-forget guard for pet-creation / edit writes. The optimistic local state already
+ * reflects the change (usePersistedCollection re-pulls on the repo's notify), and a
+ * foreground re-pull reconciles later, so a backend hiccup here must never surface as a
+ * toast / red screen / unhandled rejection during pet creation. We log and swallow rather
+ * than globally silencing — only these pet writes are wrapped.
+ */
+function swallow(label: string, work: Promise<unknown>): void {
+  void work.catch((err) => {
+    if (__DEV__) console.warn(`[pets] ${label} failed (swallowed):`, err);
+  });
+}
+
 function buildMedRows(petId: string, meds: MedicationInput[]): Medication[] {
   return meds.map((m) => ({
     id: newId(),
@@ -116,28 +129,37 @@ export function PetsProvider({ children }: { children: ReactNode }) {
     // Client-generated uuid v4 (frozen contract) — the entity's stable id.
     const id = newId();
     const nowIso = new Date().toISOString();
-    // Repo persists + notifies; usePersistedCollection re-pulls and updates state.
+    // Repo persists + notifies; usePersistedCollection re-pulls and updates state. The whole
+    // chain is fire-and-forget and swallowed: pet creation must never surface a backend error.
+    //
+    // The writes MUST be sequenced, not fired in parallel. feed_times / medications
+    // FK-reference the pet AND `replace_feed_times`/`replace_medications` authorize through the
+    // pet's household (is_editor) — so before the pet row exists they fail (P0001 FORBIDDEN /
+    // FK), and in synced mode the schedule was silently dropped on the races it lost (verified
+    // against staging). Await the pet upsert first, then write the schedule collections.
     // TODO(post-SYNC-1): species + birthdate pickers — add-pet defaults species to 'other'
     // and birthdate to null (the free-text age field is dropped this wave).
-    void repos.pets.upsert({
-      id,
-      householdId: LOCAL_HOUSEHOLD_ID,
-      name: pet.name,
-      avatarEmoji: pet.avatarEmoji,
-      species: pet.species ?? 'other',
-      breed: pet.breed || null,
-      birthdate: null,
-      weightKg: null,
-      peeHoldHours: pet.peeHoldHours ?? null,
-      poopHoldHours: pet.poopHoldHours ?? null,
-      calibrationStartedAt: nowIso,
-      archivedAt: null,
-      createdAt: nowIso,
-      updatedAt: nowIso,
-    });
-    // Feed times and medications are separate collections keyed by petId.
-    void repos.pets.replaceFeedTimes(id, buildFeedRows(id, pet.feedTimes ?? []));
-    void repos.pets.replaceMedications(id, buildMedRows(id, pet.medications ?? []));
+    swallow('addPet', (async () => {
+      await repos.pets.upsert({
+        id,
+        householdId: LOCAL_HOUSEHOLD_ID,
+        name: pet.name,
+        avatarEmoji: pet.avatarEmoji,
+        species: pet.species ?? 'other',
+        breed: pet.breed || null,
+        birthdate: null,
+        weightKg: null,
+        peeHoldHours: pet.peeHoldHours ?? null,
+        poopHoldHours: pet.poopHoldHours ?? null,
+        calibrationStartedAt: nowIso,
+        archivedAt: null,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      });
+      // Feed times and medications are separate collections keyed by petId.
+      await repos.pets.replaceFeedTimes(id, buildFeedRows(id, pet.feedTimes ?? []));
+      await repos.pets.replaceMedications(id, buildMedRows(id, pet.medications ?? []));
+    })());
     return id;
   }, []);
 
@@ -158,7 +180,7 @@ export function PetsProvider({ children }: { children: ReactNode }) {
     (id: string, edits: PetEdits) => {
       const existing = pets.find((p) => p.id === id);
       if (!existing) return;
-      void repos.pets.upsert({
+      swallow('updatePet.upsert', repos.pets.upsert({
         ...existing,
         name: edits.name,
         avatarEmoji: edits.avatarEmoji,
@@ -166,11 +188,11 @@ export function PetsProvider({ children }: { children: ReactNode }) {
         peeHoldHours: edits.peeHoldHours,
         poopHoldHours: edits.poopHoldHours,
         updatedAt: new Date().toISOString(),
-      });
+      }));
       // Replacing the whole slot list mints fresh ids; a food log referencing an old feed-time
       // falls back to the earliest-uncovered slot (Δ1 pass 2), so the done count is preserved.
-      void repos.pets.replaceFeedTimes(id, buildFeedRows(id, edits.feedTimes));
-      void repos.pets.replaceMedications(id, buildMedRows(id, edits.medications));
+      swallow('updatePet.replaceFeedTimes', repos.pets.replaceFeedTimes(id, buildFeedRows(id, edits.feedTimes)));
+      swallow('updatePet.replaceMedications', repos.pets.replaceMedications(id, buildMedRows(id, edits.medications)));
     },
     [pets],
   );

@@ -1,8 +1,8 @@
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { colors, radius, shadow } from '../theme/colors';
 import { fonts } from '../theme/fonts';
-import { usePetPhoto } from '../lib/petPhotos';
+import { PetAvatar } from './PetAvatar';
 import type { Pet } from '../data/mockData';
 
 export function PetListItem({
@@ -14,7 +14,6 @@ export function PetListItem({
   onEdit?: () => void;
   onDelete?: () => void;
 }) {
-  const photoUri = usePetPhoto(pet.id);
   return (
     <View style={styles.row}>
       {/* Tapping the pet's avatar / name opens the detail screen (FE-5). */}
@@ -24,13 +23,7 @@ export function PetListItem({
         role="button"
         aria-label={`Open ${pet.name}`}
       >
-        <View style={styles.avatar}>
-          {photoUri ? (
-            <Image source={{ uri: photoUri }} style={styles.avatarImage} />
-          ) : (
-            <Text style={{ fontSize: 24 }}>{pet.avatarEmoji}</Text>
-          )}
-        </View>
+        <PetAvatar pet={pet} size={48} emojiSize={24} style={styles.avatar} />
         <View style={{ flex: 1 }}>
           <Text style={styles.name}>{pet.name}</Text>
           {/* birthdate/age picker is post-SYNC-1; show breed only for now. */}
@@ -73,15 +66,8 @@ const styles = StyleSheet.create({
   main: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   mainPressed: { opacity: 0.6 },
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
     backgroundColor: colors.sagePale,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
   },
-  avatarImage: { width: 48, height: 48, borderRadius: 24 },
   name: { fontSize: 15, fontFamily: fonts.extraBold, color: colors.stone },
   sub: { fontSize: 12, color: colors.stoneMid, marginTop: 2 },
   iconBtn: {

@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, radius, shadow } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { SectionTitle } from '../components/SectionTitle';
+import { PetAvatar } from '../components/PetAvatar';
 import { TimePickerField } from '../components/TimePickerField';
 import { AppModal } from '../components/AppModal';
 import { HouseholdSection } from '../components/HouseholdSection';
@@ -66,6 +67,7 @@ export default function SettingsScreen() {
             value={to12h(prefs.quietHoursStart)}
             onChange={(v) => setQuietHours(v ? to24h(v) : null, prefs.quietHoursEnd)}
             placeholder="Start"
+            defaultTime="9:00 PM"
             style={{ flex: 1 }}
           />
           <TimePickerField
@@ -73,6 +75,7 @@ export default function SettingsScreen() {
             value={to12h(prefs.quietHoursEnd)}
             onChange={(v) => setQuietHours(prefs.quietHoursStart, v ? to24h(v) : null)}
             placeholder="End"
+            defaultTime="7:00 AM"
             style={{ flex: 1 }}
           />
         </View>
@@ -85,7 +88,7 @@ export default function SettingsScreen() {
             const enabled = !muted.has(pet.id);
             return (
               <View key={pet.id} style={styles.muteRow}>
-                <Text style={styles.muteAvatar}>{pet.avatarEmoji}</Text>
+                <PetAvatar pet={pet} size={36} emojiSize={24} style={styles.muteAvatar} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.muteName}>{pet.name}</Text>
                   <Text style={styles.muteSub}>{enabled ? 'Reminders on' : 'Muted'}</Text>
@@ -238,7 +241,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     ...shadow.sm,
   },
-  muteAvatar: { fontSize: 24 },
+  muteAvatar: { backgroundColor: 'transparent' },
   muteName: { fontSize: 14, fontFamily: fonts.extraBold, color: colors.stone },
   muteSub: { fontSize: 12, color: colors.stoneMid, marginTop: 2 },
 

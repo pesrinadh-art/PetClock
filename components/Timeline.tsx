@@ -40,12 +40,13 @@ export function Timeline({
   feedTimes?: FeedTime[];
   now: Date;
 }) {
-  const { removeLog, updateLog } = useLogs();
+  const { removeLog, adjustLogTime } = useLogs();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  // Logs are immutable server-side, so a time change is a replace (insert-new +
+  // soft-delete-old) handled in LogsContext; see adjustLogTime.
   const adjustTime = (entry: LogEntry, deltaMinutes: number) => {
-    const nextMs = Math.min(new Date(entry.occurredAt).getTime() + deltaMinutes * MINUTE_MS, now.getTime());
-    updateLog(entry.id, { occurredAt: new Date(nextMs).toISOString() });
+    adjustLogTime(entry.id, deltaMinutes);
   };
 
   return (

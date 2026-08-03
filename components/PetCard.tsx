@@ -6,6 +6,7 @@ import { countLogsToday, formatTimeUntilCompact, getPetStatus, getUpcomingForPet
 import { computeStreak } from '../lib/streaks';
 import { useLogs } from '../context/LogsContext';
 import { usePets } from '../context/PetsContext';
+import { PetAvatar } from './PetAvatar';
 
 export function PetCard({ pet }: { pet: Pet }) {
   const { getLogsForPet } = useLogs();
@@ -38,9 +39,7 @@ export function PetCard({ pet }: { pet: Pet }) {
     <View style={styles.card}>
       <Text style={styles.pawWatermark}>🐾</Text>
       <View style={styles.top}>
-        <View style={styles.avatar}>
-          <Text style={{ fontSize: 26 }}>{pet.avatarEmoji}</Text>
-        </View>
+        <PetAvatar pet={pet} size={52} emojiSize={26} style={styles.avatar} />
         <View style={{ flex: 1 }}>
           <Text style={styles.name}>{pet.name}</Text>
           <Text style={styles.meta}>{meta}{metaSuffix}</Text>

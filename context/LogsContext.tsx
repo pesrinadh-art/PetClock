@@ -23,8 +23,17 @@ type LogsContextValue = {
   removeLog: (id: string) => void;
   removeLogsForPet: (petId: string) => void;
   updateLog: (id: string, patch: Partial<Omit<LogEntry, 'id' | 'petId'>>) => void;
+  /**
+   * Shift a log's occurredAt by ±minutes. Logs are immutable server-side (the
+   * enforce_log_immutability trigger rejects any occurred_at change), so this is a
+   * REPLACE: insert a new log at the corrected time, then soft-delete the old one.
+   * Insert-before-remove so there is never a transient "no anchor" gap.
+   */
+  adjustLogTime: (id: string, deltaMinutes: number) => void;
   getLogsForPet: (petId: string) => LogEntry[];
 };
+
+const MINUTE_MS = 60 * 1000;
 
 const LogsContext = createContext<LogsContextValue | null>(null);
 
@@ -58,6 +67,31 @@ export function LogsProvider({ children }: { children: ReactNode }) {
     [logs],
   );
 
+  // Logs are immutable server-side (occurred_at cannot change in place), so a time
+  // adjustment is a REPLACE: insert a new log at the corrected time carrying the same
+  // domain facts, then soft-delete the old one. Insert BEFORE remove so the prediction
+  // anchor never briefly disappears. The repo mints a fresh uuid v4 for the replacement.
+  const adjustLogTime = useCallback(
+    async (id: string, deltaMinutes: number) => {
+      const existing = logs.find((l) => l.id === id);
+      if (!existing) return;
+      // Match the UI clamp: never move a log past "now".
+      const nextMs = Math.min(
+        new Date(existing.occurredAt).getTime() + deltaMinutes * MINUTE_MS,
+        Date.now(),
+      );
+      await repos.logs.add(existing.petId, {
+        type: existing.type,
+        occurredAt: new Date(nextMs).toISOString(),
+        note: existing.note,
+        feedTimeId: existing.feedTimeId,
+        medicationId: existing.medicationId,
+      });
+      await repos.logs.remove(id);
+    },
+    [logs],
+  );
+
   // Memoized per-pet index so getLogsForPet returns stable arrays between log changes (D28).
   const logsByPet = useMemo(() => {
     const byPet = new Map<string, LogEntry[]>();
@@ -78,8 +112,8 @@ export function LogsProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ logs, hydrated, addLog, removeLog, removeLogsForPet, updateLog, getLogsForPet }),
-    [logs, hydrated, addLog, removeLog, removeLogsForPet, updateLog, getLogsForPet],
+    () => ({ logs, hydrated, addLog, removeLog, removeLogsForPet, updateLog, adjustLogTime, getLogsForPet }),
+    [logs, hydrated, addLog, removeLog, removeLogsForPet, updateLog, adjustLogTime, getLogsForPet],
   );
 
   return <LogsContext.Provider value={value}>{children}</LogsContext.Provider>;
