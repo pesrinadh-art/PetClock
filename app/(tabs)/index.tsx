@@ -12,16 +12,9 @@ import { LogButtons } from '../../components/LogButtons';
 import { Timeline } from '../../components/Timeline';
 import { SectionTitle } from '../../components/SectionTitle';
 import { EmptyState } from '../../components/EmptyState';
-import { type LogType } from '../../data/mockData';
 import { usePets } from '../../context/PetsContext';
 import { useLogs } from '../../context/LogsContext';
 import { useNow } from '../../hooks/useNow';
-
-// Home only logs pee/poo directly; icon/label are derived at the view edge now (Δ3).
-const LOG_TYPES: Record<string, LogType> = {
-  pee: 'pee',
-  poo: 'poo',
-};
 
 function startOfDay(date: Date): number {
   const d = new Date(date);
@@ -31,7 +24,7 @@ function startOfDay(date: Date): number {
 
 export default function HomeScreen() {
   const { pets, activePet, activePetId, setActivePetId, getFeedTimesForPet } = usePets();
-  const { getLogsForPet, addLog } = useLogs();
+  const { getLogsForPet } = useLogs();
   const now = useNow();
 
   if (!activePet) {
@@ -42,12 +35,6 @@ export default function HomeScreen() {
       </SafeAreaView>
     );
   }
-
-  const handleLog = (key: string) => {
-    const type = LOG_TYPES[key];
-    if (!type) return;
-    addLog(activePet.id, { type });
-  };
 
   const petLogs = getLogsForPet(activePet.id);
   const feedTimes = getFeedTimesForPet(activePet.id);
@@ -72,7 +59,7 @@ export default function HomeScreen() {
         <View style={{ height: 18 }} />
 
         <SectionTitle>Log Now</SectionTitle>
-        <LogButtons pet={activePet} onLog={handleLog} />
+        <LogButtons pet={activePet} />
 
         <SectionTitle>Today's Log</SectionTitle>
         <Timeline entries={todaysLogs} feedTimes={feedTimes} now={now} />
