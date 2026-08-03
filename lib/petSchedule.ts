@@ -194,12 +194,26 @@ export function predictBreak(
   const slots = activeFeedSlots(feedTimes, now);
   if (slots.length === 0) return null;
 
-  // Earliest feed time doubles as a stand-in "wake time" anchor when there's no log yet.
-  const scheduleAnchor = slots[0].time;
   const lastLog = mostRecentLog(logs, type);
-  const anchor = lastLog ? new Date(lastLog.occurredAt) : scheduleAnchor;
-  const { predicted, overdueBy } = nextRepeating(anchor, holdHours, now);
   const bufferMs = bufferMsFor(holdHours);
+
+  let anchor: Date;
+  let predicted: Date;
+  if (lastLog) {
+    // After an actual break log, the next break is ALWAYS one hold-interval later (this matches
+    // the server's app.recompute_prediction). We must NOT use nextRepeating here: its "anchor in
+    // the future → predict at the anchor" branch is only right for the wake-time schedule anchor.
+    // A break logged at ~now would otherwise predict ~now, leaving it stuck 'due' so a Yes tap
+    // never clears the nudge and each tap re-logs.
+    anchor = new Date(lastLog.occurredAt);
+    predicted = new Date(anchor.getTime() + holdHours * 60 * 60 * 1000);
+  } else {
+    // No log yet: anchor on the earliest feed slot (a stand-in "wake time"); the first occurrence
+    // at/after now is correct here, so nextRepeating is right.
+    anchor = slots[0].time;
+    predicted = nextRepeating(anchor, holdHours, now).predicted;
+  }
+  const overdueBy = Math.max(0, now.getTime() - predicted.getTime());
   return {
     breakType: type,
     anchor,
