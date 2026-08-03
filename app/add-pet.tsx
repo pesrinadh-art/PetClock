@@ -7,6 +7,7 @@ import { colors, radius } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { SectionTitle } from '../components/SectionTitle';
 import { TimePickerField } from '../components/TimePickerField';
+import { BreedAutocomplete } from '../components/BreedAutocomplete';
 import { usePets } from '../context/PetsContext';
 import { removePetPhoto, setPetPhoto, usePetPhoto } from '../lib/petPhotos';
 import { parseClockTime } from '../lib/petSchedule';
@@ -275,7 +276,7 @@ export default function AddPetScreen() {
           placeholder="e.g. Biscuit"
           error={errors.name}
         />
-        <Field label="Breed" value={breed} onChangeText={setBreed} placeholder="e.g. Beagle" />
+        <BreedAutocomplete label="Breed" value={breed} onChange={setBreed} placeholder="e.g. Beagle" species={AVATAR_LABELS[avatar]} />
         {/* TODO(post-SYNC-1): species + birthdate pickers — the free-text Age field is dropped
             this wave (birthdate stays null; breed alone shows where age used to). */}
 

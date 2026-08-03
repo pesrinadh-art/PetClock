@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, radius } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { usePets } from '../context/PetsContext';
+import { BreedAutocomplete } from '../components/BreedAutocomplete';
 import { completeOnboarding } from '../lib/onboarding';
 import { requestNotificationPermission } from '../lib/notifications/permissions';
 
@@ -121,12 +122,11 @@ export default function OnboardingScreen() {
               {nameError ? <Text style={styles.errorText}>{nameError}</Text> : null}
 
               <Text style={[styles.label, { marginTop: 14 }]}>Breed (optional)</Text>
-              <TextInput
+              <BreedAutocomplete
                 value={breed}
-                onChangeText={setBreed}
+                onChange={setBreed}
                 placeholder="e.g. Beagle"
-                placeholderTextColor={colors.stoneLight}
-                style={[styles.input, breed ? styles.inputFilled : null]}
+                species={AVATAR_LABELS[avatar]}
               />
 
               <Pressable
