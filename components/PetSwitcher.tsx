@@ -2,6 +2,7 @@ import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import { router } from 'expo-router';
 import { colors, shadow } from '../theme/colors';
 import { fonts } from '../theme/fonts';
+import { PetAvatar } from './PetAvatar';
 import type { Pet } from '../data/mockData';
 
 type Props = {
@@ -29,7 +30,7 @@ export function PetSwitcher({ pets, activeId, onSelect }: Props) {
             aria-selected={active}
             style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && styles.pressed]}
           >
-            <Text style={styles.avatar}>{pet.avatarEmoji}</Text>
+            <PetAvatar pet={pet} size={24} emojiSize={20} style={styles.avatar} />
             <Text style={styles.name}>{pet.name}</Text>
           </Pressable>
         );
@@ -64,7 +65,7 @@ const styles = StyleSheet.create({
     ...shadow.sm,
   },
   chipActive: { borderColor: colors.sage, backgroundColor: colors.sagePale },
-  avatar: { fontSize: 20 },
+  avatar: { backgroundColor: 'transparent' },
   name: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.stone },
   add: {
     width: 40,

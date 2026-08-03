@@ -5,6 +5,7 @@ import { colors, radius, shadow } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { AppModal } from './AppModal';
 import { Toggle } from './Toggle';
+import { PetAvatar } from './PetAvatar';
 import { computeCountdown, formatApptDate, formatApptTime } from '../lib/appointmentUtils';
 import { useAppointments } from '../context/AppointmentsContext';
 import { usePets } from '../context/PetsContext';
@@ -81,7 +82,8 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
         <View style={styles.petRow}>
           {apptPets.map((p) => (
             <View key={p.id} style={styles.petChip}>
-              <Text style={styles.petChipText}>{p.avatarEmoji} {p.name}</Text>
+              <PetAvatar pet={p} size={18} emojiSize={12} style={styles.petChipAvatar} />
+              <Text style={styles.petChipText}>{p.name}</Text>
             </View>
           ))}
         </View>
@@ -157,7 +159,8 @@ const styles = StyleSheet.create({
   countdownText: { fontSize: 11, fontFamily: fonts.extraBold },
   title: { fontSize: 15, fontFamily: fonts.extraBold, color: colors.stone, marginBottom: 6 },
   petRow: { flexDirection: 'row', gap: 6, marginBottom: 12, flexWrap: 'wrap' },
-  petChip: { backgroundColor: colors.sagePale, paddingVertical: 3, paddingHorizontal: 9, borderRadius: 99 },
+  petChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.sagePale, paddingVertical: 3, paddingLeft: 3, paddingRight: 10, borderRadius: 99 },
+  petChipAvatar: { backgroundColor: 'transparent' },
   petChipText: { fontSize: 11, fontFamily: fonts.bold, color: colors.sage },
   detailsRow: { flexDirection: 'row', gap: 16, flexWrap: 'wrap', marginBottom: 10 },
   detail: { fontSize: 12, color: colors.stoneMid, fontFamily: fonts.semiBold },
