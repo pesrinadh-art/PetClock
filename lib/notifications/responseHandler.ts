@@ -97,6 +97,11 @@ export async function handleNotificationResponse(
   const dedupeKey = `${response.notification.request.identifier}:${action}`;
   await loadProcessed();
   if (processedMem.has(dedupeKey)) return;
+  // Reserve the key SYNCHRONOUSLY, before awaiting the action. A cold-start
+  // getLastNotificationResponseAsync() and the live listener can deliver the SAME response;
+  // marking only after the awaited write leaves a window where the second delivery passes the
+  // has() check and double-writes the log. Reserving up front closes that race.
+  processedMem.add(dedupeKey);
 
   try {
     // SYNC-2: a backend push carries an actionToken and belongs on the server, where the
@@ -128,6 +133,8 @@ export async function handleNotificationResponse(
     }
     await markProcessed(dedupeKey);
   } catch (err) {
+    // The action failed — release the reservation so a later relaunch can retry it.
+    processedMem.delete(dedupeKey);
     if (__DEV__) console.warn('[notifications] handleNotificationResponse failed', err);
   }
 }

@@ -297,10 +297,13 @@ export function createSyncedRepos(
       type: input.type,
       occurredAt,
       note: input.note ?? null,
-      source: 'manual',
+      // Honor the caller's provenance/push linkage (mirrors local.ts) — a headless
+      // notification "Yes" passes source 'notification_yes' and the originating push id;
+      // hardcoding 'manual'/null here would silently drop both in synced mode.
+      source: input.source ?? 'manual',
       feedTimeId: input.feedTimeId ?? null,
       medicationId: input.medicationId ?? null,
-      notificationId: null,
+      notificationId: input.notificationId ?? null,
       createdBy: userId, // logs_insert WITH CHECK requires created_by = auth.uid()
       createdAt,
       deletedAt: null,
@@ -315,6 +318,7 @@ export function createSyncedRepos(
       source: entry.source,
       feed_time_id: entry.feedTimeId,
       medication_id: entry.medicationId,
+      notification_id: entry.notificationId,
       created_by: entry.createdBy,
       created_at: entry.createdAt,
     };
