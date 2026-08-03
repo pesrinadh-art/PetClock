@@ -27,6 +27,15 @@ export default function HomeScreen() {
   const { getLogsForPet } = useLogs();
   const now = useNow();
 
+  // Every hook must run on every render — compute BEFORE any early return, so the hook order
+  // stays stable when activePet flips to null (e.g. after "Reset all data" clears every pet).
+  // Calling useMemo after the early return crashed the app on reset.
+  const petLogs = activePet ? getLogsForPet(activePet.id) : [];
+  const todaysLogs = useMemo(() => {
+    const todayStart = startOfDay(now);
+    return petLogs.filter((l) => !l.deletedAt && new Date(l.occurredAt).getTime() >= todayStart);
+  }, [petLogs, now]);
+
   if (!activePet) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
@@ -36,12 +45,7 @@ export default function HomeScreen() {
     );
   }
 
-  const petLogs = getLogsForPet(activePet.id);
   const feedTimes = getFeedTimesForPet(activePet.id);
-  const todaysLogs = useMemo(() => {
-    const todayStart = startOfDay(now);
-    return petLogs.filter((l) => !l.deletedAt && new Date(l.occurredAt).getTime() >= todayStart);
-  }, [petLogs, now]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
