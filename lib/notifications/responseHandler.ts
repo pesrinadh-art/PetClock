@@ -1,8 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
-import { ACTION, isPawClockPush } from '../../shared/notificationContracts';
-import { logYes, REASK_NO_MS, snoozeNudge, SNOOZE_15_MS } from './actions';
+import { ACTION, isPawClockPush, type LoggableAction } from '../../shared/notificationContracts';
+import { clientLogIdFor, isServerPush, postLogAction } from '../push/logAction';
+import { logYes, occurredAtFor, REASK_NO_MS, snoozeNudge, SNOOZE_15_MS } from './actions';
 import { notificationsSupported } from './available';
 import { type ScheduledNotificationData } from './scheduler';
 
@@ -98,6 +99,15 @@ export async function handleNotificationResponse(
   if (processedMem.has(dedupeKey)) return;
 
   try {
+    // SYNC-2: a backend push carries an actionToken and belongs on the server, where the
+    // partner's device can see it too. Returns false when there is no token (a locally
+    // scheduled notification) or when the call could not be completed — either way we fall
+    // through to the local write below, so a tap is never simply lost.
+    if (await tryServerAction(raw, data, action)) {
+      await markProcessed(dedupeKey);
+      return;
+    }
+
     switch (action) {
       case ACTION.yes:
         await logYes(data);
@@ -119,6 +129,70 @@ export async function handleNotificationResponse(
     await markProcessed(dedupeKey);
   } catch (err) {
     if (__DEV__) console.warn('[notifications] handleNotificationResponse failed', err);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SYNC-2 — routing a backend push to the server
+// ---------------------------------------------------------------------------
+
+const SERVER_ACTIONS: Record<string, LoggableAction> = {
+  [ACTION.yes]: 'LOG_YES',
+  [ACTION.no]: 'LOG_NO',
+  [ACTION.snooze]: 'SNOOZE_15',
+};
+
+/**
+ * Send this answer to `log-action`, if it belongs there.
+ *
+ * Returns true only when the server has definitively accepted the answer, so the caller can
+ * stop. Returns false in every other case — no token, not an answerable action, or the call
+ * failed — and the caller writes locally instead.
+ *
+ * That fallback is the important part. Losing a "Yes" because the network blipped on a walk
+ * is exactly the failure this whole feature exists to prevent, and the local write is safe
+ * to make: it carries the SAME deterministic id the server would have used, so when the
+ * device next syncs the row reconciles rather than duplicating.
+ */
+async function tryServerAction(
+  raw: unknown,
+  data: ScheduledNotificationData,
+  action: string,
+): Promise<boolean> {
+  if (!isServerPush(raw)) return false;
+
+  const serverAction = SERVER_ACTIONS[action];
+  // Body taps, OPEN and DISMISS have nothing to write; they fall through to navigation.
+  if (!serverAction) return false;
+
+  try {
+    const clientLogId = await clientLogIdFor(raw.notificationId, serverAction);
+    const outcome = await postLogAction({
+      actionToken: raw.actionToken,
+      action: serverAction,
+      clientLogId,
+      // The event's own time, not the moment the tap was finally processed — a cold-start
+      // replay can land hours late and must still record when the pet actually went.
+      occurredAt: serverAction === 'LOG_YES' ? occurredAtFor(data) : undefined,
+    });
+
+    switch (outcome.status) {
+      case 'ok':
+      case 'replayed':
+        // 'replayed' means the partner answered first, or a manual log superseded this push.
+        // The desired state already holds, so this is done — not an error.
+        return true;
+      case 'rejected':
+        // Expired or invalid token. Retrying cannot help; fall back to the local write.
+        if (__DEV__) console.warn('[push] log-action rejected:', outcome.reason);
+        return false;
+      case 'failed':
+        if (__DEV__) console.warn('[push] log-action failed, writing locally:', outcome.reason);
+        return false;
+    }
+  } catch (err) {
+    if (__DEV__) console.warn('[push] log-action threw, writing locally', err);
+    return false;
   }
 }
 
