@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -614,6 +614,7 @@ export type Database = {
           notify_at: string | null
           pet_id: string
           predicted_at: string | null
+          reask_seq: number
           snoozed_until: string | null
           updated_at: string
         }
@@ -628,6 +629,7 @@ export type Database = {
           notify_at?: string | null
           pet_id: string
           predicted_at?: string | null
+          reask_seq?: number
           snoozed_until?: string | null
           updated_at?: string
         }
@@ -642,6 +644,7 @@ export type Database = {
           notify_at?: string | null
           pet_id?: string
           predicted_at?: string | null
+          reask_seq?: number
           snoozed_until?: string | null
           updated_at?: string
         }
@@ -827,6 +830,7 @@ export type Database = {
         Returns: {
           expo_tickets: Json
           id: string
+          sent_at: string
         }[]
       }
       pull_changes: { Args: { p_since?: string }; Returns: Json }
@@ -846,6 +850,7 @@ export type Database = {
           notify_at: string | null
           pet_id: string
           predicted_at: string | null
+          reask_seq: number
           snoozed_until: string | null
           updated_at: string
         }
@@ -857,6 +862,10 @@ export type Database = {
         }
       }
       redeem_invite: { Args: { p_code: string }; Returns: string }
+      release_notification_claim: {
+        Args: { p_notification_id: string }
+        Returns: undefined
+      }
       replace_feed_times: {
         Args: { p_pet_id: string; p_times: string[] }
         Returns: {

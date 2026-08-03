@@ -68,14 +68,45 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Mark them checked so the next run does not re-fetch the same receipts.
+    // Mark checked ONLY where Expo actually returned a receipt for every ticket on the row.
+    //
+    // Expo does not produce a receipt the instant /send accepts a message — it can take
+    // minutes. This job runs every 15 minutes, so a push sent moments earlier is routinely
+    // still receipt-less. Marking those rows checked anyway (the previous behaviour)
+    // excluded them from notifications_awaiting_receipts permanently, so their receipts
+    // were never fetched and DeviceNotRegistered was never seen. Dead tokens then survive
+    // forever and every household push keeps paying for a phone that uninstalled.
+    //
+    // Rows past Expo's ~24h retention are marked regardless: their receipts are gone, so
+    // re-polling them can only ever be wasted work.
+    const RECEIPT_WINDOW_MS = 23 * 60 * 60 * 1000;
+    let marked = 0;
+    let pending = 0;
+
     for (const row of rows ?? []) {
-      await admin.rpc("mark_receipts_checked", { p_notification_id: row.id });
+      const tickets = (row.expo_tickets ?? []) as Ticket[];
+      const okTickets = tickets.filter((t) => t.status === "ok" && t.id);
+
+      // A row whose tickets all errored at send time has no receipts coming, ever, so
+      // every() over an empty list correctly resolves it immediately.
+      const allResolved = okTickets.every((t) => receipts[t.id!] !== undefined);
+      const expired = row.sent_at
+        ? Date.now() - new Date(row.sent_at as string).getTime() > RECEIPT_WINDOW_MS
+        : false;
+
+      if (allResolved || expired) {
+        await admin.rpc("mark_receipts_checked", { p_notification_id: row.id });
+        marked++;
+      } else {
+        pending++; // leave it for a later run, once Expo has the receipt
+      }
     }
 
     return Response.json({
       notifications: rows?.length ?? 0,
       ticketsChecked: ticketIds.length,
+      marked,
+      pending,
       revoked,
     });
   } catch (err) {
