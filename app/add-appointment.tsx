@@ -87,7 +87,8 @@ export default function AddAppointmentScreen() {
     } else {
       addAppointment(fields);
     }
-    router.back();
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)');
   };
 
   return (
@@ -100,7 +101,7 @@ export default function AddAppointmentScreen() {
             <Text style={styles.modalTitle}>{isEditing ? 'Edit Appointment' : 'New Appointment'}</Text>
             <Pressable
               style={({ pressed }) => [styles.closeBtn, pressed && styles.pressed]}
-              onPress={() => router.back()}
+              onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
               role="button"
               aria-label="Close"
               hitSlop={8}
