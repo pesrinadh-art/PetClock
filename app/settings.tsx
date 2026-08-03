@@ -7,6 +7,7 @@ import { fonts } from '../theme/fonts';
 import { SectionTitle } from '../components/SectionTitle';
 import { TimePickerField } from '../components/TimePickerField';
 import { AppModal } from '../components/AppModal';
+import { HouseholdSection } from '../components/HouseholdSection';
 import { usePets } from '../context/PetsContext';
 import { useNotificationPrefs } from '../context/NotificationPrefsContext';
 import { cancelAllOurNotifications } from '../lib/notifications/scheduler';
@@ -100,6 +101,9 @@ export default function SettingsScreen() {
             );
           })
         )}
+
+        {/* SYNC-4. Renders nothing in local mode — no household exists to share. */}
+        <HouseholdSection />
 
         <SectionTitle>Data</SectionTitle>
         <Pressable
