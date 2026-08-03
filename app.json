@@ -9,7 +9,10 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.sravya.pawclock"
+      "bundleIdentifier": "com.sravya.pawclock",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.sravya.pawclock",
@@ -29,6 +32,12 @@
       "expo-font",
       "expo-splash-screen",
       "expo-notifications"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d6b83327-becd-431e-a202-48e0a65a8515"
+      }
+    }
   }
 }
