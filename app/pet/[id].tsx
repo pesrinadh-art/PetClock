@@ -9,6 +9,7 @@ import { usePets } from '../../context/PetsContext';
 import { useLogs } from '../../context/LogsContext';
 import { usePetPhoto } from '../../lib/petPhotos';
 import { getPetStatus } from '../../lib/petSchedule';
+import { computeStreak } from '../../lib/streaks';
 import { useNow } from '../../hooks/useNow';
 import type { LogEntry } from '../../lib/db/models';
 
@@ -20,30 +21,8 @@ function startOfDay(ms: number): number {
   return d.getTime();
 }
 
-/**
- * Placeholder streak: consecutive calendar days (ending today, or yesterday if nothing logged yet
- * today) with at least one non-deleted log. The parallel FE-4 agent owns `lib/streaks.ts`; once it
- * lands, swap this inline computation for that shared helper (import was intentionally avoided so
- * this branch type-checks and bundles on its own).
- */
-function computeStreak(logs: LogEntry[], now: Date): number {
-  const days = new Set<number>();
-  for (const l of logs) {
-    if (l.deletedAt) continue;
-    days.add(startOfDay(new Date(l.occurredAt).getTime()));
-  }
-  if (days.size === 0) return 0;
-  const today = startOfDay(now.getTime());
-  // Allow the streak to "hang" from yesterday if today has no log yet.
-  let cursor = days.has(today) ? today : today - DAY_MS;
-  if (!days.has(cursor)) return 0;
-  let streak = 0;
-  while (days.has(cursor)) {
-    streak += 1;
-    cursor -= DAY_MS;
-  }
-  return streak;
-}
+// Streak = the shared "everything fed" daily streak (lib/streaks.ts), so Pet Detail
+// matches the 🔥 pill on PetCard exactly.
 
 function calibrationInsight(status: ReturnType<typeof getPetStatus>): { icon: string; title: string; body: string } {
   switch (status.kind) {
@@ -79,7 +58,7 @@ export default function PetDetailScreen() {
   const feedTimes = pet ? getFeedTimesForPet(pet.id) : [];
   const logs = pet ? getLogsForPet(pet.id) : [];
 
-  const streak = useMemo(() => computeStreak(logs, now), [logs, now]);
+  const streak = useMemo(() => computeStreak(feedTimes, logs, now), [feedTimes, logs, now]);
   const status = pet ? getPetStatus(pet, feedTimes, now) : null;
   const insight = status ? calibrationInsight(status) : null;
   const activeLogs = logs.filter((l) => !l.deletedAt);
