@@ -17,8 +17,10 @@ import { PetsProvider } from '../context/PetsContext';
 import { LogsProvider } from '../context/LogsContext';
 import { AppointmentsProvider } from '../context/AppointmentsContext';
 import { NudgesProvider } from '../context/NudgesContext';
+import { NotificationPrefsProvider } from '../context/NotificationPrefsContext';
 import { AutoCalibrator } from '../components/AutoCalibrator';
 import { NotificationObserver } from '../components/NotificationObserver';
+import { OnboardingGate } from '../components/OnboardingGate';
 import { AppModalHost } from '../components/AppModal';
 import { HydrationGate } from '../components/HydrationGate';
 import { SnackbarProvider } from '../components/Snackbar';
@@ -79,10 +81,15 @@ export default function RootLayout() {
               {/* Under all three data providers: gate the reveal on hydration so
                   the app never flashes empty content before AsyncStorage loads. */}
               <HydrationGate>
+                {/* FE-5: persisted quiet-hours / per-pet mute prefs (Settings writes, the
+                    NotificationObserver reads). Wraps the observer + navigator so both see it. */}
+                <NotificationPrefsProvider>
                 <AutoCalibrator />
                 {/* Mirrors pets/logs/appointments into scheduled OS notifications (FE-3).
                     Inert on web and without notification permission. */}
                 <NotificationObserver />
+                {/* FE-5: first-run redirect into /onboarding (no pets + never onboarded). */}
+                <OnboardingGate>
                 <PhoneFrame>
                   <AppModalHost>
                     <Stack screenOptions={{ headerShown: false }}>
@@ -93,6 +100,8 @@ export default function RootLayout() {
                     </Stack>
                   </AppModalHost>
                 </PhoneFrame>
+                </OnboardingGate>
+                </NotificationPrefsProvider>
               </HydrationGate>
             </NudgesProvider>
           </AppointmentsProvider>

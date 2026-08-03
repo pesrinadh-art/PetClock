@@ -1,6 +1,8 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import { colors, radius, shadow } from '../theme/colors';
 import { fonts } from '../theme/fonts';
+import { usePetPhoto } from '../lib/petPhotos';
 import type { Pet } from '../data/mockData';
 
 export function PetListItem({
@@ -12,16 +14,29 @@ export function PetListItem({
   onEdit?: () => void;
   onDelete?: () => void;
 }) {
+  const photoUri = usePetPhoto(pet.id);
   return (
     <View style={styles.row}>
-      <View style={styles.avatar}>
-        <Text style={{ fontSize: 24 }}>{pet.avatarEmoji}</Text>
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.name}>{pet.name}</Text>
-        {/* birthdate/age picker is post-SYNC-1; show breed only for now. */}
-        <Text style={styles.sub}>{pet.breed || 'No details yet'}</Text>
-      </View>
+      {/* Tapping the pet's avatar / name opens the detail screen (FE-5). */}
+      <Pressable
+        style={({ pressed }) => [styles.main, pressed && styles.mainPressed]}
+        onPress={() => router.push({ pathname: '/pet/[id]', params: { id: pet.id } })}
+        role="button"
+        aria-label={`Open ${pet.name}`}
+      >
+        <View style={styles.avatar}>
+          {photoUri ? (
+            <Image source={{ uri: photoUri }} style={styles.avatarImage} />
+          ) : (
+            <Text style={{ fontSize: 24 }}>{pet.avatarEmoji}</Text>
+          )}
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.name}>{pet.name}</Text>
+          {/* birthdate/age picker is post-SYNC-1; show breed only for now. */}
+          <Text style={styles.sub}>{pet.breed || 'No details yet'}</Text>
+        </View>
+      </Pressable>
       <Pressable
         style={({ pressed }) => [styles.iconBtn, styles.editBtn, pressed && styles.iconBtnPressed]}
         onPress={onEdit}
@@ -55,6 +70,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     ...shadow.sm,
   },
+  main: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  mainPressed: { opacity: 0.6 },
   avatar: {
     width: 48,
     height: 48,
@@ -62,7 +79,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.sagePale,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
+  avatarImage: { width: 48, height: 48, borderRadius: 24 },
   name: { fontSize: 15, fontFamily: fonts.extraBold, color: colors.stone },
   sub: { fontSize: 12, color: colors.stoneMid, marginTop: 2 },
   iconBtn: {

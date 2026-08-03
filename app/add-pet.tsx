@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 import { colors, radius } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { SectionTitle } from '../components/SectionTitle';
 import { TimePickerField } from '../components/TimePickerField';
 import { usePets } from '../context/PetsContext';
+import { removePetPhoto, setPetPhoto, usePetPhoto } from '../lib/petPhotos';
 import { parseClockTime } from '../lib/petSchedule';
 
 const AVATAR_OPTIONS = ['🐶', '🐱', '🐰', '🐹', '🐦', '🐢', '🐍', '🐠'];
@@ -65,6 +67,14 @@ export default function AddPetScreen() {
   const editingPet = petId ? pets.find((p) => p.id === petId) : undefined;
   const isEditing = !!editingPet;
 
+  // Device-local photo (kept out of the frozen Pet contract — see lib/petPhotos). `storedPhoto`
+  // is the persisted uri; `photoTouched` tracks an in-session pick/remove so an unchanged edit
+  // leaves the stored value alone.
+  const storedPhoto = usePetPhoto(editingPet?.id ?? '');
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photoTouched, setPhotoTouched] = useState(false);
+  const displayPhoto = photoTouched ? photoUri : storedPhoto;
+
   const [avatar, setAvatar] = useState(editingPet?.avatarEmoji ?? AVATAR_OPTIONS[0]);
   const [name, setName] = useState(editingPet?.name ?? '');
   const [breed, setBreed] = useState(editingPet?.breed ?? '');
@@ -88,6 +98,30 @@ export default function AddPetScreen() {
 
   const clearError = (field: keyof FormErrors) => {
     setErrors((prev) => (prev[field] ? { ...prev, [field]: undefined } : prev));
+  };
+
+  const pickPhoto = async () => {
+    // Native needs media-library permission; web uses a file input and needs none. Denial is a
+    // graceful no-op — the emoji avatar remains the fallback.
+    if (Platform.OS !== 'web') {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (!result.canceled && result.assets[0]?.uri) {
+      setPhotoUri(result.assets[0].uri);
+      setPhotoTouched(true);
+    }
+  };
+
+  const clearPhoto = () => {
+    setPhotoUri(null);
+    setPhotoTouched(true);
   };
 
   const addFeedRow = () => {
@@ -142,8 +176,14 @@ export default function AddPetScreen() {
     };
     if (isEditing) {
       updatePet(editingPet.id, edits);
+      // Persist a photo change only when the user actually touched it this session.
+      if (photoTouched) {
+        if (photoUri) void setPetPhoto(editingPet.id, photoUri);
+        else void removePetPhoto(editingPet.id);
+      }
     } else {
-      addPet(edits);
+      const newPetId = addPet(edits);
+      if (photoUri) void setPetPhoto(newPetId, photoUri);
     }
     router.back();
   };
@@ -168,6 +208,37 @@ export default function AddPetScreen() {
           >
             <Text style={styles.closeBtnText}>✕</Text>
           </Pressable>
+        </View>
+
+        <SectionTitle>Photo</SectionTitle>
+        <View style={styles.photoRow}>
+          <View style={styles.photoPreview}>
+            {displayPhoto ? (
+              <Image source={{ uri: displayPhoto }} style={styles.photoImage} />
+            ) : (
+              <Text style={{ fontSize: 32 }}>{avatar}</Text>
+            )}
+          </View>
+          <View style={styles.photoActions}>
+            <Pressable
+              style={({ pressed }) => [styles.photoBtn, pressed && styles.pressed]}
+              onPress={() => void pickPhoto()}
+              role="button"
+              aria-label={displayPhoto ? 'Change photo' : 'Add photo'}
+            >
+              <Text style={styles.photoBtnText}>{displayPhoto ? '🖼️ Change photo' : '🖼️ Add photo'}</Text>
+            </Pressable>
+            {displayPhoto ? (
+              <Pressable
+                style={({ pressed }) => [styles.photoRemoveBtn, pressed && styles.pressed]}
+                onPress={clearPhoto}
+                role="button"
+                aria-label="Remove photo"
+              >
+                <Text style={styles.photoRemoveText}>Remove</Text>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
 
         <SectionTitle>Species</SectionTitle>
@@ -378,6 +449,29 @@ const styles = StyleSheet.create({
   },
   closeBtnText: { fontSize: 14, fontFamily: fonts.extraBold, color: colors.stoneMid },
   pressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
+  photoRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 20 },
+  photoPreview: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.sagePale,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  photoImage: { width: 72, height: 72, borderRadius: 36 },
+  photoActions: { flex: 1, gap: 8 },
+  photoBtn: {
+    borderWidth: 2,
+    borderColor: colors.stoneLight,
+    borderStyle: 'dashed',
+    borderRadius: radius.sm,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  photoBtnText: { fontSize: 13, fontFamily: fonts.bold, color: colors.stoneMid },
+  photoRemoveBtn: { alignSelf: 'flex-start', paddingVertical: 4, paddingHorizontal: 4 },
+  photoRemoveText: { fontSize: 12, fontFamily: fonts.bold, color: '#C0392B' },
   avatarGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
   avatarChip: {
     width: 56,

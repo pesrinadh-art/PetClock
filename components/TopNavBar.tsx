@@ -9,16 +9,27 @@ export function TopNavBar() {
       <Text style={styles.logo}>
         Paw<Text style={{ color: colors.pooLight }}>Clock</Text>
       </Text>
-      <Pressable
-        style={({ pressed }) => [styles.bell, pressed && styles.bellPressed]}
-        onPress={() => router.push('/notifications')}
-        role="button"
-        aria-label="Notifications"
-        hitSlop={8}
-      >
-        <Text style={{ fontSize: 16 }}>🔔</Text>
-        <View style={styles.dot} />
-      </Pressable>
+      <View style={styles.actions}>
+        <Pressable
+          style={({ pressed }) => [styles.bell, pressed && styles.bellPressed]}
+          onPress={() => router.push('/notifications')}
+          role="button"
+          aria-label="Notifications"
+          hitSlop={8}
+        >
+          <Text style={{ fontSize: 16 }}>🔔</Text>
+          <View style={styles.dot} />
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [styles.gear, pressed && styles.bellPressed]}
+          onPress={() => router.push('/settings')}
+          role="button"
+          aria-label="Settings"
+          hitSlop={8}
+        >
+          <Text style={{ fontSize: 16 }}>⚙️</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -33,11 +44,20 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   logo: { fontSize: 22, fontFamily: fonts.black, color: colors.sage, letterSpacing: -0.5 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   bell: {
     width: 36,
     height: 36,
     borderRadius: 18,
     backgroundColor: colors.pee,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gear: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.sagePale,
     alignItems: 'center',
     justifyContent: 'center',
   },
