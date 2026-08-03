@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors, radius, shadow } from '../theme/colors';
 import { fonts } from '../theme/fonts';
@@ -28,6 +28,19 @@ export function BreedAutocomplete({ label, value, onChange, placeholder, species
   const [focused, setFocused] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
+  // On react-native-web, clicking a suggestion blurs the input BEFORE the Pressable's onPress
+  // (click) fires — the DOM order is mousedown → blur → mouseup → click. Closing the popover
+  // synchronously on blur would unmount the row mid-interaction and swallow the selection.
+  // So we defer the blur-close by a tick; a successful pick cancels it and closes immediately.
+  // We keep onPress (not onPressIn) so the row press still yields to a scroll gesture on native.
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelBlurClose = () => {
+    if (blurTimer.current) {
+      clearTimeout(blurTimer.current);
+      blurTimer.current = null;
+    }
+  };
+
   const normalized = normalizeSpecies(species);
   const suggestions = useMemo(() => suggestBreeds(value, normalized), [value, normalized]);
 
@@ -35,8 +48,10 @@ export function BreedAutocomplete({ label, value, onChange, placeholder, species
   const open = focused && !dismissed && suggestions.length > 0;
 
   const pick = (name: string) => {
+    cancelBlurClose();
     onChange(name);
     setDismissed(true);
+    setFocused(false);
   };
 
   return (
@@ -51,10 +66,15 @@ export function BreedAutocomplete({ label, value, onChange, placeholder, species
             setDismissed(false);
           }}
           onFocus={() => {
+            cancelBlurClose();
             setFocused(true);
             setDismissed(false);
           }}
-          onBlur={() => setFocused(false)}
+          // Defer the close so a suggestion click (which blurs the input first on web) can win.
+          onBlur={() => {
+            cancelBlurClose();
+            blurTimer.current = setTimeout(() => setFocused(false), 120);
+          }}
           placeholder={placeholder}
           placeholderTextColor={colors.stoneLight}
           style={[styles.input, value ? styles.inputFilled : null]}
