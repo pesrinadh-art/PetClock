@@ -18,6 +18,7 @@ import { LogsProvider } from '../context/LogsContext';
 import { AppointmentsProvider } from '../context/AppointmentsContext';
 import { NudgesProvider } from '../context/NudgesContext';
 import { AutoCalibrator } from '../components/AutoCalibrator';
+import { NotificationObserver } from '../components/NotificationObserver';
 import { AppModalHost } from '../components/AppModal';
 import { HydrationGate } from '../components/HydrationGate';
 
@@ -77,6 +78,9 @@ export default function RootLayout() {
                   the app never flashes empty content before AsyncStorage loads. */}
               <HydrationGate>
                 <AutoCalibrator />
+                {/* Mirrors pets/logs/appointments into scheduled OS notifications (FE-3).
+                    Inert on web and without notification permission. */}
+                <NotificationObserver />
                 <PhoneFrame>
                   <AppModalHost>
                     <Stack screenOptions={{ headerShown: false }}>

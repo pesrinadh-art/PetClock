@@ -160,6 +160,57 @@ function mostRecentLog(logs: LogEntry[], type: 'pee' | 'poo'): LogEntry | null {
 }
 
 /**
+ * The raw hold-time prediction for one break type — the pure kernel behind both the Upcoming
+ * UI (via {@link getUpcomingForPet}) and the notification scheduler (`lib/notifications`). Kept
+ * as a single exported function so the scheduled push and the on-screen window can never drift
+ * from one another: they are two projections of THIS computation.
+ *
+ * `predictedAt` is the un-clamped predicted instant (may be in the past — a missed break stays
+ * put and reads as overdue, never rolls forward; see {@link nextRepeating}). `notifyAt` is the
+ * moment the push should fire: `predictedAt − buffer`. Returns null when the pet has no usable
+ * schedule for this break type.
+ */
+export type BreakPrediction = {
+  breakType: 'pee' | 'poo';
+  /** The anchor the prediction was stepped from (last log, else earliest feed slot). */
+  anchor: Date;
+  predictedAt: Date;
+  bufferMs: number;
+  /** predictedAt − buffer — when the notification fires. */
+  notifyAt: Date;
+  /** ms past predictedAt (0 when still ahead). */
+  overdueBy: number;
+};
+
+export function predictBreak(
+  pet: Pet,
+  feedTimes: FeedTime[],
+  logs: LogEntry[],
+  type: 'pee' | 'poo',
+  now: Date = new Date(),
+): BreakPrediction | null {
+  const holdHours = type === 'pee' ? pet.peeHoldHours : pet.poopHoldHours;
+  if (!hasSchedule(pet, feedTimes) || holdHours == null) return null;
+  const slots = activeFeedSlots(feedTimes, now);
+  if (slots.length === 0) return null;
+
+  // Earliest feed time doubles as a stand-in "wake time" anchor when there's no log yet.
+  const scheduleAnchor = slots[0].time;
+  const lastLog = mostRecentLog(logs, type);
+  const anchor = lastLog ? new Date(lastLog.occurredAt) : scheduleAnchor;
+  const { predicted, overdueBy } = nextRepeating(anchor, holdHours, now);
+  const bufferMs = bufferMsFor(holdHours);
+  return {
+    breakType: type,
+    anchor,
+    predictedAt: predicted,
+    bufferMs,
+    notifyAt: new Date(predicted.getTime() - bufferMs),
+    overdueBy,
+  };
+}
+
+/**
  * Derives upcoming feed/pee/poop events from a pet's configured schedule.
  * Pee/poop breaks are predicted from the pet's *last logged* pee/poop (falling back to the
  * earliest feed time if nothing's been logged yet) plus their hold time, shown as a buffered
@@ -177,8 +228,6 @@ export function getUpcomingForPet(
   if (slots.length === 0) return [];
   const todaysFeedTimes = slots.map((s) => s.time);
 
-  // Earliest feed time doubles as a stand-in "wake time" anchor when there's no log yet.
-  const scheduleAnchor = todaysFeedTimes[0];
   const items: UpcomingItem[] = [];
 
   // Next feed = earliest future feed time that isn't already logged/done, so a meal marked
@@ -201,21 +250,21 @@ export function getUpcomingForPet(
     overdueBy: 0,
   });
 
-  const addHoldItem = (type: 'pee' | 'poo', icon: string, label: string, holdHours: number | null) => {
-    if (holdHours == null) return;
-    const lastLog = mostRecentLog(logs, type);
-    const anchor = lastLog ? new Date(lastLog.occurredAt) : scheduleAnchor;
-    const { predicted, overdueBy } = nextRepeating(anchor, holdHours, now);
-    const buffer = bufferMsFor(holdHours);
+  const addHoldItem = (type: 'pee' | 'poo', icon: string, label: string) => {
+    // Same pure kernel the notification scheduler mirrors, so window and push stay in lockstep.
+    const prediction = predictBreak(pet, feedTimes, logs, type, now);
+    if (!prediction) return;
+    const { predictedAt, bufferMs, overdueBy } = prediction;
+    const predicted = predictedAt.getTime();
     const kind: UpcomingKind =
-      overdueBy > 0 ? 'overdue' : now.getTime() >= predicted.getTime() - buffer ? 'due' : 'upcoming';
-    const timeStart = new Date(Math.max(now.getTime(), predicted.getTime() - buffer));
-    const timeEnd = new Date(Math.max(timeStart.getTime(), predicted.getTime() + buffer));
+      overdueBy > 0 ? 'overdue' : now.getTime() >= predicted - bufferMs ? 'due' : 'upcoming';
+    const timeStart = new Date(Math.max(now.getTime(), predicted - bufferMs));
+    const timeEnd = new Date(Math.max(timeStart.getTime(), predicted + bufferMs));
     items.push({ id: type, type, icon, label, timeStart, timeEnd, kind, overdueBy });
   };
 
-  addHoldItem('pee', '💧', 'Pee break', pet.peeHoldHours);
-  addHoldItem('poo', '💩', 'Poo break', pet.poopHoldHours);
+  addHoldItem('pee', '💧', 'Pee break');
+  addHoldItem('poo', '💩', 'Poo break');
 
   return items.sort((a, b) => a.timeStart.getTime() - b.timeStart.getTime());
 }
