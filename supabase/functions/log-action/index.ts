@@ -169,6 +169,18 @@ Deno.serve(async (req) => {
     // A duplicate key means our own retry arrived twice. The row already exists, which is
     // exactly the desired state — swallow it.
     if (insertErr && insertErr.code !== UNIQUE_VIOLATION) {
+      // The claim was already won above, so the notification now reads 'actioned' while no
+      // log exists. Left that way, the phone's retry LOSES the claim and receives a cheerful
+      // {ok: true, replayed: true} — the tap is silently dropped and the pet never logged.
+      // The claim cannot simply move after the insert: gate 2 only de-duplicates the SAME
+      // device's retry, so the claim is what stops the second caregiver writing a second log
+      // for one pee. It has to stay first, and be released on failure.
+      const { error: releaseErr } = await admin.rpc("release_notification_claim", {
+        p_notification_id: claims.nid,
+      });
+      if (releaseErr) {
+        console.error("failed to release claim after log insert failure", releaseErr);
+      }
       console.error("log insert failed", insertErr);
       throw new HttpError(500, "SERVER_ERROR");
     }
