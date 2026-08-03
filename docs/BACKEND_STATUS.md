@@ -3,7 +3,35 @@
 Living record of the BE track. Companion to `docs/BACKEND_DESIGN.md` (the design) and
 `docs/BACKEND_PLAN.md` (the original plan, now partly superseded).
 
-**Last updated:** 2026-08-02 · **Branch:** `BE-3-push-loop` · **BE-1 PR:** [#5](https://github.com/pesrinadh-art/PetClock/pull/5) (merged)
+**Last updated:** 2026-08-03 · **Branch:** `SYNC-4-join-household`
+
+BE-1 ([#5](https://github.com/pesrinadh-art/PetClock/pull/5)), BE-2, BE-3 and SYNC-2
+([#18](https://github.com/pesrinadh-art/PetClock/pull/18)) are all merged to `main`.
+
+---
+
+## Status: SYNC-4 — the join flow
+
+**139 pgTAP assertions across 8 suites.** See `docs/SYNC4_RUNBOOK.md` for the device test.
+
+Two phones could never share a household: every device signed in anonymously, found no
+membership, and **created its own**. `create_invite` / `redeem_invite` shipped in BE-1 with
+20 assertions behind them and nothing ever called them.
+
+| Deliverable | State |
+|---|---|
+| Migration `0016` — `leave_household`, `join_household` | applied to staging |
+| `008_join_flow` pgTAP suite | 22/22 |
+| `lib/household/invites.ts` | typed RPC wrappers + human-readable errors |
+| `SessionContext.join()` | switches household, re-swaps repos, re-caches |
+| Settings → Household | invite code + join by code |
+| `expo-dev-client` | installed (+1 dep, no lockfile churn) |
+
+**A latent bug fixed on the way:** `SessionContext` resolved the household with an unordered
+`limit 1`. It now calls `my_household_id()`, which orders by `joined_at`.
+
+**Still open:** no push has reached a physical device. That needs EAS credentials (APNs key,
+FCM v1 service account) tied to accounts only the repo owner holds.
 
 ---
 
@@ -105,68 +133,62 @@ Everything below was *executed*, not just written. Verified against the live
 
 ---
 
-## Open gaps (BE-1 scope, not yet closed)
+## Open gaps
 
-1. **Vault secrets are not set** — `project_url` and `service_role_key` are both absent, so
-   all four cron jobs tick every minute and hit the no-op guard in `app.invoke_edge_function`.
-   Nothing is dispatched. Correct by design until BE-3 exists, but do not mistake "4 active
-   cron jobs" for "the pipeline is running".
-2. **`ACTION_TOKEN_SECRET` not generated** — needed to sign action tokens in BE-3.
-3. **PR #5 not merged.** Opened from a fork (`sakh9999:BE-foundations`) because the pushing
-   account has no write access to `pesrinadh-art/PetClock`. Needs the repo owner to merge.
-4. **No local Docker stack** — the dev machine has no WSL, so everything was verified
+**Closed since:** Vault secrets are set (BE-3), `ACTION_TOKEN_SECRET` is generated, PR #5
+is merged, and the free-tier pause risk is **disproved** — 1,440 dispatcher runs in 24h
+with zero failures across several days, so internal `pg_cron` ticks do count as activity.
+
+1. **`recalibrate` is a dangling cron.** `recalibrate-holds` fires nightly at 03:30 and
+   calls `app.invoke_edge_function('recalibrate')`, but only three functions are deployed
+   (`dispatch-notifications`, `log-action`, `check-receipts`). The job reports "succeeded"
+   because `pg_net` is fire-and-forget — it queues the request and never checks the reply.
+   **Hold times therefore never adapt.** BE-4.
+2. **No local Docker stack** — the dev machine has no WSL, so everything is verified
    against hosted staging. `supabase start` needs `wsl --install` plus a reboot.
-5. **Free-tier pause behaviour unverified** — if internal `pg_cron` ticks do not count as
-   project activity, staging sleeps after ~7 days and pushes stop. Check within the week.
-6. **Staging seed uses `password123`** for `demo@pawclock.test` / `partner@pawclock.test`.
+3. **Staging seed uses `password123`** for `demo@pawclock.test` / `partner@pawclock.test`.
    Fine for staging; this project must never be promoted to prod.
+4. **Session storage is unencrypted.** `lib/db/client.ts:46` keeps the auth session in
+   AsyncStorage. Needs a chunking SecureStore adapter (SecureStore caps around 2048 bytes).
+5. **No realtime in the repos.** `createSyncedRepos` still uses an in-process emitter
+   (`synced.ts:26`), so a partner's write does not live-update a mounted screen. The
+   publication and `pull_changes` cursor shipped in BE-2; wiring them up is SYNC 3.
+6. **`revokePushToken` is unwired** — no sign-out flow exists to call it from.
+7. **Ownership transfer does not exist**, so the last owner of a household holding pets
+   cannot leave it at all (`leave_household` refuses rather than strand the pets). BE-4.
+8. **No schema home** for `pet_weights` or `appointments.recurrence_months`.
 
 ---
 
 ## To-do
 
-### BE-3 — flagship push loop 🚩 *(recommended next)*
-Highest value remaining, and needs zero frontend files.
+BE-1, BE-2, BE-3, SYNC-1, SYNC-2 and SYNC-4 are shipped. What remains, in the order it
+matters.
 
-- `_shared/` helpers: supabase client factory, action-token sign/verify, Expo push sender,
-  quiet-hours check, rate-limit wrapper
-- `dispatch-notifications` — four due-queries (breaks, meals, meds, appointment reminders),
-  `dedupe_key` insert gate, `for update skip locked`, roll `notify_at` forward after send
-- `log-action` — gate 1 (compare-and-set `'sent'`→`'actioned'`), gate 2 (client uuid PK),
-  `LOG_NO` → `record_break_no`, `SNOOZE_15` paths
-- `check-receipts` — `DeviceNotRegistered` → revoke token
-- Set Vault secrets and `ACTION_TOKEN_SECRET`; confirm cron actually fires
-- Verify with curl: replayed tick sends once, double-tap claims once, manual-log-then-tap
-  no-ops, expired token 401s
+### SYNC 4 — put it on real phones 🚩 *(next, and it needs the repo owner)*
+The join flow, the join RPCs and `expo-dev-client` are done and verified. What is left is
+**credentials only**: an APNs key and an FCM v1 service account, both tied to accounts the
+backend track cannot sign into. Full steps in `docs/SYNC4_RUNBOOK.md`.
 
-### BE-2 — offline sync infrastructure
-- `supabase_realtime` publication membership; `replica identity full` on synced tables
-- Delta-pull cursor semantics; tombstone delivery; reconnect contract
-- Verify a household channel receives a psql-driven change
+Until this happens, no push has ever arrived on physical hardware — everything up to and
+including Expo's API is proven, and the last hop is not.
 
 ### BE-4 — calibration and sharing
-- Nightly `recalibrate` (EWMA, 14-day window, 30/70 blend, `consecutive_no_count ≥ 3` → +0.5h)
+- **`recalibrate` — the cron already calls it and it does not exist.** EWMA over a 14-day
+  window, 30/70 blend with the current hold, `consecutive_no_count ≥ 3` → +0.5h.
+  Until this lands, hold times never adapt: a 4h pet stays 4h forever.
+- **Ownership transfer**, so the last owner of a household holding pets can leave at all
 - Invite deep links (`pawclock.app/join/CODE`), Apple/Google `linkIdentity`
 - `delete-account`, med escalation, vaccine recurrence, weekly digest + `daily_pet_stats`
 
+### SYNC 3 — realtime in the repos
+The publication, `replica identity full` and the `pull_changes` cursor all shipped in BE-2
+and are unused. `createSyncedRepos` still uses an in-process emitter (`synced.ts:26`), so a
+partner's write does not live-update a mounted screen. Wire "subscribe → pull → apply" —
+the ordering matters, an INSERT can land between SUBSCRIBED and the first pull.
+
 ### BE-5 — hardening and launch
 - Wire `app.check_rate_limit` into every Edge Function
+- SecureStore chunking adapter for the auth session (`lib/db/client.ts:46`)
 - Sentry, GitHub Actions (`db lint` + tests on PR, `db push` + `functions deploy` on merge)
-- EAS build config, store review prep
-
-### Frontend wiring (SYNC 1) — blocked on a decision
-Nothing connects the two halves: no `@supabase/supabase-js`, no `lib/repo/`, no auth.
-
-The plan assumed FE-2 would build `lib/repo/local.ts` first, making SYNC 1 a swap of one
-implementation for another. FE-2 has not started, so wiring now means building both halves,
-in files the FE dev is actively working in (`context/*.tsx`, `app/_layout.tsx`, `package.json`).
-
-Two items need FE action regardless:
-- **Δ3** — `LogEntry` drops `icon`/`label`; derive at the view edge from `type` and
-  `feedTimeId`. Touches `Timeline.tsx` and `getTodaysMeals()`.
-- **Δ4** — ids become client-generated uuid v4, generated once per action and reused
-  across retries.
-
-### Known external blocker
-Push testing needs a **dev build** — Expo Go dropped remote push in SDK 53+. Someone has to
-solve this before the flagship is demonstrable end-to-end.
+- Store review prep

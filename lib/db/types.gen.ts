@@ -319,6 +319,7 @@ export type Database = {
           pet_id: string
           source: Database["public"]["Enums"]["log_source"]
           type: Database["public"]["Enums"]["log_type"]
+          updated_at: string
         }
         Insert: {
           created_at?: string
@@ -334,6 +335,7 @@ export type Database = {
           pet_id: string
           source?: Database["public"]["Enums"]["log_source"]
           type: Database["public"]["Enums"]["log_type"]
+          updated_at?: string
         }
         Update: {
           created_at?: string
@@ -349,6 +351,7 @@ export type Database = {
           pet_id?: string
           source?: Database["public"]["Enums"]["log_source"]
           type?: Database["public"]["Enums"]["log_type"]
+          updated_at?: string
         }
         Relationships: [
           {
@@ -692,6 +695,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_rate_limit_public: {
+        Args: { p_key: string; p_limit: number; p_window_seconds: number }
+        Returns: undefined
+      }
+      claim_notification: {
+        Args: {
+          p_action: string
+          p_action_by?: string
+          p_notification_id: string
+        }
+        Returns: string
+      }
       create_appointment: {
         Args: {
           p_all_day?: boolean
@@ -736,8 +751,85 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      due_appointment_reminders: {
+        Args: never
+        Returns: {
+          appointment_id: string
+          dedupe_key: string
+          household_id: string
+          offset_minutes: number
+          pet_id: string
+          reminder_id: string
+          starts_at: string
+          title: string
+        }[]
+      }
+      due_break_predictions: {
+        Args: never
+        Returns: {
+          break_type: Database["public"]["Enums"]["break_type"]
+          dedupe_key: string
+          household_id: string
+          pet_id: string
+          pet_name: string
+          predicted_at: string
+        }[]
+      }
+      due_meals: {
+        Args: never
+        Returns: {
+          dedupe_key: string
+          feed_time_id: string
+          household_id: string
+          meal_label: string
+          pet_id: string
+          pet_name: string
+        }[]
+      }
+      due_medications: {
+        Args: never
+        Returns: {
+          dedupe_key: string
+          dosage: string
+          household_id: string
+          medication_id: string
+          medication_name: string
+          pet_id: string
+          pet_name: string
+        }[]
+      }
       get_my_data: { Args: never; Returns: Json }
       infer_schedule: { Args: { p_pet_id: string }; Returns: Json }
+      join_household: {
+        Args: { p_code: string; p_leave?: string }
+        Returns: Json
+      }
+      leave_household: { Args: { p_household_id: string }; Returns: undefined }
+      mark_break_dispatched: {
+        Args: {
+          p_break_type: Database["public"]["Enums"]["break_type"]
+          p_notification_id: string
+          p_pet_id: string
+        }
+        Returns: undefined
+      }
+      mark_receipts_checked: {
+        Args: { p_notification_id: string }
+        Returns: undefined
+      }
+      mark_reminder_sent: {
+        Args: { p_reminder_id: string }
+        Returns: undefined
+      }
+      my_household_id: { Args: never; Returns: string }
+      notifications_awaiting_receipts: {
+        Args: never
+        Returns: {
+          expo_tickets: Json
+          id: string
+        }[]
+      }
+      pull_changes: { Args: { p_since?: string }; Returns: Json }
       record_break_no: {
         Args: {
           p_break_type: Database["public"]["Enums"]["break_type"]
@@ -801,6 +893,16 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      revoke_push_token: { Args: { p_token: string }; Returns: undefined }
+      snooze_break: {
+        Args: {
+          p_break_type: Database["public"]["Enums"]["break_type"]
+          p_minutes?: number
+          p_notification_id: string
+          p_pet_id: string
+        }
+        Returns: undefined
       }
     }
     Enums: {
