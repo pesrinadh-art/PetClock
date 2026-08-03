@@ -23,17 +23,33 @@ const TIME_SLOTS = generateTimeSlots();
 const CLEAR_OPTION = '__clear__';
 const OPTIONS = [CLEAR_OPTION, ...TIME_SLOTS];
 
+// Where an empty picker opens when no `defaultTime` is supplied (breakfast-ish),
+// instead of the top of the list (12:00 AM / the Clear row).
+const DEFAULT_TIME = '8:00 AM';
+
 type Props = {
   label?: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   style?: object;
+  // Realistic "h:mm AM/PM" time to scroll to when `value` is empty. This ONLY
+  // positions the list on open; it never pre-fills the field or fires onChange.
+  defaultTime?: string;
 };
 
-export function TimePickerField({ label, value, onChange, placeholder = 'Select time', style }: Props) {
+export function TimePickerField({ label, value, onChange, placeholder = 'Select time', style, defaultTime }: Props) {
   const [open, setOpen] = useState(false);
-  const selectedIndex = Math.max(0, OPTIONS.indexOf(value));
+  // When there's a value, scroll to it. Otherwise scroll to a realistic default
+  // (prop, else module fallback) so the empty picker doesn't open at midnight.
+  // The field itself stays empty until the user taps a slot — no onChange here.
+  let targetIndex = OPTIONS.indexOf(value);
+  if (targetIndex < 0) {
+    targetIndex = OPTIONS.indexOf(defaultTime ?? DEFAULT_TIME);
+    if (targetIndex < 0) targetIndex = OPTIONS.indexOf(DEFAULT_TIME);
+  }
+  // Guard bounds so getItemLayout/initialScrollIndex can never throw.
+  const selectedIndex = Math.min(Math.max(0, targetIndex), OPTIONS.length - 1);
 
   return (
     <View style={[styles.formGroup, style]}>

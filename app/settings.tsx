@@ -66,6 +66,7 @@ export default function SettingsScreen() {
             value={to12h(prefs.quietHoursStart)}
             onChange={(v) => setQuietHours(v ? to24h(v) : null, prefs.quietHoursEnd)}
             placeholder="Start"
+            defaultTime="9:00 PM"
             style={{ flex: 1 }}
           />
           <TimePickerField
@@ -73,6 +74,7 @@ export default function SettingsScreen() {
             value={to12h(prefs.quietHoursEnd)}
             onChange={(v) => setQuietHours(prefs.quietHoursStart, v ? to24h(v) : null)}
             placeholder="End"
+            defaultTime="7:00 AM"
             style={{ flex: 1 }}
           />
         </View>

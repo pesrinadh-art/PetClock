@@ -174,7 +174,7 @@ export default function AddAppointmentScreen() {
               minDate={new Date()}
               style={{ flex: 1, marginBottom: 14 }}
             />
-            <TimePickerField label="Time" value={time} onChange={setTime} placeholder="10:00 AM" style={{ flex: 1, marginBottom: 14 }} />
+            <TimePickerField label="Time" value={time} onChange={setTime} placeholder="10:00 AM" defaultTime="9:00 AM" style={{ flex: 1, marginBottom: 14 }} />
           </View>
 
           <Field label="Clinic / Location" value={location} onChangeText={setLocation} placeholder="City Vet Clinic" />
