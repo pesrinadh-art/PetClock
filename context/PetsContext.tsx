@@ -36,7 +36,9 @@ type PetsContextValue = {
   activePet: Pet | null;
   activePetId: string;
   setActivePetId: (id: string) => void;
-  addPet: (pet: NewPet) => void;
+  /** Returns the new pet's client-generated id so callers can attach device-local extras
+   *  (e.g. a picked photo) to it. */
+  addPet: (pet: NewPet) => string;
   removePet: (id: string) => boolean;
   updatePet: (id: string, edits: PetEdits) => void;
   /** Feed times for a pet (its own collection now). Stable arrays between changes. */
@@ -110,7 +112,7 @@ export function PetsProvider({ children }: { children: ReactNode }) {
     [medicationsByPet],
   );
 
-  const addPet = useCallback((pet: NewPet) => {
+  const addPet = useCallback((pet: NewPet): string => {
     // Client-generated uuid v4 (frozen contract) — the entity's stable id.
     const id = newId();
     const nowIso = new Date().toISOString();
@@ -136,6 +138,7 @@ export function PetsProvider({ children }: { children: ReactNode }) {
     // Feed times and medications are separate collections keyed by petId.
     void repos.pets.replaceFeedTimes(id, buildFeedRows(id, pet.feedTimes ?? []));
     void repos.pets.replaceMedications(id, buildMedRows(id, pet.medications ?? []));
+    return id;
   }, []);
 
   const removePet = useCallback(
