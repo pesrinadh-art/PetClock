@@ -43,7 +43,9 @@ export function usePendingNudges(
 
   const onYes = useCallback(
     (nudge: PendingNudge) => {
-      void logYes(nudge.data, 'manual').then(refreshSnoozes);
+      // In-app "Yes" means it happened now — log at now so the prediction advances and the
+      // nudge clears (logging at the stale predicted time leaves an overdue break still "due").
+      void logYes(nudge.data, 'manual', new Date().toISOString()).then(refreshSnoozes);
     },
     [refreshSnoozes],
   );
