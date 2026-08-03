@@ -188,10 +188,16 @@ function setupRealtime(client: Client, householdId: string, emitters: Emitters):
 // camelCase model → snake_case row (the inverse of the models.ts toX mappers)
 // ---------------------------------------------------------------------------
 
-function petToInsert(p: Pet): PetInsert {
+// `householdId` is passed in rather than read off the model: PetsContext.addPet stamps
+// every new pet with LOCAL_HOUSEHOLD_ID (the fixed placeholder local mode uses, since local
+// mode has no real household), and in synced mode that id belongs to nobody — so
+// `pets_insert`'s `with check (app.is_editor(household_id))` rejected the row with 42501.
+// The session's resolved household is the only authority here, exactly as addLog and
+// upsertAppointment already treat it.
+function petToInsert(p: Pet, householdId: string): PetInsert {
   return {
     id: p.id,
-    household_id: p.householdId,
+    household_id: householdId,
     name: p.name,
     avatar_emoji: p.avatarEmoji,
     species: p.species,
@@ -317,7 +323,7 @@ export function createSyncedRepos(
 
   // ---- pets writes ----
   const upsertPet = async (pet: Pet): Promise<Pet> => {
-    const { error } = await client.from('pets').upsert(petToInsert(pet));
+    const { error } = await client.from('pets').upsert(petToInsert(pet, householdId));
     fail(error);
     petsEmitter.notify();
     return pet;
