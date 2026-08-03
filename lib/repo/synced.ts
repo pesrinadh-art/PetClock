@@ -387,21 +387,30 @@ export function createSyncedRepos(
   const replaceFeedTimes = async (petId: string, feedTimes: FeedTime[]): Promise<void> => {
     // RPC atomically retires slots not in the list and (re)activates the rest. It keys on
     // `local_time`, so slot ids are server-owned here (labels are derived, not sent).
+    // Drop blank wall clocks: a "" would reach the `time[]` param and Postgres rejects it
+    // with 22007 "invalid input syntax for type time" (verified against the live backend).
+    // A fully-cleared list is still sent as [] — a valid "retire everything" for edits.
+    const p_times = feedTimes.map((f) => f.localTime).filter((t) => t.trim().length > 0);
     const { error } = await client.rpc('replace_feed_times', {
       p_pet_id: petId,
-      p_times: feedTimes.map((f) => f.localTime),
+      p_times,
     });
     fail(error);
     feedTimesEmitter.notify();
   };
 
   const replaceMedications = async (petId: string, meds: Medication[]): Promise<void> => {
-    const payload = meds.map((m) => ({
-      id: m.id,
-      name: m.name,
-      dosage: m.dosage,
-      localTime: m.localTime,
-    }));
+    // Skip rows without both a name and a wall clock: an empty localTime hits the RPC as ""
+    // (22007) and a missing one violates medications.local_time NOT NULL (23502). Sending []
+    // for an all-blank list is fine — it just retires any existing meds.
+    const payload = meds
+      .filter((m) => m.name.trim().length > 0 && m.localTime.trim().length > 0)
+      .map((m) => ({
+        id: m.id,
+        name: m.name,
+        dosage: m.dosage,
+        localTime: m.localTime,
+      }));
     const { error } = await client.rpc('replace_medications', {
       p_pet_id: petId,
       p_meds: payload as unknown as Json,
