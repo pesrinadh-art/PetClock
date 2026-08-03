@@ -1,14 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { ACTION, isPawClockPush } from '../../shared/notificationContracts';
-import { repos } from '../repo/types';
+import { logYes, REASK_NO_MS, snoozeNudge, SNOOZE_15_MS } from './actions';
 import { notificationsSupported } from './available';
-import { scheduleSnoozeFollowup, type ScheduledNotificationData } from './scheduler';
-import { clearSnooze } from './snoozeStore';
-
-// Contract timings: LOG_NO re-asks sooner than an explicit snooze.
-const SNOOZE_15_MS = 15 * 60 * 1000; // SNOOZE_15
-const REASK_NO_MS = 20 * 60 * 1000; // LOG_NO
+import { type ScheduledNotificationData } from './scheduler';
 
 // ---------------------------------------------------------------------------
 // Dedupe — a cold-start getLastNotificationResponseAsync() and the live listener can both
@@ -48,63 +43,14 @@ async function markProcessed(key: string): Promise<void> {
   }
 }
 
-/** ISO for a Yes write: the event's own time (predicted / slot time), so a delayed cold-start
- *  replay lands the log when it happened, not when the tap was finally processed. */
-function occurredAtFor(data: ScheduledNotificationData): string {
-  if (data.kind === 'break_prediction') {
-    const d = new Date(data.predictedAt);
-    if (!Number.isNaN(d.getTime())) return d.toISOString();
-  }
-  const ms = Number(data.fireAtMs);
-  return Number.isFinite(ms) && ms > 0 ? new Date(ms).toISOString() : new Date().toISOString();
-}
-
-/** LOG_YES: write the log straight through the repo (React-free) and clear any snooze on it. */
-async function handleYes(data: ScheduledNotificationData): Promise<void> {
-  const occurredAt = occurredAtFor(data);
-  const notificationId = typeof data.notificationId === 'string' ? data.notificationId : null;
-  switch (data.kind) {
-    case 'break_prediction':
-      await repos.logs.add(data.petId, {
-        type: data.breakType,
-        occurredAt,
-        source: 'notification_yes',
-        notificationId,
-      });
-      break;
-    case 'meal':
-      await repos.logs.add(data.petId, {
-        type: 'food',
-        occurredAt,
-        feedTimeId: data.feedTimeId,
-        source: 'notification_yes',
-        notificationId,
-      });
-      break;
-    case 'medication':
-    case 'med_escalation':
-      await repos.logs.add(data.petId, {
-        type: 'medication',
-        occurredAt,
-        medicationId: data.medicationId,
-        source: 'notification_yes',
-        notificationId,
-      });
-      break;
-    case 'appointment':
-      // Appointment reminders have no "Yes" button — nothing to log.
-      return;
-  }
-  await clearSnooze(data.reconcileKey);
-}
-
 /**
  * Map a notification response to a domain mutation — HEADLESS-SAFE: it writes through `repos`
- * directly (no React context), so a lock-screen tap logs even with the app killed. The repo's
- * `subscribe` then propagates the write to the UI on the next foreground.
+ * directly (no React context, via the shared `actions` module), so a lock-screen tap logs even
+ * with the app killed. The repo's `subscribe` then propagates the write to the UI on the next
+ * foreground.
  *
  * Yes → repo write. Not-yet / Snooze → persist a snooze + arm the re-ask. Body tap / OPEN /
- * DISMISS → nothing here (deep-link routing lands next wave; the path already rides in `data.url`).
+ * DISMISS → nothing here (deep-link routing lands next; the path already rides in `data.url`).
  */
 export async function handleNotificationResponse(
   response: Notifications.NotificationResponse,
@@ -123,13 +69,13 @@ export async function handleNotificationResponse(
   try {
     switch (action) {
       case ACTION.yes:
-        await handleYes(data);
+        await logYes(data);
         break;
       case ACTION.no:
-        await scheduleSnoozeFollowup(data, Date.now() + REASK_NO_MS);
+        await snoozeNudge(data, Date.now() + REASK_NO_MS);
         break;
       case ACTION.snooze:
-        await scheduleSnoozeFollowup(data, Date.now() + SNOOZE_15_MS);
+        await snoozeNudge(data, Date.now() + SNOOZE_15_MS);
         break;
       default:
         // DEFAULT_ACTION_IDENTIFIER (body tap) / OPEN / DISMISS — no headless write.
