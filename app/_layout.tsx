@@ -21,6 +21,7 @@ import { AutoCalibrator } from '../components/AutoCalibrator';
 import { NotificationObserver } from '../components/NotificationObserver';
 import { AppModalHost } from '../components/AppModal';
 import { HydrationGate } from '../components/HydrationGate';
+import { SnackbarProvider } from '../components/Snackbar';
 
 // On web, a phone-sized frame makes it possible to sanity-check mobile
 // layouts from a normal desktop browser window instead of full-bleed width.
@@ -65,6 +66,7 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
+      <SnackbarProvider>
       <StatusBar style="dark" />
       {/* Session/household bootstrap sits ABOVE the data providers: in synced mode it
           resolves auth + household and hot-swaps `repos` before (or shortly after) the
@@ -97,6 +99,7 @@ export default function RootLayout() {
         </LogsProvider>
       </PetsProvider>
       </SessionProvider>
+      </SnackbarProvider>
     </SafeAreaProvider>
   );
 }
