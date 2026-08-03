@@ -157,7 +157,9 @@ const styles = StyleSheet.create({
   rowNote: { fontSize: 12, color: colors.stoneMid, marginTop: 2 },
   rowTime: { fontSize: 12, fontFamily: fonts.mono, color: colors.stoneMid },
 
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 8, marginTop: -40 },
+  // No negative marginTop: on web it would pull this full-height view up over the header row and
+  // swallow taps on the back button — the same failure the notifications empty state had.
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 8 },
   emptyIcon: { fontSize: 40, marginBottom: 4 },
   emptyTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: colors.stone },
   emptyBody: { fontSize: 13, color: colors.stoneMid, textAlign: 'center', lineHeight: 19 },

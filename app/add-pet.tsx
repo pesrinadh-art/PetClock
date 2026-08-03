@@ -185,7 +185,8 @@ export default function AddPetScreen() {
       const newPetId = addPet(edits);
       if (photoUri) void setPetPhoto(newPetId, photoUri);
     }
-    router.back();
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)');
   };
 
   return (
@@ -201,7 +202,7 @@ export default function AddPetScreen() {
           <Text style={styles.modalTitle}>{isEditing ? 'Edit Pet' : 'New Pet'}</Text>
           <Pressable
             style={({ pressed }) => [styles.closeBtn, pressed && styles.pressed]}
-            onPress={() => router.back()}
+            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
             role="button"
             aria-label="Close"
             hitSlop={8}
