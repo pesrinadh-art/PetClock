@@ -1,0 +1,19 @@
+{
+  "//": "Deno config for the Edge Functions. These are excluded from the app's tsconfig (they use Deno globals and npm:/.ts specifiers React Native cannot resolve), so this is where they get typechecked. Run: deno check supabase/functions/**/index.ts",
+  "compilerOptions": {
+    "strict": true,
+    "lib": ["deno.window", "dom"]
+  },
+  "imports": {
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2",
+    "jose": "npm:jose@5"
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended"]
+    }
+  },
+  "fmt": {
+    "lineWidth": 100
+  }
+}

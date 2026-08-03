@@ -175,7 +175,13 @@ refresh_token_reuse_interval = 10
 # Allow/disallow new user signups to your project.
 enable_signup = true
 # Allow/disallow anonymous sign-ins to your project.
-enable_anonymous_sign_ins = false
+# PawClock is anonymous-first: the app signs in anonymously on launch and bootstraps a
+# household immediately, so a new user can add a pet with zero friction. The account is
+# upgraded later via linkIdentity, which keeps the same auth.uid — so every household, pet
+# and log row already belongs to the upgraded account and no data migration is needed.
+# Without this, signInAnonymously() returns "Anonymous sign-ins are disabled" and the app
+# cannot get past first launch at all.
+enable_anonymous_sign_ins = true
 # Allow/disallow testing manual linking of accounts
 enable_manual_linking = false
 # Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
