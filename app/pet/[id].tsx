@@ -1,13 +1,13 @@
 import { useMemo } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, radius, shadow } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { SectionTitle } from '../../components/SectionTitle';
+import { PetAvatar } from '../../components/PetAvatar';
 import { usePets } from '../../context/PetsContext';
 import { useLogs } from '../../context/LogsContext';
-import { usePetPhoto } from '../../lib/petPhotos';
 import { getPetStatus } from '../../lib/petSchedule';
 import { computeStreak } from '../../lib/streaks';
 import { useNow } from '../../hooks/useNow';
@@ -52,7 +52,6 @@ export default function PetDetailScreen() {
   const { pets, getFeedTimesForPet } = usePets();
   const { getLogsForPet } = useLogs();
   const now = useNow();
-  const photoUri = usePetPhoto(id ?? '');
 
   const pet = pets.find((p) => p.id === id) ?? null;
   const feedTimes = pet ? getFeedTimesForPet(pet.id) : [];
@@ -81,13 +80,7 @@ export default function PetDetailScreen() {
       <Header title={pet.name} />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <View style={styles.headerCard}>
-          <View style={styles.avatar}>
-            {photoUri ? (
-              <Image source={{ uri: photoUri }} style={styles.avatarImage} />
-            ) : (
-              <Text style={{ fontSize: 40 }}>{pet.avatarEmoji}</Text>
-            )}
-          </View>
+          <PetAvatar pet={pet} size={88} emojiSize={40} style={styles.avatar} />
           <Text style={styles.name}>{pet.name}</Text>
           <Text style={styles.sub}>{pet.breed || 'No details yet'}</Text>
         </View>
@@ -192,16 +185,9 @@ const styles = StyleSheet.create({
 
   headerCard: { alignItems: 'center', paddingVertical: 16, gap: 6 },
   avatar: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
     backgroundColor: colors.sagePale,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
     marginBottom: 4,
   },
-  avatarImage: { width: 88, height: 88, borderRadius: 44 },
   name: { fontSize: 22, fontFamily: fonts.black, color: colors.stone },
   sub: { fontSize: 13, color: colors.stoneMid },
 

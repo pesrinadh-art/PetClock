@@ -8,6 +8,7 @@ import { SectionTitle } from '../components/SectionTitle';
 import { Toggle } from '../components/Toggle';
 import { DatePickerField } from '../components/DatePickerField';
 import { TimePickerField } from '../components/TimePickerField';
+import { PetAvatar } from '../components/PetAvatar';
 import { type ApptType } from '../data/mockData';
 import { usePets } from '../context/PetsContext';
 import { useAppointments } from '../context/AppointmentsContext';
@@ -154,8 +155,9 @@ export default function AddAppointmentScreen() {
                       pressed && styles.pressed,
                     ]}
                   >
+                    <PetAvatar pet={p} size={18} emojiSize={13} style={styles.petChipAvatar} />
                     <Text style={{ fontSize: 13, fontFamily: fonts.bold, color: selected ? colors.sage : colors.stoneMid }}>
-                      {p.avatarEmoji} {p.name}{selected ? ' ✓' : ''}
+                      {p.name}{selected ? ' ✓' : ''}
                     </Text>
                   </Pressable>
                 );
@@ -267,7 +269,8 @@ const styles = StyleSheet.create({
   formGroup: { marginBottom: 14, gap: 5 },
   formLabel: { fontSize: 11, fontFamily: fonts.extraBold, textTransform: 'uppercase', letterSpacing: 1, color: colors.stoneMid },
   petRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  petChip: { paddingVertical: 7, paddingHorizontal: 14, borderRadius: 99, borderWidth: 2 },
+  petChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 7, paddingHorizontal: 14, borderRadius: 99, borderWidth: 2 },
+  petChipAvatar: { backgroundColor: 'transparent' },
   input: {
     backgroundColor: colors.white,
     borderWidth: 2,
