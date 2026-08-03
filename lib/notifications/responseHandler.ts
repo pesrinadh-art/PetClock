@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { ACTION, isPawClockPush } from '../../shared/notificationContracts';
 import { logYes, REASK_NO_MS, snoozeNudge, SNOOZE_15_MS } from './actions';
@@ -43,14 +44,44 @@ async function markProcessed(key: string): Promise<void> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Deep-link tap-through — a body tap (DEFAULT_ACTION) or OPEN action carries `data.url`, an
+// expo-router path (the `pawclock://` scheme is registered in app.json). A WARM tap navigates
+// immediately; a COLD-START tap (the tap launched the app, so this runs at import time before the
+// router mounts) stashes the url and `flushPendingNavigation()` replays it once the root navigator
+// is ready. The headless Yes/No/Snooze actions never reach here — they must NOT open the app.
+// ---------------------------------------------------------------------------
+
+let pendingNavUrl: string | null = null;
+
+function tryNavigate(url: string): boolean {
+  try {
+    // `navigate` before the root navigator mounts throws; caught below so we retry on ready.
+    router.navigate(url as Parameters<typeof router.navigate>[0]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Replay a stashed cold-start deep link. Call once the root navigator is mounted (idempotent). */
+export function flushPendingNavigation(): void {
+  if (pendingNavUrl && tryNavigate(pendingNavUrl)) pendingNavUrl = null;
+}
+
+function requestNavigation(url: string): void {
+  pendingNavUrl = url;
+  flushPendingNavigation();
+}
+
 /**
  * Map a notification response to a domain mutation — HEADLESS-SAFE: it writes through `repos`
  * directly (no React context, via the shared `actions` module), so a lock-screen tap logs even
  * with the app killed. The repo's `subscribe` then propagates the write to the UI on the next
  * foreground.
  *
- * Yes → repo write. Not-yet / Snooze → persist a snooze + arm the re-ask. Body tap / OPEN /
- * DISMISS → nothing here (deep-link routing lands next; the path already rides in `data.url`).
+ * Yes → repo write. Not-yet / Snooze → persist a snooze + arm the re-ask. Body tap / OPEN →
+ * deep-link to `data.url`. DISMISS → nothing.
  */
 export async function handleNotificationResponse(
   response: Notifications.NotificationResponse,
@@ -77,8 +108,12 @@ export async function handleNotificationResponse(
       case ACTION.snooze:
         await snoozeNudge(data, Date.now() + SNOOZE_15_MS);
         break;
+      case ACTION.dismiss:
+        // User swiped it away — no write, no navigation.
+        break;
       default:
-        // DEFAULT_ACTION_IDENTIFIER (body tap) / OPEN / DISMISS — no headless write.
+        // DEFAULT_ACTION_IDENTIFIER (body tap) / OPEN — opens the app; deep-link tap-through.
+        if (typeof data.url === 'string' && data.url) requestNavigation(data.url);
         break;
     }
     await markProcessed(dedupeKey);
