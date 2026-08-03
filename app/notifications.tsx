@@ -210,7 +210,9 @@ const styles = StyleSheet.create({
   whenText: { fontSize: 12, fontFamily: fonts.extraBold, color: colors.stone },
   whenSub: { fontSize: 11, color: colors.stoneMid, marginTop: 2 },
 
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 8, marginTop: -40 },
+  // No negative marginTop: it would pull this full-height view up over the title row and (on web)
+  // swallow taps on the ✕ close button — which is exactly why closing failed only when empty.
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 8 },
   emptyIcon: { fontSize: 40, marginBottom: 4 },
   emptyTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: colors.stone },
   emptyBody: { fontSize: 13, color: colors.stoneMid, textAlign: 'center', lineHeight: 19 },
