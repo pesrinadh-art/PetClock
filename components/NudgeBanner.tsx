@@ -81,15 +81,6 @@ export function NudgeBanner({ pet }: { pet: Pet }) {
 
   return (
     <View style={styles.banner}>
-      <Pressable
-        style={({ pressed }) => [styles.dismiss, pressed && styles.pressed]}
-        onPress={() => setDismissed((prev) => new Set(prev).add(nudge.key))}
-        role="button"
-        aria-label="Dismiss reminder"
-        hitSlop={8}
-      >
-        <Text style={styles.dismissText}>✕</Text>
-      </Pressable>
       <View style={styles.headerRow}>
         <Text style={styles.icon}>{nudge.icon}</Text>
         <View style={{ flex: 1 }}>
@@ -100,6 +91,17 @@ export function NudgeBanner({ pet }: { pet: Pet }) {
         </View>
       </View>
       <NudgeActionButtons nudge={nudge} onYes={onYes} onNotYet={onNotYet} onSnooze={onSnooze} />
+      {/* Rendered last so it paints on top of headerRow; on react-native-web an earlier
+          sibling View would otherwise capture taps over the close button. */}
+      <Pressable
+        style={({ pressed }) => [styles.dismiss, pressed && styles.pressed]}
+        onPress={() => setDismissed((prev) => new Set(prev).add(nudge.key))}
+        role="button"
+        aria-label="Dismiss reminder"
+        hitSlop={8}
+      >
+        <Text style={styles.dismissText}>✕</Text>
+      </Pressable>
     </View>
   );
 }
