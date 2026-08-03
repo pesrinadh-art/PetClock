@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 import { useRootNavigationState } from 'expo-router';
 import { useAppointments } from '../context/AppointmentsContext';
@@ -14,11 +14,13 @@ import { requestNotificationPermission } from '../lib/notifications/permissions'
 // so a cold-start notification tap is handled even before this component renders.
 import { flushPendingNavigation, initResponseHandler } from '../lib/notifications/responseHandler';
 import {
+  cancelAllOurNotifications,
   computeDesiredNotifications,
   reconcileNotifications,
   type NotificationPrefs,
 } from '../lib/notifications/scheduler';
 import { getActiveSnoozes } from '../lib/notifications/snoozeStore';
+import { isServerPushActive, onServerPushChange } from '../lib/push/mode';
 import { repos } from '../lib/repo/types';
 
 /**
@@ -44,6 +46,11 @@ export function NotificationObserver() {
   // before the router exists, so its target url is stashed. Once the root navigator is mounted
   // (navState has a key) we replay it. Warm taps navigate immediately and no-op here.
   const navState = useRootNavigationState();
+  // SYNC-2: once a push token is registered the BACKEND schedules these reminders. Both
+  // sides scheduling means the user gets every notification twice, so exactly one owns it.
+  // Registration completes asynchronously during session bootstrap, often after the first
+  // reconcile has already run — hence subscribing rather than reading once.
+  const [serverPush, setServerPush] = useState(isServerPushActive);
 
   // One-time engine setup: foreground handler, category buttons, permission primer, response
   // listener. All guarded/idempotent and safe on web.
@@ -60,6 +67,9 @@ export function NotificationObserver() {
     if (navState?.key) flushPendingNavigation();
   }, [navState?.key]);
 
+  // Follow scheduling ownership as it flips.
+  useEffect(() => onServerPushChange(() => setServerPush(isServerPushActive())), []);
+
   // Reconcile whenever the prediction inputs change (debounced) and on every foreground (so a
   // headless "Yes" write, a crossed quiet-hours boundary, or an elapsed snooze are picked up).
   useEffect(() => {
@@ -67,6 +77,13 @@ export function NotificationObserver() {
     let cancelled = false;
 
     const run = async () => {
+      // The backend owns scheduling now. Clear anything this device had already queued,
+      // otherwise the locally-scheduled copies keep firing alongside the server's pushes.
+      if (serverPush) {
+        await cancelAllOurNotifications();
+        return;
+      }
+
       const snoozedUntil = await getActiveSnoozes();
       if (cancelled) return;
       // Persisted quiet-hours/mute (Settings) merged with the headless snooze map.
@@ -94,7 +111,7 @@ export function NotificationObserver() {
       clearTimeout(timer);
       sub.remove();
     };
-  }, [pets, feedTimes, medications, logs, appointments, storedPrefs]);
+  }, [pets, feedTimes, medications, logs, appointments, storedPrefs, serverPush]);
 
   return null;
 }

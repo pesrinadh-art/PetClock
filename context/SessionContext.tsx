@@ -2,6 +2,7 @@ import type { Session } from '@supabase/supabase-js';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { getSupabaseClient, isSyncedModeEnabled } from '../lib/db/client';
 import { getCachedHouseholdId, setCachedHouseholdId } from '../lib/localHousehold';
+import { registerPushToken } from '../lib/push/registerToken';
 import { createSyncedRepos } from '../lib/repo/synced';
 import { activateSyncedRepos } from '../lib/repo/types';
 
@@ -99,6 +100,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (live) {
           setState({ session, householdId, ready: true, error: null, synced: true });
         }
+
+        // 4. SYNC-2: register this device for server-sent push, which also hands
+        //    scheduling to the backend so both sides don't fire the same reminder.
+        //
+        //    Deliberately AFTER `ready` and not awaited into the state above: the app is
+        //    already usable, and every failure path inside is soft — a denied permission or
+        //    a simulator simply leaves the device on local scheduling, still reminding.
+        void registerPushToken(client, userId);
       } catch (e) {
         // Graceful fallback: stay on the working local repo, surface the reason.
         const message = e instanceof Error ? e.message : String(e);
