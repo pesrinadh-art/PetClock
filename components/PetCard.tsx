@@ -3,6 +3,7 @@ import { colors, radius } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import type { Pet } from '../data/mockData';
 import { countLogsToday, formatTimeUntilCompact, getPetStatus, getUpcomingForPet } from '../lib/petSchedule';
+import { computeStreak } from '../lib/streaks';
 import { useLogs } from '../context/LogsContext';
 import { usePets } from '../context/PetsContext';
 
@@ -13,6 +14,8 @@ export function PetCard({ pet }: { pet: Pet }) {
   const feedTimes = getFeedTimesForPet(pet.id);
   const status = getPetStatus(pet, feedTimes);
   const now = new Date();
+  // 🔥 run of consecutive days every meal was logged (see lib/streaks).
+  const streak = computeStreak(feedTimes, petLogs, now);
 
   // birthdate/age is a post-SYNC-1 picker; show breed only (or "—") where meta was.
   const meta = pet.breed || '—';
@@ -38,10 +41,15 @@ export function PetCard({ pet }: { pet: Pet }) {
         <View style={styles.avatar}>
           <Text style={{ fontSize: 26 }}>{pet.avatarEmoji}</Text>
         </View>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.name}>{pet.name}</Text>
           <Text style={styles.meta}>{meta}{metaSuffix}</Text>
         </View>
+        {streak > 0 ? (
+          <View style={styles.streakPill} aria-label={`${streak} day feeding streak`}>
+            <Text style={styles.streakText}>🔥 {streak}</Text>
+          </View>
+        ) : null}
       </View>
       <View style={styles.stats}>
         <Stat value={holdTimeDisplay} label="Hold Time" />
@@ -87,6 +95,14 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: 'rgba(255,255,255,0.4)',
   },
+  streakPill: {
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    alignSelf: 'flex-start',
+  },
+  streakText: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.white },
   name: { fontSize: 19, fontFamily: fonts.extraBold, color: colors.white },
   meta: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
   stats: { flexDirection: 'row', gap: 8 },

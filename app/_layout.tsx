@@ -17,10 +17,13 @@ import { PetsProvider } from '../context/PetsContext';
 import { LogsProvider } from '../context/LogsContext';
 import { AppointmentsProvider } from '../context/AppointmentsContext';
 import { NudgesProvider } from '../context/NudgesContext';
+import { NotificationPrefsProvider } from '../context/NotificationPrefsContext';
 import { AutoCalibrator } from '../components/AutoCalibrator';
 import { NotificationObserver } from '../components/NotificationObserver';
+import { OnboardingGate } from '../components/OnboardingGate';
 import { AppModalHost } from '../components/AppModal';
 import { HydrationGate } from '../components/HydrationGate';
+import { SnackbarProvider } from '../components/Snackbar';
 
 // On web, a phone-sized frame makes it possible to sanity-check mobile
 // layouts from a normal desktop browser window instead of full-bleed width.
@@ -65,6 +68,7 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
+      <SnackbarProvider>
       <StatusBar style="dark" />
       {/* Session/household bootstrap sits ABOVE the data providers: in synced mode it
           resolves auth + household and hot-swaps `repos` before (or shortly after) the
@@ -77,10 +81,15 @@ export default function RootLayout() {
               {/* Under all three data providers: gate the reveal on hydration so
                   the app never flashes empty content before AsyncStorage loads. */}
               <HydrationGate>
+                {/* FE-5: persisted quiet-hours / per-pet mute prefs (Settings writes, the
+                    NotificationObserver reads). Wraps the observer + navigator so both see it. */}
+                <NotificationPrefsProvider>
                 <AutoCalibrator />
                 {/* Mirrors pets/logs/appointments into scheduled OS notifications (FE-3).
                     Inert on web and without notification permission. */}
                 <NotificationObserver />
+                {/* FE-5: first-run redirect into /onboarding (no pets + never onboarded). */}
+                <OnboardingGate>
                 <PhoneFrame>
                   <AppModalHost>
                     <Stack screenOptions={{ headerShown: false }}>
@@ -91,12 +100,15 @@ export default function RootLayout() {
                     </Stack>
                   </AppModalHost>
                 </PhoneFrame>
+                </OnboardingGate>
+                </NotificationPrefsProvider>
               </HydrationGate>
             </NudgesProvider>
           </AppointmentsProvider>
         </LogsProvider>
       </PetsProvider>
       </SessionProvider>
+      </SnackbarProvider>
     </SafeAreaProvider>
   );
 }

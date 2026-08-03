@@ -3,6 +3,7 @@ import { AppState } from 'react-native';
 import { useRootNavigationState } from 'expo-router';
 import { useAppointments } from '../context/AppointmentsContext';
 import { useLogs } from '../context/LogsContext';
+import { useNotificationPrefs } from '../context/NotificationPrefsContext';
 import { usePets } from '../context/PetsContext';
 import { usePersistedCollection } from '../hooks/usePersistedCollection';
 import { notificationsSupported } from '../lib/notifications/available';
@@ -14,7 +15,6 @@ import { requestNotificationPermission } from '../lib/notifications/permissions'
 import { flushPendingNavigation, initResponseHandler } from '../lib/notifications/responseHandler';
 import {
   computeDesiredNotifications,
-  DEFAULT_NOTIFICATION_PREFS,
   reconcileNotifications,
   type NotificationPrefs,
 } from '../lib/notifications/scheduler';
@@ -37,6 +37,9 @@ export function NotificationObserver() {
   // re-reconciles too.
   const { items: feedTimes } = usePersistedCollection(repos.feedTimes);
   const { items: medications } = usePersistedCollection(repos.medications);
+  // User-editable quiet hours / per-pet mute (FE-5 Settings). Reactive, so an edit re-reconciles
+  // (it's in the effect deps below); replaces the old hardcoded DEFAULT_NOTIFICATION_PREFS.
+  const { prefs: storedPrefs } = useNotificationPrefs();
   // Deep-link cold-start: a notification body-tap that LAUNCHED the app is handled at import time,
   // before the router exists, so its target url is stashed. Once the root navigator is mounted
   // (navState has a key) we replay it. Warm taps navigate immediately and no-op here.
@@ -66,7 +69,8 @@ export function NotificationObserver() {
     const run = async () => {
       const snoozedUntil = await getActiveSnoozes();
       if (cancelled) return;
-      const prefs: NotificationPrefs = { ...DEFAULT_NOTIFICATION_PREFS, snoozedUntil };
+      // Persisted quiet-hours/mute (Settings) merged with the headless snooze map.
+      const prefs: NotificationPrefs = { ...storedPrefs, snoozedUntil };
       const desired = computeDesiredNotifications(
         pets,
         feedTimes,
@@ -90,7 +94,7 @@ export function NotificationObserver() {
       clearTimeout(timer);
       sub.remove();
     };
-  }, [pets, feedTimes, medications, logs, appointments]);
+  }, [pets, feedTimes, medications, logs, appointments, storedPrefs]);
 
   return null;
 }
