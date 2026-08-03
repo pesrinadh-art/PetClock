@@ -39,8 +39,12 @@ export function occurredAtFor(data: ScheduledNotificationData): string {
 export async function logYes(
   data: ScheduledNotificationData,
   source: LogSource = 'notification_yes',
+  occurredAtOverride?: string,
 ): Promise<void> {
-  const occurredAt = occurredAtFor(data);
+  // Headless push path uses the event's own time (occurredAtFor). In-app answers pass `now`
+  // via the override, so answering an overdue nudge advances the prediction past now and the
+  // nudge clears — otherwise logging at the stale predicted time leaves it "due" and it re-shows.
+  const occurredAt = occurredAtOverride ?? occurredAtFor(data);
   const notificationId =
     typeof data.notificationId === 'string' && data.notificationId ? data.notificationId : null;
   switch (data.kind) {
