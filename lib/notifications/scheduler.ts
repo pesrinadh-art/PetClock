@@ -446,6 +446,44 @@ export async function scheduleSnoozeFollowup(
   });
 }
 
+/**
+ * Human-readable summary of one already-scheduled OS notification WE own — what the Notification
+ * Center's "upcoming reminders" list reads. Returns [] on web / when the native scheduler is
+ * unavailable (the screen then falls back to the prediction-derived pending list).
+ */
+export type ScheduledSummary = {
+  id: string;
+  key: string;
+  title: string;
+  body: string;
+  fireAt: Date;
+  data: ScheduledNotificationData;
+};
+
+export async function listScheduledSummaries(): Promise<ScheduledSummary[]> {
+  const res = await safe('listScheduledSummaries', async () => {
+    const existing = await Notifications.getAllScheduledNotificationsAsync();
+    const out: ScheduledSummary[] = [];
+    for (const n of existing) {
+      const data = n.content.data as Record<string, unknown> | undefined;
+      if (!isOurs(data)) continue;
+      const full = data as unknown as ScheduledNotificationData;
+      const fireAtMs = Number(full.fireAtMs) || Date.now();
+      out.push({
+        id: n.identifier,
+        key: String(data!.reconcileKey),
+        title: n.content.title ?? '',
+        body: n.content.body ?? '',
+        fireAt: new Date(fireAtMs),
+        data: full,
+      });
+    }
+    out.sort((a, b) => a.fireAt.getTime() - b.fireAt.getTime());
+    return out;
+  });
+  return res ?? [];
+}
+
 /** Cancel every notification WE scheduled (utility for reset flows). No-op when unavailable. */
 export async function cancelAllOurNotifications(): Promise<void> {
   await safe('cancelAllOurNotifications', async () => {
