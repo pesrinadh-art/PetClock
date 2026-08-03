@@ -129,29 +129,37 @@ export function PetsProvider({ children }: { children: ReactNode }) {
     // Client-generated uuid v4 (frozen contract) — the entity's stable id.
     const id = newId();
     const nowIso = new Date().toISOString();
-    // Repo persists + notifies; usePersistedCollection re-pulls and updates state. These are
-    // fire-and-forget and swallowed: pet creation must never surface a backend error to the UI.
+    // Repo persists + notifies; usePersistedCollection re-pulls and updates state. The whole
+    // chain is fire-and-forget and swallowed: pet creation must never surface a backend error.
+    //
+    // The writes MUST be sequenced, not fired in parallel. feed_times / medications
+    // FK-reference the pet AND `replace_feed_times`/`replace_medications` authorize through the
+    // pet's household (is_editor) — so before the pet row exists they fail (P0001 FORBIDDEN /
+    // FK), and in synced mode the schedule was silently dropped on the races it lost (verified
+    // against staging). Await the pet upsert first, then write the schedule collections.
     // TODO(post-SYNC-1): species + birthdate pickers — add-pet defaults species to 'other'
     // and birthdate to null (the free-text age field is dropped this wave).
-    swallow('addPet.upsert', repos.pets.upsert({
-      id,
-      householdId: LOCAL_HOUSEHOLD_ID,
-      name: pet.name,
-      avatarEmoji: pet.avatarEmoji,
-      species: pet.species ?? 'other',
-      breed: pet.breed || null,
-      birthdate: null,
-      weightKg: null,
-      peeHoldHours: pet.peeHoldHours ?? null,
-      poopHoldHours: pet.poopHoldHours ?? null,
-      calibrationStartedAt: nowIso,
-      archivedAt: null,
-      createdAt: nowIso,
-      updatedAt: nowIso,
-    }));
-    // Feed times and medications are separate collections keyed by petId.
-    swallow('addPet.replaceFeedTimes', repos.pets.replaceFeedTimes(id, buildFeedRows(id, pet.feedTimes ?? [])));
-    swallow('addPet.replaceMedications', repos.pets.replaceMedications(id, buildMedRows(id, pet.medications ?? [])));
+    swallow('addPet', (async () => {
+      await repos.pets.upsert({
+        id,
+        householdId: LOCAL_HOUSEHOLD_ID,
+        name: pet.name,
+        avatarEmoji: pet.avatarEmoji,
+        species: pet.species ?? 'other',
+        breed: pet.breed || null,
+        birthdate: null,
+        weightKg: null,
+        peeHoldHours: pet.peeHoldHours ?? null,
+        poopHoldHours: pet.poopHoldHours ?? null,
+        calibrationStartedAt: nowIso,
+        archivedAt: null,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      });
+      // Feed times and medications are separate collections keyed by petId.
+      await repos.pets.replaceFeedTimes(id, buildFeedRows(id, pet.feedTimes ?? []));
+      await repos.pets.replaceMedications(id, buildMedRows(id, pet.medications ?? []));
+    })());
     return id;
   }, []);
 
