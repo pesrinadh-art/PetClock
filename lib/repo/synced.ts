@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 import type { Appointment, FeedTime, LogEntry, Medication, Pet } from '../db/models';
 import {
   toAppointment,
@@ -19,12 +19,20 @@ import type { EntityRepo, NewLogInput, PawclockRepos } from './types';
  * table (where RLS allows an editor to write directly) or the atomic RPCs in
  * `0007_rpcs.sql` (feed times, medications, appointments).
  *
- * `subscribe` is a LOCAL in-process emitter (mirrors `local.ts`): after each successful
- * mutation we `notify()` and every mounted `usePersistedCollection` re-pulls. Coarse
- * cross-device refresh rides on the hook's AppState-foreground re-pull.
+ * `subscribe` stays a LOCAL in-process emitter (mirrors `local.ts`): after each successful
+ * mutation we `notify()` and every mounted `usePersistedCollection` re-pulls. That emitter is
+ * the single fan-out point for BOTH sources of change:
  *
- * TODO(SYNC 2): swap the local emitter for `supabase.channel(...).on('postgres_changes', …)`
- * so a second caregiver's write pushes to this device in real time (BE-2).
+ *   1. This device's own writes call `notify()` directly (instant optimistic refresh).
+ *   2. SYNC-2 realtime — a Supabase `postgres_changes` channel scoped to this household
+ *      (BE-2's `supabase_realtime` publication) calls the same `notify()` when a PARTNER's
+ *      or the SERVER's write lands, so a mounted screen live-updates. The event only triggers
+ *      a re-pull (refetch), which is the source of truth per docs/SYNC_INTEGRATION.md —
+ *      realtime is an optimisation, the list query is authoritative.
+ *
+ * If realtime cannot be established (offline, socket error, unsupported), the emitters still
+ * fire on local writes and the hooks' AppState-foreground re-pull covers cross-device drift,
+ * exactly as before — so realtime is strictly additive and never a regression.
  */
 
 type Client = SupabaseClient<Database>;
@@ -50,6 +58,131 @@ class Emitter {
 }
 
 const nowIso = (): string => new Date().toISOString();
+
+// ---------------------------------------------------------------------------
+// SYNC-2 realtime — one channel per household, fanning postgres_changes into the
+// per-collection emitters so a partner's / server's write live-updates this device.
+// ---------------------------------------------------------------------------
+
+/** The five collections realtime can touch, each backed by its in-process emitter. */
+type Emitters = {
+  pets: Emitter;
+  feedTimes: Emitter;
+  medications: Emitter;
+  logs: Emitter;
+  appointments: Emitter;
+};
+
+/**
+ * Exactly one live channel at a time. `createSyncedRepos` runs again on a household JOIN
+ * (SessionContext hot-swaps a fresh repo set), so the previous channel must be torn down or
+ * this device would hold two overlapping subscriptions and double-notify.
+ */
+let activeChannel: RealtimeChannel | null = null;
+let activeClient: Client | null = null;
+
+/**
+ * Keep the socket's JWT current. supabase-js attaches the session token on the first
+ * subscribe, but a token refresh an hour later would leave the socket authing with a stale
+ * JWT and RLS would start dropping every event. Rebinding once per client fixes it (see
+ * docs/SYNC_INTEGRATION.md "The client's JWT must be on the socket").
+ */
+const authBoundClients = new WeakSet<Client>();
+function bindRealtimeAuth(client: Client): void {
+  if (authBoundClients.has(client)) return;
+  authBoundClients.add(client);
+  try {
+    client.auth.onAuthStateChange((_event, session) => {
+      try {
+        void client.realtime.setAuth(session?.access_token ?? null);
+      } catch {
+        /* best effort — a failed re-auth just means the next reconnect re-sends the token */
+      }
+    });
+  } catch {
+    /* onAuthStateChange unavailable — nothing to bind, realtime uses the initial token */
+  }
+}
+
+/**
+ * Subscribe to this household's published tables. Every event only calls the matching
+ * emitter's `notify()`, which re-pulls the (already household-scoped, tombstone-filtered)
+ * list — so a soft-delete arriving as an UPDATE removes the row on the next pull, exactly
+ * like a local delete does.
+ *
+ * On `SUBSCRIBED` we notify ALL collections once: an INSERT can land between the channel
+ * joining and the server's replication filter going live (a verified race — see the sync
+ * guide), and a blanket re-pull right after subscribe closes that window. The same callback
+ * fires again after any reconnect, which doubles as the "pull on reconnect" catch-up.
+ *
+ * Never throws: on any failure the local emitters remain the sole fan-out and the app keeps
+ * working on foreground re-pull, identical to pre-SYNC-2 behaviour.
+ */
+function setupRealtime(client: Client, householdId: string, emitters: Emitters): void {
+  // Tear down any channel from a prior activation (e.g. before a join swapped the repos).
+  if (activeChannel && activeClient) {
+    try {
+      void activeClient.removeChannel(activeChannel);
+    } catch {
+      /* ignore — a dead channel is harmless */
+    }
+    activeChannel = null;
+    activeClient = null;
+  }
+
+  bindRealtimeAuth(client);
+
+  try {
+    const notifyAll = (): void => {
+      emitters.pets.notify();
+      emitters.feedTimes.notify();
+      emitters.medications.notify();
+      emitters.logs.notify();
+      emitters.appointments.notify();
+    };
+
+    const pg = { event: '*' as const, schema: 'public' };
+    const hh = `household_id=eq.${householdId}`;
+
+    const channel = client
+      .channel(`household:${householdId}`)
+      // Household-scoped tables filter server-side on household_id.
+      // A log change is the flagship event; re-pull logs only (predictions derive locally).
+      .on('postgres_changes', { ...pg, table: 'logs', filter: hh }, () => emitters.logs.notify())
+      // A pet change can archive/rename a pet, which also hides its feed times and meds, so
+      // re-pull those child collections too (both filter on pets.archived_at).
+      .on('postgres_changes', { ...pg, table: 'pets', filter: hh }, () => {
+        emitters.pets.notify();
+        emitters.feedTimes.notify();
+        emitters.medications.notify();
+      })
+      // Appointment children (pets, reminders) surface through the parent's updated_at, so
+      // one appointments event covers them (docs/SYNC_INTEGRATION.md §2).
+      .on('postgres_changes', { ...pg, table: 'appointments', filter: hh }, () =>
+        emitters.appointments.notify(),
+      )
+      // feed_times / medications are pet-scoped and carry no household_id column, so they
+      // cannot be filtered server-side; RLS still scopes every delivered row to this
+      // household, it just costs a per-row check.
+      .on('postgres_changes', { ...pg, table: 'feed_times' }, () => emitters.feedTimes.notify())
+      .on('postgres_changes', { ...pg, table: 'medications' }, () => emitters.medications.notify())
+      .subscribe((status) => {
+        // SUBSCRIBED fires on first join AND after every reconnect — both need a catch-up
+        // re-pull for anything missed while the socket was not live.
+        if (status === 'SUBSCRIBED') notifyAll();
+        else if (__DEV__ && (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT')) {
+          console.warn(`[realtime] channel ${status} — falling back to foreground re-pull`);
+        }
+      });
+
+    activeChannel = channel;
+    activeClient = client;
+  } catch (e) {
+    // Realtime unavailable — the local emitters are still wired, so the app degrades to the
+    // pre-SYNC-2 behaviour (own writes update instantly, cross-device rides foreground pull).
+    if (__DEV__) console.warn('[realtime] setup failed — staying on local emitter', e);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // camelCase model → snake_case row (the inverse of the models.ts toX mappers)
@@ -101,6 +234,16 @@ export function createSyncedRepos(
   const medicationsEmitter = new Emitter();
   const logsEmitter = new Emitter();
   const appointmentsEmitter = new Emitter();
+
+  // SYNC-2: live-update this device when a partner or the server writes. Additive — the
+  // emitters above still drive local writes and are the fallback if realtime cannot connect.
+  setupRealtime(client, householdId, {
+    pets: petsEmitter,
+    feedTimes: feedTimesEmitter,
+    medications: medicationsEmitter,
+    logs: logsEmitter,
+    appointments: appointmentsEmitter,
+  });
 
   const fail = (error: { message: string } | null): void => {
     if (error) throw new Error(error.message);
