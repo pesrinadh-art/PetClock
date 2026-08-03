@@ -6,6 +6,7 @@ import { TopNavBar } from '../../components/TopNavBar';
 import { PetSwitcher } from '../../components/PetSwitcher';
 import { PetCard } from '../../components/PetCard';
 import { MealTimeBanner } from '../../components/MealTimeBanner';
+import { NudgeBanner } from '../../components/NudgeBanner';
 import { UpcomingSection } from '../../components/UpcomingSection';
 import { LogButtons } from '../../components/LogButtons';
 import { Timeline } from '../../components/Timeline';
@@ -61,6 +62,9 @@ export default function HomeScreen() {
       <PetSwitcher pets={pets} activeId={activePetId} onSelect={setActivePetId} />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <PetCard pet={activePet} />
+        {/* Flagship in-app break/med nudge, computed from prediction (works even if the OS push
+            was suppressed/missed/denied). Meals stay with MealTimeBanner below (no duplication). */}
+        <NudgeBanner pet={activePet} />
         <MealTimeBanner pet={activePet} />
 
         <SectionTitle>Upcoming</SectionTitle>
