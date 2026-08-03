@@ -11,7 +11,11 @@ import {
 } from 'react';
 import { getSupabaseClient, isSyncedModeEnabled } from '../lib/db/client';
 import { joinHousehold as joinHouseholdRpc, type JoinResult } from '../lib/household/invites';
-import { getCachedHouseholdId, setCachedHouseholdId } from '../lib/localHousehold';
+import {
+  clearCachedHouseholdId,
+  getCachedHouseholdId,
+  setCachedHouseholdId,
+} from '../lib/localHousehold';
 import { registerPushToken } from '../lib/push/registerToken';
 import { createSyncedRepos } from '../lib/repo/synced';
 import { activateSyncedRepos } from '../lib/repo/types';
@@ -102,6 +106,31 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         //    (which SYNC-4's join flow makes possible) the app could open either one at
         //    random between launches.
         let householdId = await getCachedHouseholdId();
+
+        //    The cache is a warm-start shortcut, not an authority. Validate it before
+        //    trusting it: the household can be gone (deleted, or a staging reset) and the
+        //    membership can lapse or be revoked, at which point the cached id names
+        //    something this user cannot write to. Left unvalidated the app still boots and
+        //    still reads (returning nothing), but every write fails RLS 42501 forever with
+        //    no recovery path short of clearing app storage by hand — which is exactly how
+        //    "add a pet" broke after staging was re-seeded.
+        //
+        //    `households_select` is `using (app.is_member(id))`, so a visible row IS the
+        //    membership proof, and is_member honours member_expires_at — a lapsed walker
+        //    fails here too. Only a clean "no row" invalidates: a transport error must not
+        //    throw away a good id and strand a warm start behind a flaky network.
+        if (householdId) {
+          const { data: stillMine, error: vErr } = await client
+            .from('households')
+            .select('id')
+            .eq('id', householdId)
+            .maybeSingle();
+          if (!vErr && !stillMine) {
+            await clearCachedHouseholdId();
+            householdId = null;
+          }
+        }
+
         if (!householdId) {
           const { data: resolved, error: rErr } = await client.rpc('my_household_id');
           if (rErr) throw rErr;
