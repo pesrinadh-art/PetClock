@@ -1,4 +1,4 @@
-import type { Appointment, FeedTime, LogEntry, LogType, Medication, Pet } from '../db/models';
+import type { Appointment, FeedTime, LogEntry, LogSource, LogType, Medication, Pet } from '../db/models';
 import { ReposFacade } from './facade';
 import { createLocalRepos } from './local';
 // Side-effect import: runs SplashScreen.preventAutoHideAsync() at boot (see lib/splash.ts).
@@ -38,6 +38,10 @@ export type NewLogInput = {
   feedTimeId?: string | null;
   /** Which medication dose a medication log records. */
   medicationId?: string | null;
+  /** Provenance. Defaults to 'manual'; the FE-3 headless push write passes 'notification_yes'. */
+  source?: LogSource;
+  /** The push that produced this log (contract `notificationId`) — powers "logged from notification". */
+  notificationId?: string | null;
 };
 
 /**
