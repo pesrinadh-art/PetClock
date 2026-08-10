@@ -6,14 +6,17 @@ import { fonts } from '../../theme/fonts';
 
 function TabIcon({ icon, label, focused }: { icon: string; label: string; focused: boolean }) {
   return (
-    <View style={{ alignItems: 'center', gap: 3 }}>
+    <View style={{ alignItems: 'center', gap: 3, width: 72 }}>
       <Text style={{ fontSize: 20 }}>{icon}</Text>
       <Text
+        numberOfLines={1}
+        ellipsizeMode="tail"
         style={{
           fontSize: 10,
           fontFamily: fonts.bold,
           textTransform: 'uppercase',
           letterSpacing: 0.4,
+          textAlign: 'center',
           color: focused ? colors.sage : colors.stoneLight,
         }}
       >

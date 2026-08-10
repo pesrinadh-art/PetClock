@@ -69,29 +69,29 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
       <View style={styles.body}>
         <View style={styles.topRow}>
           <View style={[styles.badge, { backgroundColor: meta.badgeBg }]}>
-            <Text style={[styles.badgeText, { color: meta.accent }]}>
+            <Text numberOfLines={1} style={[styles.badgeText, { color: meta.accent }]}>
               {meta.icon} {meta.label}
             </Text>
           </View>
           <View style={[styles.countdown, { backgroundColor: countdown.bg }]}>
-            <Text style={[styles.countdownText, { color: countdown.color }]}>{cd.label}</Text>
+            <Text numberOfLines={1} style={[styles.countdownText, { color: countdown.color }]}>{cd.label}</Text>
           </View>
         </View>
 
-        <Text style={styles.title}>{appt.title}</Text>
+        <Text numberOfLines={1} style={styles.title}>{appt.title}</Text>
         <View style={styles.petRow}>
           {apptPets.map((p) => (
             <View key={p.id} style={styles.petChip}>
               <PetAvatar pet={p} size={18} emojiSize={12} style={styles.petChipAvatar} />
-              <Text style={styles.petChipText}>{p.name}</Text>
+              <Text numberOfLines={1} style={styles.petChipText}>{p.name}</Text>
             </View>
           ))}
         </View>
 
         <View style={styles.detailsRow}>
-          <Text style={styles.detail}>📅 {formatApptDate(appt.startsAt)}</Text>
-          {hasTime && <Text style={styles.detail}>🕐 {formatApptTime(appt.startsAt)}</Text>}
-          {appt.location && <Text style={styles.detail}>📍 {appt.location}</Text>}
+          <Text numberOfLines={1} style={styles.detail}>📅 {formatApptDate(appt.startsAt)}</Text>
+          {hasTime && <Text numberOfLines={1} style={styles.detail}>🕐 {formatApptTime(appt.startsAt)}</Text>}
+          {appt.location && <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.detail, styles.detailLocation]}>📍 {appt.location}</Text>}
         </View>
 
         {overdue ? (
@@ -101,12 +101,12 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
             role="button"
             aria-label={`Reschedule ${appt.title}`}
           >
-            <Text style={[styles.notifText, { color: '#C0392B' }]}>🔴 Reschedule soon</Text>
-            <Text style={{ fontSize: 12, fontFamily: fonts.extraBold, color: colors.apptVet }}>Reschedule ›</Text>
+            <Text numberOfLines={1} style={[styles.notifText, { color: '#C0392B' }]}>🔴 Reschedule soon</Text>
+            <Text numberOfLines={1} style={{ fontSize: 12, fontFamily: fonts.extraBold, color: colors.apptVet, flexShrink: 0 }}>Reschedule ›</Text>
           </Pressable>
         ) : (
           <View style={styles.notifRow}>
-            <Text style={styles.notifText}>🔔 Remind me 1 day before</Text>
+            <Text numberOfLines={1} style={styles.notifText}>🔔 Remind me 1 day before</Text>
             <Toggle on={reminderOn} onToggle={toggleReminder} aria-label="Remind me 1 day before" />
           </View>
         )}
@@ -164,6 +164,7 @@ const styles = StyleSheet.create({
   petChipText: { fontSize: 11, fontFamily: fonts.bold, color: colors.sage },
   detailsRow: { flexDirection: 'row', gap: 16, flexWrap: 'wrap', marginBottom: 10 },
   detail: { fontSize: 12, color: colors.stoneMid, fontFamily: fonts.semiBold },
+  detailLocation: { flexShrink: 1, maxWidth: '100%' },
   notifRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -173,7 +174,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.sagePale,
     borderRadius: radius.sm,
   },
-  notifText: { fontSize: 12, fontFamily: fonts.bold, color: colors.stone },
+  notifText: { fontSize: 12, fontFamily: fonts.bold, color: colors.stone, flex: 1, paddingRight: 8 },
   pressed: { opacity: 0.75 },
   overlay: {
     flex: 1,

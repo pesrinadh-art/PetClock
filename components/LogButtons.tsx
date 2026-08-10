@@ -169,8 +169,8 @@ export function LogButtons({ pet }: { pet: Pet }) {
             ]}
           >
             <Text style={styles.emoji}>{b.emoji}</Text>
-            <Text style={styles.label}>{b.label}</Text>
-            <Text style={styles.sub}>{b.sub}</Text>
+            <Text numberOfLines={1} style={styles.label}>{b.label}</Text>
+            <Text numberOfLines={1} ellipsizeMode="tail" style={styles.sub}>{b.sub}</Text>
           </Pressable>
         ))}
       </View>

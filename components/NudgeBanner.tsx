@@ -33,7 +33,7 @@ export function NudgeActionButtons({
         role="button"
         aria-label={`Yes, log ${nudge.subtitle} for ${nudge.petName}`}
       >
-        <Text style={styles.yesBtnText}>✅ Yes</Text>
+        <Text numberOfLines={1} style={styles.yesBtnText}>✅ Yes</Text>
       </Pressable>
       <Pressable
         style={({ pressed }) => [styles.btn, styles.secondaryBtn, pressed && styles.pressed]}
@@ -41,7 +41,7 @@ export function NudgeActionButtons({
         role="button"
         aria-label={`Not yet — re-ask about ${nudge.petName} in 20 minutes`}
       >
-        <Text style={styles.secondaryBtnText}>❌ Not yet</Text>
+        <Text numberOfLines={1} style={styles.secondaryBtnText}>❌ Not yet</Text>
       </Pressable>
       <Pressable
         style={({ pressed }) => [styles.btn, styles.secondaryBtn, pressed && styles.pressed]}
@@ -49,7 +49,7 @@ export function NudgeActionButtons({
         role="button"
         aria-label={`Snooze ${nudge.petName}'s reminder 15 minutes`}
       >
-        <Text style={styles.secondaryBtnText}>⏰ Snooze</Text>
+        <Text numberOfLines={1} style={styles.secondaryBtnText}>⏰ Snooze</Text>
       </Pressable>
     </View>
   );
