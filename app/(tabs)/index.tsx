@@ -9,6 +9,7 @@ import { MealTimeBanner } from '../../components/MealTimeBanner';
 import { NudgeBanner } from '../../components/NudgeBanner';
 import { UpcomingSection } from '../../components/UpcomingSection';
 import { LogButtons } from '../../components/LogButtons';
+import { FoodQuickLogButton } from '../../components/FoodQuickLogButton';
 import { Timeline } from '../../components/Timeline';
 import { SectionTitle } from '../../components/SectionTitle';
 import { EmptyState } from '../../components/EmptyState';
@@ -64,6 +65,9 @@ export default function HomeScreen() {
 
         <SectionTitle>Log Now</SectionTitle>
         <LogButtons pet={activePet} />
+        {/* Quick "mark the due meal fed" shortcut, below the pee/poo buttons. Renders null unless a
+            meal is actually due (reuses MealTimeBanner's due-meal logic; no new prediction). */}
+        <FoodQuickLogButton pet={activePet} />
 
         <SectionTitle>Today's Log</SectionTitle>
         <Timeline entries={todaysLogs} feedTimes={feedTimes} now={now} />

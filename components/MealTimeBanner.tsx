@@ -50,7 +50,7 @@ export function MealTimeBanner({ pet }: { pet: Pet }) {
             role="button"
             aria-label={`Log ${dueMeal.name} as fed for ${pet.name}`}
           >
-            <Text style={styles.doneBtnText}>✅ Done Feeding</Text>
+            <Text numberOfLines={1} style={styles.doneBtnText}>✅ Done Feeding</Text>
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.btn, styles.snoozeBtn, pressed && styles.pressed]}
@@ -58,7 +58,7 @@ export function MealTimeBanner({ pet }: { pet: Pet }) {
             role="button"
             aria-label="Remind me in 30 minutes"
           >
-            <Text style={styles.snoozeBtnText}>⏰ Remind in 30 min</Text>
+            <Text numberOfLines={1} style={styles.snoozeBtnText}>⏰ Remind in 30 min</Text>
           </Pressable>
         </View>
       </View>

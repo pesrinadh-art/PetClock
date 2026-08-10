@@ -31,7 +31,7 @@ export function PetSwitcher({ pets, activeId, onSelect }: Props) {
             style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && styles.pressed]}
           >
             <PetAvatar pet={pet} size={24} emojiSize={20} style={styles.avatar} />
-            <Text style={styles.name}>{pet.name}</Text>
+            <Text numberOfLines={1} style={styles.name}>{pet.name}</Text>
           </Pressable>
         );
       })}
@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
   },
   chipActive: { borderColor: colors.sage, backgroundColor: colors.sagePale },
   avatar: { backgroundColor: 'transparent' },
-  name: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.stone },
+  name: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.stone, maxWidth: 160 },
   add: {
     width: 40,
     height: 40,

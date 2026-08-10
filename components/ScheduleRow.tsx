@@ -34,8 +34,8 @@ export function ScheduleRow({
         <Text style={{ fontSize: 20 }}>{item.icon}</Text>
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={styles.name}>{item.name}</Text>
-        <Text style={styles.sub}>Scheduled {formatClock(item.time)}</Text>
+        <Text numberOfLines={1} style={styles.name}>{item.name}</Text>
+        <Text numberOfLines={1} style={styles.sub}>Scheduled {formatClock(item.time)}</Text>
       </View>
       {canLog ? (
         <Pressable
@@ -45,11 +45,11 @@ export function ScheduleRow({
           aria-label={logAccessibilityLabel ?? `Mark ${item.name} as done`}
           hitSlop={6}
         >
-          <Text style={[styles.badgeText, { color: colors.white }]}>Mark done</Text>
+          <Text numberOfLines={1} style={[styles.badgeText, { color: colors.white }]}>Mark done</Text>
         </Pressable>
       ) : (
         <View style={[styles.badge, { backgroundColor: badgeBg }]}>
-          <Text style={[styles.badgeText, { color: badgeColor }]}>{badgeLabel}</Text>
+          <Text numberOfLines={1} style={[styles.badgeText, { color: badgeColor }]}>{badgeLabel}</Text>
         </View>
       )}
     </View>
@@ -73,10 +73,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   name: { fontSize: 14, fontFamily: fonts.extraBold, color: colors.stone },
   sub: { fontSize: 11, color: colors.stoneMid, marginTop: 2 },
-  badge: { paddingVertical: 5, paddingHorizontal: 10, borderRadius: 99 },
+  badge: { paddingVertical: 5, paddingHorizontal: 10, borderRadius: 99, flexShrink: 0 },
   logBadge: { paddingVertical: 7, paddingHorizontal: 12 },
   badgePressed: { opacity: 0.8 },
   badgeText: { fontSize: 11, fontFamily: fonts.extraBold },

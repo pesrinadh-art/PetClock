@@ -87,12 +87,12 @@ export default function PetDetailScreen() {
 
         <View style={styles.statsRow}>
           <View style={styles.statTile}>
-            <Text style={styles.statValue}>🔥 {streak}</Text>
-            <Text style={styles.statLabel}>Day streak</Text>
+            <Text numberOfLines={1} style={styles.statValue}>🔥 {streak}</Text>
+            <Text numberOfLines={1} style={styles.statLabel}>Day streak</Text>
           </View>
           <View style={styles.statTile}>
-            <Text style={styles.statValue}>{activeLogs.length}</Text>
-            <Text style={styles.statLabel}>Total logs</Text>
+            <Text numberOfLines={1} style={styles.statValue}>{activeLogs.length}</Text>
+            <Text numberOfLines={1} style={styles.statLabel}>Total logs</Text>
           </View>
         </View>
 
@@ -152,7 +152,7 @@ function LinkRow({ icon, label, onPress }: { icon: string; label: string; onPres
       aria-label={label}
     >
       <Text style={styles.linkIcon}>{icon}</Text>
-      <Text style={styles.linkLabel}>{label}</Text>
+      <Text numberOfLines={1} style={styles.linkLabel}>{label}</Text>
       <Text style={styles.linkChevron}>›</Text>
     </Pressable>
   );

@@ -25,9 +25,9 @@ export function PetListItem({
       >
         <PetAvatar pet={pet} size={48} emojiSize={24} style={styles.avatar} />
         <View style={{ flex: 1 }}>
-          <Text style={styles.name}>{pet.name}</Text>
+          <Text numberOfLines={1} style={styles.name}>{pet.name}</Text>
           {/* birthdate/age picker is post-SYNC-1; show breed only for now. */}
-          <Text style={styles.sub}>{pet.breed || 'No details yet'}</Text>
+          <Text numberOfLines={1} style={styles.sub}>{pet.breed || 'No details yet'}</Text>
         </View>
       </Pressable>
       <Pressable
@@ -76,6 +76,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   editBtn: { backgroundColor: colors.sagePale },
   deleteBtn: { backgroundColor: '#FDECEA' },

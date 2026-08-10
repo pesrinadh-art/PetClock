@@ -2,11 +2,55 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type Countdown = { label: string; kind: 'soon' | 'upcoming' | 'overdue' };
 
-/** Parses form-boundary strings "Jul 4, 2026" + "10:00 AM" (time optional) into a Date, or null if unparseable. */
+const MONTH_ABBR: Record<string, number> = {
+  jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+  jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+};
+
+/**
+ * Parses form-boundary strings "Jul 4, 2026" (from DatePickerField) + "10:00 AM"
+ * (from TimePickerField, optional) into a local Date, or null if unparseable.
+ *
+ * Parses these formats explicitly rather than delegating to `new Date(string)`:
+ * Hermes (the engine on real devices) only reliably parses ISO 8601 and returns
+ * Invalid Date for locale-formatted strings like "Jul 4, 2026", which made Save
+ * stay disabled on device even though it worked under V8 on react-native-web.
+ * A native `Date` parse remains as a fallback for any other (e.g. ISO) input.
+ */
 export function parseAppointmentDateTime(date: string, time?: string): Date | null {
-  if (!date.trim()) return null;
-  const parsed = new Date(time ? `${date} ${time}` : date);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  const d = date.trim();
+  if (!d) return null;
+
+  const dateMatch = d.match(/^([A-Za-z]{3,})\s+(\d{1,2}),?\s+(\d{4})$/);
+  if (!dateMatch) {
+    const fallback = new Date(d);
+    return Number.isNaN(fallback.getTime()) ? null : fallback;
+  }
+
+  const monthIdx = MONTH_ABBR[dateMatch[1].slice(0, 3).toLowerCase()];
+  if (monthIdx === undefined) return null;
+  const day = Number(dateMatch[2]);
+  const year = Number(dateMatch[3]);
+
+  let hour = 0;
+  let minute = 0;
+  const t = time?.trim();
+  if (t) {
+    const timeMatch = t.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])$/);
+    if (!timeMatch) return null;
+    const rawHour = Number(timeMatch[1]);
+    minute = Number(timeMatch[2]);
+    if (rawHour < 1 || rawHour > 12 || minute > 59) return null;
+    hour = rawHour % 12;
+    if (timeMatch[3].toLowerCase() === 'pm') hour += 12;
+  }
+
+  const parsed = new Date(year, monthIdx, day, hour, minute, 0, 0);
+  // Reject out-of-range days (e.g. "Feb 30") that JS would silently roll over.
+  if (Number.isNaN(parsed.getTime()) || parsed.getMonth() !== monthIdx || parsed.getDate() !== day) {
+    return null;
+  }
+  return parsed;
 }
 
 function startOfDay(epochMs: number): number {

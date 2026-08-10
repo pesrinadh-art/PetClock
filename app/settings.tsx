@@ -31,6 +31,19 @@ function to12h(stored: string | null): string {
   return `${h12}:${String(parsed.getMinutes()).padStart(2, '0')} ${period}`;
 }
 
+// Data actions (loadDemoData/resetAll/cancelAllOurNotifications) return Promise<void>
+// and, in SYNCED mode, do backend work that can reject. Firing them as `void promise`
+// from an onPress turns any rejection into an uncaught promise rejection at runtime.
+// runSafely awaits the work inside a try/catch so a rejection can never surface, while
+// still letting the action execute. It never rejects, so `void runSafely(...)` is safe.
+async function runSafely(label: string, action: () => Promise<void>): Promise<void> {
+  try {
+    await action();
+  } catch (err) {
+    if (__DEV__) console.warn(`[Settings] ${label} failed:`, err);
+  }
+}
+
 export default function SettingsScreen() {
   const { pets } = usePets();
   const { prefs, setQuietHours, setPetMuted } = useNotificationPrefs();
@@ -155,7 +168,7 @@ export default function SettingsScreen() {
                 style={({ pressed }) => [styles.dialogBtn, styles.confirmBtn, pressed && styles.pressed]}
                 onPress={() => {
                   setConfirmDemo(false);
-                  void loadDemoData();
+                  void runSafely('loadDemoData', loadDemoData);
                 }}
                 role="button"
                 aria-label="Load demo data"
@@ -187,9 +200,9 @@ export default function SettingsScreen() {
                 style={({ pressed }) => [styles.dialogBtn, styles.deleteBtn, pressed && styles.pressed]}
                 onPress={() => {
                   setConfirmReset(false);
-                  void resetAll();
+                  void runSafely('resetAll', resetAll);
                   // Drop any pushes we scheduled; the observer also re-reconciles to empty.
-                  void cancelAllOurNotifications();
+                  void runSafely('cancelAllOurNotifications', cancelAllOurNotifications);
                 }}
                 role="button"
                 aria-label="Reset all data"
