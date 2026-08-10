@@ -10,6 +10,11 @@ import {
   type ReactNode,
 } from 'react';
 import { getSupabaseClient, isSyncedModeEnabled } from '../lib/db/client';
+import {
+  completeAuthFromUrl,
+  secureAccount as secureAccountApi,
+  signInWithEmail as signInWithEmailApi,
+} from '../lib/auth/account';
 import { joinHousehold as joinHouseholdRpc, type JoinResult } from '../lib/household/invites';
 import {
   clearCachedHouseholdId,
@@ -44,6 +49,14 @@ type SessionState = {
   error: string | null;
   /** Whether the synced repo is actually active (vs. the local fallback). */
   synced: boolean;
+  /**
+   * True while the user is on the zero-friction anonymous default (no email attached yet).
+   * Derived from `session.user.is_anonymous`; flips to false once a secured email is
+   * confirmed or the user signs in with email.
+   */
+  isAnonymous: boolean;
+  /** The permanent account's email, once one is attached and confirmed; null while anonymous. */
+  email: string | null;
 };
 
 type SessionValue = SessionState & {
@@ -54,6 +67,28 @@ type SessionValue = SessionState & {
    * meaningful in synced mode; in local mode there is no household to join.
    */
   join(code: string): Promise<JoinResult>;
+  /**
+   * Attach an email to the current anonymous user, converting it to a permanent account IN
+   * PLACE (same user id / household / data) and sending a confirmation email. Resolves once
+   * the request is accepted; the account only becomes permanent after the link is clicked,
+   * at which point the auth listener updates `isAnonymous`/`email`. Throws `AccountError`.
+   */
+  secureAccount(email: string): Promise<void>;
+  /**
+   * Send a magic link to recover an existing account onto THIS device. When the resulting
+   * session arrives (link clicked), the auth listener re-resolves the household and swaps the
+   * repo. Throws `AccountError`.
+   */
+  signInWithEmail(email: string): Promise<void>;
+};
+
+const isAnonymousUser = (session: Session | null): boolean =>
+  session?.user?.is_anonymous === true;
+
+/** Permanent email if the user has one, else null (anonymous users have no usable email). */
+const emailOf = (session: Session | null): string | null => {
+  if (!session?.user || session.user.is_anonymous) return null;
+  return session.user.email ?? null;
 };
 
 const SessionContext = createContext<SessionValue | null>(null);
@@ -66,6 +101,63 @@ const deviceTimezone = (): string => {
   }
 };
 
+type SupabaseClientT = ReturnType<typeof getSupabaseClient>;
+
+/**
+ * Resolve this user's household, cache it, and hot-swap the synced repo to it. Extracted so
+ * the initial bootstrap AND an account switch (email recovery via the auth listener) share
+ * exactly one code path — the resolution rules must not drift between the two.
+ *
+ * `freshUser` skips the warm-start cache: after recovery the cached id names the PREVIOUS
+ * account's household, which this new user cannot write to, so resolve from scratch via
+ * `my_household_id()`.
+ */
+async function resolveAndActivateHousehold(
+  client: SupabaseClientT,
+  userId: string,
+  freshUser: boolean,
+): Promise<string> {
+  let householdId: string | null = null;
+
+  if (freshUser) {
+    await clearCachedHouseholdId();
+  } else {
+    householdId = await getCachedHouseholdId();
+    // The cache is a warm-start shortcut, not an authority — validate before trusting it.
+    // A visible row IS the membership proof (households_select is `using app.is_member(id)`);
+    // only a clean "no row" invalidates, never a transport error.
+    if (householdId) {
+      const { data: stillMine, error: vErr } = await client
+        .from('households')
+        .select('id')
+        .eq('id', householdId)
+        .maybeSingle();
+      if (!vErr && !stillMine) {
+        await clearCachedHouseholdId();
+        householdId = null;
+      }
+    }
+  }
+
+  if (!householdId) {
+    const { data: resolved, error: rErr } = await client.rpc('my_household_id');
+    if (rErr) throw rErr;
+    householdId = (resolved as string | null) ?? null;
+  }
+  if (!householdId) {
+    const { data: newId, error: cErr } = await client.rpc('create_household_with_membership', {
+      p_timezone: deviceTimezone(),
+    });
+    if (cErr) throw cErr;
+    householdId = newId as string;
+  }
+  if (!householdId) throw new Error('Could not resolve a household id.');
+
+  await setCachedHouseholdId(householdId);
+  activateSyncedRepos(createSyncedRepos(client, householdId, userId));
+  return householdId;
+}
+
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SessionState>({
     session: null,
@@ -74,6 +166,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     ready: !isSyncedModeEnabled(),
     error: null,
     synced: false,
+    isAnonymous: false,
+    email: null,
   });
 
   // `join` needs the current user id without re-creating itself on every state change,
@@ -83,12 +177,55 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isSyncedModeEnabled()) return; // inert in local mode
     let live = true;
+    // Gate the listener until the initial bootstrap has claimed a user id. Otherwise the
+    // INITIAL_SESSION event (which fires on subscribe) can arrive before the id is set on a
+    // warm start and be mistaken for an account switch, needlessly clearing the cache.
+    let initialBootDone = false;
+    const client = getSupabaseClient();
+
+    const switchToUser = async (userId: string, freshUser: boolean): Promise<void> => {
+      const householdId = await resolveAndActivateHousehold(client, userId, freshUser);
+      if (live) {
+        setState((prev) => ({ ...prev, householdId, ready: true, error: null, synced: true }));
+      }
+      void registerPushToken(client, userId);
+    };
+
+    // React to email confirmation / recovery sign-in / token refresh. USER_UPDATED (after a
+    // secureAccount confirmation) keeps the same user id, so it only refreshes the derived
+    // fields. A genuinely NEW permanent user id (magic-link recovery on this device) is an
+    // account switch and re-resolves the household.
+    const { data: authSub } = client.auth.onAuthStateChange((_event, session) => {
+      if (!live) return;
+
+      // Always reflect the session-derived fields so Settings updates the moment the
+      // account becomes permanent.
+      setState((prev) => ({
+        ...prev,
+        session,
+        isAnonymous: isAnonymousUser(session),
+        email: emailOf(session),
+      }));
+
+      if (!initialBootDone) return; // initial boot owns the first resolution
+      const newUserId = session?.user?.id ?? null;
+      if (session && newUserId && newUserId !== userIdRef.current) {
+        userIdRef.current = newUserId;
+        void switchToUser(newUserId, true).catch((e) => {
+          const message = e instanceof Error ? e.message : String(e);
+          if (live) setState((prev) => ({ ...prev, error: message }));
+        });
+      }
+    });
 
     (async () => {
       try {
-        const client = getSupabaseClient();
+        // 0. If we landed on a web redirect (magic link / confirmation), finish it before
+        //    reading the session — the client won't process the URL itself
+        //    (detectSessionInUrl: false). No-op off web / when there's no auth payload.
+        await completeAuthFromUrl(client);
 
-        // 1. Restore or create an anonymous session.
+        // 1. Restore or create an anonymous session — the zero-friction default is unchanged.
         let session = (await client.auth.getSession()).data.session;
         if (!session) {
           const { data, error } = await client.auth.signInAnonymously();
@@ -99,79 +236,43 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         const userId = session.user.id;
         userIdRef.current = userId;
 
-        // 2. Resolve the household id: cache → my_household_id() → create.
-        //
-        //    my_household_id() resolves `order by joined_at limit 1`. The previous inline
-        //    query had no ORDER BY at all, so once a user belonged to two households
-        //    (which SYNC-4's join flow makes possible) the app could open either one at
-        //    random between launches.
-        let householdId = await getCachedHouseholdId();
-
-        //    The cache is a warm-start shortcut, not an authority. Validate it before
-        //    trusting it: the household can be gone (deleted, or a staging reset) and the
-        //    membership can lapse or be revoked, at which point the cached id names
-        //    something this user cannot write to. Left unvalidated the app still boots and
-        //    still reads (returning nothing), but every write fails RLS 42501 forever with
-        //    no recovery path short of clearing app storage by hand — which is exactly how
-        //    "add a pet" broke after staging was re-seeded.
-        //
-        //    `households_select` is `using (app.is_member(id))`, so a visible row IS the
-        //    membership proof, and is_member honours member_expires_at — a lapsed walker
-        //    fails here too. Only a clean "no row" invalidates: a transport error must not
-        //    throw away a good id and strand a warm start behind a flaky network.
-        if (householdId) {
-          const { data: stillMine, error: vErr } = await client
-            .from('households')
-            .select('id')
-            .eq('id', householdId)
-            .maybeSingle();
-          if (!vErr && !stillMine) {
-            await clearCachedHouseholdId();
-            householdId = null;
-          }
-        }
-
-        if (!householdId) {
-          const { data: resolved, error: rErr } = await client.rpc('my_household_id');
-          if (rErr) throw rErr;
-          householdId = (resolved as string | null) ?? null;
-        }
-        if (!householdId) {
-          const { data: newId, error: cErr } = await client.rpc(
-            'create_household_with_membership',
-            { p_timezone: deviceTimezone() },
-          );
-          if (cErr) throw cErr;
-          householdId = newId as string;
-        }
-        if (!householdId) throw new Error('Could not resolve a household id.');
-        await setCachedHouseholdId(householdId);
-
-        // 3. Hot-swap the repo to the synced impl and re-hydrate mounted collections.
-        activateSyncedRepos(createSyncedRepos(client, householdId, userId));
-
         if (live) {
-          setState({ session, householdId, ready: true, error: null, synced: true });
+          setState((prev) => ({
+            ...prev,
+            session,
+            isAnonymous: isAnonymousUser(session),
+            email: emailOf(session),
+          }));
         }
 
-        // 4. SYNC-2: register this device for server-sent push, which also hands
-        //    scheduling to the backend so both sides don't fire the same reminder.
-        //
-        //    Deliberately AFTER `ready` and not awaited into the state above: the app is
-        //    already usable, and every failure path inside is soft — a denied permission or
-        //    a simulator simply leaves the device on local scheduling, still reminding.
-        void registerPushToken(client, userId);
+        // 2–3. Resolve the household (cache → my_household_id() → create) and hot-swap the
+        //       synced repo. `ready` flips inside on success.
+        await switchToUser(userId, false);
       } catch (e) {
         // Graceful fallback: stay on the working local repo, surface the reason.
         const message = e instanceof Error ? e.message : String(e);
         if (live) {
-          setState({ session: null, householdId: null, ready: true, error: message, synced: false });
+          setState((prev) => ({
+            ...prev,
+            session: null,
+            householdId: null,
+            ready: true,
+            error: message,
+            synced: false,
+            isAnonymous: false,
+            email: null,
+          }));
         }
+      } finally {
+        // Either way the initial attempt has settled — let the listener handle any later
+        // account switch (e.g. magic-link recovery arriving after boot).
+        initialBootDone = true;
       }
     })();
 
     return () => {
       live = false;
+      authSub?.subscription?.unsubscribe();
     };
   }, []);
 
@@ -200,7 +301,27 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return result;
   }, [state.householdId]);
 
-  const value = useMemo<SessionValue>(() => ({ ...state, join }), [state, join]);
+  /**
+   * ACCOUNTS: attach an email to the current anonymous user (upgrade in place). The
+   * confirmation flips `isAnonymous`/`email` later via the auth listener; here we just
+   * kick off the request and let `AccountError` propagate for the UI to render.
+   */
+  const secureAccount = useCallback(async (email: string): Promise<void> => {
+    await secureAccountApi(getSupabaseClient(), email);
+  }, []);
+
+  /**
+   * ACCOUNTS: send a magic link to recover an existing account onto this device. The session
+   * (and household re-resolution) lands through the auth listener once the link is clicked.
+   */
+  const signInWithEmail = useCallback(async (email: string): Promise<void> => {
+    await signInWithEmailApi(getSupabaseClient(), email);
+  }, []);
+
+  const value = useMemo<SessionValue>(
+    () => ({ ...state, join, secureAccount, signInWithEmail }),
+    [state, join, secureAccount, signInWithEmail],
+  );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 
