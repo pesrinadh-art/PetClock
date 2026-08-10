@@ -24,6 +24,17 @@ type NotificationPrefsContextValue = {
 
 const NotificationPrefsContext = createContext<NotificationPrefsContextValue | null>(null);
 
+// setStoredPrefs persists to AsyncStorage and can reject on a storage failure. The setters
+// below fire it without awaiting, so an unguarded rejection would surface as an uncaught
+// promise rejection the moment a user toggles a mute switch or picks a quiet-hours time —
+// the most-clicked controls on the Settings screen. Guard the write here; persistence and
+// the subscribe-driven in-memory refresh still run on the success path.
+function persistPrefs(patch: Partial<StoredNotificationPrefs>): void {
+  setStoredPrefs(patch).catch((err) => {
+    if (__DEV__) console.warn('[NotificationPrefs] persist failed:', err);
+  });
+}
+
 export function NotificationPrefsProvider({ children }: { children: ReactNode }) {
   const [prefs, setPrefs] = useState<StoredNotificationPrefs>(DEFAULT_STORED_PREFS);
   const [hydrated, setHydrated] = useState(false);
@@ -48,7 +59,7 @@ export function NotificationPrefsProvider({ children }: { children: ReactNode })
   }, []);
 
   const setQuietHours = useCallback((start: string | null, end: string | null) => {
-    void setStoredPrefs({ quietHoursStart: start, quietHoursEnd: end });
+    persistPrefs({ quietHoursStart: start, quietHoursEnd: end });
   }, []);
 
   const setPetMuted = useCallback(
@@ -56,7 +67,7 @@ export function NotificationPrefsProvider({ children }: { children: ReactNode })
       const current = new Set(prefs.mutedPetIds);
       if (muted) current.add(petId);
       else current.delete(petId);
-      void setStoredPrefs({ mutedPetIds: [...current] });
+      persistPrefs({ mutedPetIds: [...current] });
     },
     [prefs.mutedPetIds],
   );
