@@ -22,8 +22,8 @@ export function HeroCard({ colorsGradient, watermark, title, sub, stats }: Props
       <View style={styles.statsRow}>
         {stats.map((s) => (
           <View key={s.label} style={styles.stat}>
-            <Text style={styles.statVal}>{s.value}</Text>
-            <Text style={styles.statLbl}>{s.label}</Text>
+            <Text numberOfLines={1} style={styles.statVal}>{s.value}</Text>
+            <Text numberOfLines={1} ellipsizeMode="tail" style={styles.statLbl}>{s.label}</Text>
           </View>
         ))}
       </View>

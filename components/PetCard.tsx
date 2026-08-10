@@ -41,8 +41,8 @@ export function PetCard({ pet }: { pet: Pet }) {
       <View style={styles.top}>
         <PetAvatar pet={pet} size={52} emojiSize={26} style={styles.avatar} />
         <View style={{ flex: 1 }}>
-          <Text style={styles.name}>{pet.name}</Text>
-          <Text style={styles.meta}>{meta}{metaSuffix}</Text>
+          <Text numberOfLines={1} style={styles.name}>{pet.name}</Text>
+          <Text numberOfLines={1} style={styles.meta}>{meta}{metaSuffix}</Text>
         </View>
         {streak > 0 ? (
           <View style={styles.streakPill} aria-label={`${streak} day feeding streak`}>
@@ -62,8 +62,8 @@ export function PetCard({ pet }: { pet: Pet }) {
 function Stat({ value, label }: { value: string; label: string }) {
   return (
     <View style={styles.stat}>
-      <Text style={styles.statVal}>{value}</Text>
-      <Text style={styles.statLbl}>{label}</Text>
+      <Text numberOfLines={1} style={styles.statVal}>{value}</Text>
+      <Text numberOfLines={1} ellipsizeMode="tail" style={styles.statLbl}>{label}</Text>
     </View>
   );
 }
@@ -93,6 +93,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 3,
     borderColor: 'rgba(255,255,255,0.4)',
+    flexShrink: 0,
   },
   streakPill: {
     backgroundColor: 'rgba(255,255,255,0.22)',
@@ -100,6 +101,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     alignSelf: 'flex-start',
+    flexShrink: 0,
   },
   streakText: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.white },
   name: { fontSize: 19, fontFamily: fonts.extraBold, color: colors.white },

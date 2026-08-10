@@ -22,9 +22,9 @@ export function RemindersStrip({ reminders }: { reminders: Reminder[] }) {
       {reminders.map((r) => (
         <View key={r.id} style={[styles.card, { borderTopColor: ACCENTS[r.type] }]}>
           <Text style={styles.icon}>{r.icon}</Text>
-          <Text style={styles.type}>{r.label}</Text>
-          <Text style={styles.time}>{r.time}</Text>
-          <Text style={styles.sub}>{r.sub}</Text>
+          <Text numberOfLines={1} ellipsizeMode="tail" style={styles.type}>{r.label}</Text>
+          <Text numberOfLines={1} style={styles.time}>{r.time}</Text>
+          <Text numberOfLines={1} style={styles.sub}>{r.sub}</Text>
         </View>
       ))}
     </ScrollView>
@@ -36,6 +36,7 @@ const styles = StyleSheet.create({
   row: { gap: 10, paddingVertical: 6, paddingRight: 4 },
   card: {
     minWidth: 136,
+    maxWidth: 220,
     backgroundColor: colors.white,
     borderRadius: 16,
     padding: 12,
