@@ -34,6 +34,7 @@ export type HouseholdErrorCode =
   | 'RATE_LIMITED'
   | 'NOT_A_MEMBER'
   | 'OWNER_REQUIRED'
+  | 'PERMISSION_DENIED'
   | 'LAST_OWNER_HAS_PETS'
   | 'LAST_OWNER_HAS_MEMBERS'
   | 'NOT_AUTHENTICATED'
@@ -52,6 +53,7 @@ const MESSAGES: Record<HouseholdErrorCode, string> = {
   RATE_LIMITED: 'Too many tries. Wait a little while and try again.',
   NOT_A_MEMBER: "You're not in a household yet.",
   OWNER_REQUIRED: 'Only the household owner can invite a dog walker.',
+  PERMISSION_DENIED: "That didn't go through. Only the household owner can do this.",
   LAST_OWNER_HAS_PETS: "You're the only owner. Move or remove the pets before leaving.",
   LAST_OWNER_HAS_MEMBERS: "You're the only owner. Make someone else an owner before leaving.",
   NOT_AUTHENTICATED: 'Sign-in is still starting up. Try again in a moment.',
@@ -141,6 +143,85 @@ export async function leaveHousehold(
 ): Promise<void> {
   const { error } = await client.rpc('leave_household', { p_household_id: householdId });
   if (error) throw toError(error.message);
+}
+
+/**
+ * One row of `household_members`, the only member facts the client can read. `members_select`
+ * (migration 0006) exposes role + timestamps but NOT names or emails — auth.users is not
+ * client-readable — so the UI identifies people by role, join date, and "(You)", not by name.
+ */
+export interface Member {
+  userId: string;
+  role: InviteRole;
+  /** ISO, or null for a permanent (non-walker) member. Set for time-boxed walker access. */
+  memberExpiresAt: string | null;
+  /** ISO */
+  joinedAt: string;
+}
+
+/**
+ * List everyone in the household. Any member may read this (`members_select` =
+ * `app.is_member`). Ordered oldest-first so the owner (created the household) reads at the top.
+ */
+export async function listMembers(
+  client: SupabaseClient<Database>,
+  householdId: string,
+): Promise<Member[]> {
+  const { data, error } = await client
+    .from('household_members')
+    .select('user_id, role, member_expires_at, joined_at')
+    .eq('household_id', householdId)
+    .order('joined_at', { ascending: true });
+  if (error) throw toError(error.message);
+  return (data ?? []).map((r) => ({
+    userId: r.user_id,
+    role: r.role,
+    memberExpiresAt: r.member_expires_at,
+    joinedAt: r.joined_at,
+  }));
+}
+
+/**
+ * Remove another member. This is a direct delete — `members_delete` (migration 0006) permits
+ * it only when the caller `app.is_owner(household_id)` (or is deleting their own row), so RLS,
+ * not the client, enforces the permission. A blocked delete affects zero rows without raising
+ * an error, so we ask PostgREST to return the deleted row and treat an empty result as a
+ * refusal rather than reporting a phantom success.
+ */
+export async function removeMember(
+  client: SupabaseClient<Database>,
+  householdId: string,
+  userId: string,
+): Promise<void> {
+  const { data, error } = await client
+    .from('household_members')
+    .delete()
+    .eq('household_id', householdId)
+    .eq('user_id', userId)
+    .select('user_id');
+  if (error) throw toError(error.message);
+  if (!data || data.length === 0) throw new HouseholdError('PERMISSION_DENIED', MESSAGES.PERMISSION_DENIED);
+}
+
+/**
+ * Revoke an outstanding invite so its code stops working. `redeem_invite` checks
+ * `revoked_at is null` (migration 0007), and `invites_update` (migration 0006) lets an editor
+ * set it directly, so this is a plain update guarded by RLS — no RPC needed. As with
+ * `removeMember`, a zero-row result means RLS refused the write, not that it succeeded.
+ */
+export async function revokeInvite(
+  client: SupabaseClient<Database>,
+  householdId: string,
+  code: string,
+): Promise<void> {
+  const { data, error } = await client
+    .from('household_invites')
+    .update({ revoked_at: new Date().toISOString() })
+    .eq('household_id', householdId)
+    .eq('code', code.trim().toUpperCase())
+    .select('id');
+  if (error) throw toError(error.message);
+  if (!data || data.length === 0) throw new HouseholdError('PERMISSION_DENIED', MESSAGES.PERMISSION_DENIED);
 }
 
 /** Human-readable reason for any thrown error, safe to show directly. */
