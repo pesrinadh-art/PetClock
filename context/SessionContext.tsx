@@ -9,8 +9,11 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { Platform } from 'react-native';
+import * as Linking from 'expo-linking';
 import { getSupabaseClient, isSyncedModeEnabled } from '../lib/db/client';
 import {
+  completeAuthFromLink,
   completeAuthFromUrl,
   secureAccount as secureAccountApi,
   signInWithEmail as signInWithEmailApi,
@@ -218,12 +221,35 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
     });
 
+    // NATIVE warm start: the magic link arrives as a `pawclock://` deep link while the app is
+    // already running/backgrounded. Register the listener synchronously (before the async
+    // bootstrap) so a link that lands mid-boot isn't dropped. A successful exchange emits
+    // SIGNED_IN, and the `onAuthStateChange` handler above owns the household re-resolution —
+    // this listener only hands the URL off, so there's no second resolve path to race.
+    let linkSub: ReturnType<typeof Linking.addEventListener> | null = null;
+    if (Platform.OS !== 'web') {
+      linkSub = Linking.addEventListener('url', ({ url }) => {
+        void completeAuthFromLink(client, url).catch(() => {
+          /* completeAuthFromLink never throws; guard is belt-and-suspenders */
+        });
+      });
+    }
+
     (async () => {
       try {
-        // 0. If we landed on a web redirect (magic link / confirmation), finish it before
+        // 0. If we landed on an auth redirect (magic link / confirmation), finish it before
         //    reading the session — the client won't process the URL itself
-        //    (detectSessionInUrl: false). No-op off web / when there's no auth payload.
-        await completeAuthFromUrl(client);
+        //    (detectSessionInUrl: false).
+        //    - Web: read the code/hash off `window.location`.
+        //    - Native cold start: read `Linking.getInitialURL()` (the link that launched the
+        //      app). Warm-start links are handled by the `url` listener registered above.
+        //    Both are no-ops when there's no auth payload.
+        if (Platform.OS === 'web') {
+          await completeAuthFromUrl(client);
+        } else {
+          const initialUrl = await Linking.getInitialURL();
+          if (initialUrl) await completeAuthFromLink(client, initialUrl);
+        }
 
         // 1. Restore or create an anonymous session — the zero-friction default is unchanged.
         let session = (await client.auth.getSession()).data.session;
@@ -273,6 +299,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return () => {
       live = false;
       authSub?.subscription?.unsubscribe();
+      linkSub?.remove();
     };
   }, []);
 

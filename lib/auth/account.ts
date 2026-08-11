@@ -210,6 +210,131 @@ export async function completeAuthFromUrl(client: SupabaseClient<Database>): Pro
   }
 }
 
+/** The auth payload we can pull off an incoming deep link, whatever shape it arrives in. */
+type AuthLinkParams = {
+  /** PKCE authorization code (query string). */
+  code: string | null;
+  /** Implicit-flow access token (usually the URL fragment). */
+  accessToken: string | null;
+  /** Implicit-flow refresh token (usually the URL fragment). */
+  refreshToken: string | null;
+};
+
+/** Coerce an expo-linking query value (`string | string[] | undefined`) to a single string. */
+function firstString(v: unknown): string | null {
+  if (typeof v === 'string') return v;
+  if (Array.isArray(v) && typeof v[0] === 'string') return v[0];
+  return null;
+}
+
+/** Parse an `a=b&c=d` blob (query string or URL fragment) into a decoded key→value map. */
+function parseKeyValues(blob: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!blob) return out;
+  for (const pair of blob.split('&')) {
+    if (!pair) continue;
+    const eq = pair.indexOf('=');
+    const rawKey = eq >= 0 ? pair.slice(0, eq) : pair;
+    const rawVal = eq >= 0 ? pair.slice(eq + 1) : '';
+    if (!rawKey) continue;
+    try {
+      out[decodeURIComponent(rawKey)] = decodeURIComponent(rawVal.replace(/\+/g, ' '));
+    } catch {
+      out[rawKey] = rawVal;
+    }
+  }
+  return out;
+}
+
+/**
+ * Pull the auth params off a deep-link URL, tolerating every shape Supabase can hand back.
+ *
+ * We read BOTH the query string and the URL fragment because the two auth flows put the
+ * payload in different places:
+ *  - PKCE:     `pawclock:///?code=...`                    → query string
+ *  - Implicit: `pawclock:///#access_token=...&refresh_token=...` → fragment
+ *
+ * expo-linking's `parse()` builds on `new URL()` and only ever reads the query string — it
+ * silently drops the fragment — so a hand parse of the hash is not optional. We still run
+ * `parse()` too, purely to benefit from its Expo-Go `--/` dev-URL handling, but only to fill
+ * gaps the manual parse left.
+ */
+function extractAuthParams(url: string): AuthLinkParams {
+  const params: Record<string, string> = {};
+
+  const hashIndex = url.indexOf('#');
+  const beforeHash = hashIndex >= 0 ? url.slice(0, hashIndex) : url;
+  const fragment = hashIndex >= 0 ? url.slice(hashIndex + 1) : '';
+  const qIndex = beforeHash.indexOf('?');
+  const query = qIndex >= 0 ? beforeHash.slice(qIndex + 1) : '';
+  // Query first, then fragment — the fragment is where tokens live, so it wins on overlap.
+  Object.assign(params, parseKeyValues(query), parseKeyValues(fragment));
+
+  try {
+    const { queryParams } = Linking.parse(url);
+    if (queryParams) {
+      for (const key of ['code', 'access_token', 'refresh_token'] as const) {
+        const v = firstString(queryParams[key]);
+        if (v && !params[key]) params[key] = v;
+      }
+    }
+  } catch {
+    /* not a URL expo-linking can parse — the manual parse above already ran */
+  }
+
+  return {
+    code: params.code ?? null,
+    accessToken: params.access_token ?? null,
+    refreshToken: params.refresh_token ?? null,
+  };
+}
+
+/**
+ * Finish a magic-link / confirmation landing on NATIVE (iOS/Android), where the callback
+ * arrives as a `pawclock://` deep link through expo-linking rather than a browser URL. This
+ * is the native counterpart to `completeAuthFromUrl` (which reads `window.location` and only
+ * runs on web); the client runs with `detectSessionInUrl: false`, so nobody processes the
+ * link unless we do it here.
+ *
+ * Handles both flow shapes:
+ *  - PKCE: a `code` query param → `exchangeCodeForSession(code)` (the code_verifier stored on
+ *    this device when the link was requested completes the exchange).
+ *  - Implicit / token hash: `access_token` + `refresh_token` (fragment or query) →
+ *    `setSession(...)`.
+ *
+ * Returns whether a session was established. It is always safe to call unconditionally: it
+ * returns false (never throws) for a non-auth deep link or a missing URL, so ordinary
+ * in-app deep links pass straight through untouched. On success the Supabase client emits a
+ * SIGNED_IN event; SessionContext's `onAuthStateChange` listener owns everything after that
+ * (household re-resolution), so this function deliberately does no more than set the session.
+ */
+export async function completeAuthFromLink(
+  client: SupabaseClient<Database>,
+  url: string | null | undefined,
+): Promise<boolean> {
+  if (!url) return false;
+
+  const { code, accessToken, refreshToken } = extractAuthParams(url);
+  if (!code && !(accessToken && refreshToken)) return false; // not an auth link — ignore
+
+  try {
+    if (code) {
+      const { error } = await client.auth.exchangeCodeForSession(code);
+      return !error;
+    }
+    if (accessToken && refreshToken) {
+      const { error } = await client.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+      return !error;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 /** Human-readable reason for any thrown error, safe to show directly. */
 export function accountErrorMessage(e: unknown): string {
   if (e instanceof AccountError) return e.message;
