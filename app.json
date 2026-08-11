@@ -2,6 +2,7 @@
   "expo": {
     "name": "PawClock",
     "slug": "PawClock",
+    "owner": "srinadhpentalas-team",
     "version": "1.0.0",
     "scheme": "pawclock",
     "orientation": "portrait",
