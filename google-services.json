@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "975144561942",
+    "project_id": "pawclock",
+    "storage_bucket": "pawclock.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:975144561942:android:374f1e3c6c23a64ee07437",
+        "android_client_info": {
+          "package_name": "com.sravya.pawclock"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBFOY_8RCgZ0ZPqRhKTKain9503MOdbKRk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
