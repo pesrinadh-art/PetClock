@@ -60,6 +60,24 @@ async function collectDueItems(admin: SupabaseClient): Promise<DueItem[]> {
     if (res.error) console.error(`due query ${label} failed`, res.error);
   }
 
+  // Household timezones, for the clock times baked into body copy. Only breaks and
+  // appointments embed one; meals and medications are "due now" by construction. One
+  // batched query — a lookup failure degrades to UTC labels, never to a dropped push.
+  const tzHouseholds = [
+    ...new Set(
+      [...(breaks.data ?? []), ...(appts.data ?? [])].map((r) => r.household_id),
+    ),
+  ];
+  const tzByHousehold = new Map<string, string>();
+  if (tzHouseholds.length > 0) {
+    const { data: hhs, error: tzErr } = await admin
+      .from("households")
+      .select("id, timezone")
+      .in("id", tzHouseholds);
+    if (tzErr) console.error("household timezone lookup failed", tzErr);
+    for (const h of hhs ?? []) tzByHousehold.set(h.id, h.timezone);
+  }
+
   for (const r of breaks.data ?? []) {
     const icon = r.break_type === "pee" ? "💧" : "💩";
     const word = r.break_type === "pee" ? "pee" : "poo";
@@ -69,7 +87,7 @@ async function collectDueItems(admin: SupabaseClient): Promise<DueItem[]> {
       householdId: r.household_id,
       petId: r.pet_id,
       title: `${icon} ${r.pet_name}'s ${word} break`,
-      body: `Predicted around ${formatLocal(r.predicted_at)} — did ${r.pet_name} go?`,
+      body: `Predicted around ${formatLocal(r.predicted_at, tzByHousehold.get(r.household_id))} — did ${r.pet_name} go?`,
       categoryId: CATEGORY.break,
       channelId: ANDROID_CHANNEL.break_prediction.id,
       data: {
@@ -135,7 +153,7 @@ async function collectDueItems(admin: SupabaseClient): Promise<DueItem[]> {
       householdId: r.household_id,
       petId: r.pet_id,
       title: `📅 ${r.title}`,
-      body: `${describeLead(r.offset_minutes)} — ${formatLocal(r.starts_at)}.`,
+      body: `${describeLead(r.offset_minutes)} — ${formatLocal(r.starts_at, tzByHousehold.get(r.household_id))}.`,
       categoryId: CATEGORY.appointment,
       channelId: ANDROID_CHANNEL.appointment.id,
       data: {
@@ -307,10 +325,26 @@ Deno.serve(async (req) => {
 // Copy helpers
 // ---------------------------------------------------------------------------
 
-function formatLocal(iso: string): string {
-  // Deliberately coarse. Precise local formatting belongs on the device, which knows the
-  // user's locale and 12/24-hour preference; this is only the fallback body text.
+function formatLocal(iso: string, timezone?: string): string {
+  // Body text is baked at send time and the receiving device never re-formats it, so
+  // the household's timezone (CLAUDE.md: timezone belongs to the household, not the
+  // user) is the only one that can make "Predicted around 7:30 PM" read correctly.
+  // The zone abbreviation (EST/PDT/…) is included so a traveling caregiver still has
+  // an unambiguous reading. UTC is kept strictly as the fallback for a missing or
+  // invalid IANA name — a bad timezone must degrade the label, not drop the push.
   const d = new Date(iso);
+  if (timezone) {
+    try {
+      return new Intl.DateTimeFormat("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: timezone,
+        timeZoneName: "short",
+      }).format(d);
+    } catch {
+      // fall through to UTC
+    }
+  }
   const h = d.getUTCHours() % 12 || 12;
   const m = String(d.getUTCMinutes()).padStart(2, "0");
   return `${h}:${m} ${d.getUTCHours() < 12 ? "AM" : "PM"} UTC`;
