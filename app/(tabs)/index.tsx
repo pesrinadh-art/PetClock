@@ -1,7 +1,9 @@
 import { useMemo } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors } from '../../theme/colors';
+import { router } from 'expo-router';
+import { green, ink, surface } from '../../theme/colors';
+import { fonts } from '../../theme/fonts';
 import { TopNavBar } from '../../components/TopNavBar';
 import { PetSwitcher } from '../../components/PetSwitcher';
 import { PetCard } from '../../components/PetCard';
@@ -9,13 +11,14 @@ import { MealTimeBanner } from '../../components/MealTimeBanner';
 import { NudgeBanner } from '../../components/NudgeBanner';
 import { UpcomingSection } from '../../components/UpcomingSection';
 import { LogButtons } from '../../components/LogButtons';
-import { FoodQuickLogButton } from '../../components/FoodQuickLogButton';
 import { Timeline } from '../../components/Timeline';
-import { SectionTitle } from '../../components/SectionTitle';
 import { EmptyState } from '../../components/EmptyState';
+import { Card, SectionLabel } from '../../components/ui';
 import { usePets } from '../../context/PetsContext';
 import { useLogs } from '../../context/LogsContext';
+import { useSession } from '../../context/SessionContext';
 import { useNow } from '../../hooks/useNow';
+import { getPetStatus } from '../../lib/petSchedule';
 
 function startOfDay(date: Date): number {
   const d = new Date(date);
@@ -26,7 +29,9 @@ function startOfDay(date: Date): number {
 export default function HomeScreen() {
   const { pets, activePet, activePetId, setActivePetId, getFeedTimesForPet } = usePets();
   const { getLogsForPet } = useLogs();
+  const { session } = useSession();
   const now = useNow();
+  const currentUserId = session?.user?.id ?? null;
 
   // Every hook must run on every render — compute BEFORE any early return, so the hook order
   // stays stable when activePet flips to null (e.g. after "Reset all data" clears every pet).
@@ -47,6 +52,7 @@ export default function HomeScreen() {
   }
 
   const feedTimes = getFeedTimesForPet(activePet.id);
+  const status = getPetStatus(activePet, feedTimes);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -54,30 +60,67 @@ export default function HomeScreen() {
       <PetSwitcher pets={pets} activeId={activePetId} onSelect={setActivePetId} />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <PetCard pet={activePet} />
-        {/* Flagship in-app break/med nudge, computed from prediction (works even if the OS push
-            was suppressed/missed/denied). Meals stay with MealTimeBanner below (no duplication). */}
-        <NudgeBanner pet={activePet} />
-        <MealTimeBanner pet={activePet} />
 
-        <SectionTitle>Upcoming</SectionTitle>
-        <UpcomingSection pet={activePet} />
-        <View style={{ height: 18 }} />
+        {/* Onboarding notices (calibrating / needs-info) only — the ready-state reminder strip is
+            replaced on 2a by the hero "Next break" stat and the quick-log nudge line. */}
+        {status.kind !== 'ready' && (
+          <View style={styles.section}>
+            <UpcomingSection pet={activePet} />
+          </View>
+        )}
 
-        <SectionTitle>Log Now</SectionTitle>
-        <LogButtons pet={activePet} />
-        {/* Quick "mark the due meal fed" shortcut, below the pee/poo buttons. Renders null unless a
-            meal is actually due (reuses MealTimeBanner's due-meal logic; no new prediction). */}
-        <FoodQuickLogButton pet={activePet} />
+        {/* Quick log card: prediction nudge line (NudgeBanner) + the pee/poo/both/fed tiles. */}
+        <View style={styles.section}>
+          <SectionLabel>Quick log</SectionLabel>
+          <Card padded>
+            {/* Flagship in-app break/med nudge, computed from prediction (works even if the OS push
+                was suppressed/missed/denied). Renders null when nothing is due. */}
+            <NudgeBanner pet={activePet} />
+            <LogButtons pet={activePet} />
+          </Card>
+          {/* Meals stay with MealTimeBanner (no duplication); it renders the terracotta attention
+              card only while a meal is actually due. */}
+          <MealTimeBanner pet={activePet} />
+        </View>
 
-        <SectionTitle>Today's Log</SectionTitle>
-        <Timeline entries={todaysLogs} feedTimes={feedTimes} now={now} />
+        <View style={styles.section}>
+          <SectionLabel
+            right={
+              <Pressable
+                onPress={() => router.push(`/pet/${activePet.id}/history`)}
+                role="button"
+                aria-label={`See all of ${activePet.name}'s logs`}
+                hitSlop={8}
+              >
+                <Text style={styles.seeAll}>See all</Text>
+              </Pressable>
+            }
+          >
+            Today's logs
+          </SectionLabel>
+          {todaysLogs.length > 0 ? (
+            <Timeline
+              entries={todaysLogs}
+              feedTimes={feedTimes}
+              now={now}
+              currentUserId={currentUserId}
+            />
+          ) : (
+            <Card padded>
+              <Text style={styles.emptyLogs}>No logs yet today — tap a quick-log tile above.</Text>
+            </Card>
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.cream },
+  safe: { flex: 1, backgroundColor: surface.app },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingBottom: 16 },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 24 },
+  section: { marginTop: 18 },
+  seeAll: { fontSize: 11.5, fontFamily: fonts.semiBold, color: green.primary },
+  emptyLogs: { fontSize: 13, fontFamily: fonts.medium, color: ink.muted, textAlign: 'center' },
 });
