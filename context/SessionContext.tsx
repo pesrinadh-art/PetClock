@@ -119,8 +119,12 @@ type SessionValue = SessionState & {
    * resolves/creates the household and activates the synced repo BEFORE it resolves, so the
    * caller can rely on `needsAuth` being false afterwards. Throws `AccountError`
    * (`CODE_INVALID` / `CODE_EXPIRED`).
+   *
+   * `name` (optional) is the display name captured on the first onboarding screen. On success
+   * it is best-effort stored on the auth user (`full_name`) and, when this call CREATES the
+   * household, used to name it (`${name}'s Household`). An empty name is treated as absent.
    */
-  verifyEmailCode(email: string, code: string): Promise<void>;
+  verifyEmailCode(email: string, code: string, name?: string): Promise<void>;
 };
 
 const isAnonymousUser = (session: Session | null): boolean =>
@@ -168,6 +172,7 @@ async function resolveAndActivateHousehold(
   client: SupabaseClientT,
   userId: string,
   freshUser: boolean,
+  householdName?: string,
 ): Promise<string> {
   let householdId: string | null = null;
 
@@ -197,8 +202,13 @@ async function resolveAndActivateHousehold(
     householdId = (resolved as string | null) ?? null;
   }
   if (!householdId) {
+    // Only a first CREATE names the household. Joining or resolving an existing one above
+    // returns before here, so an established household's name is never overwritten. When no
+    // name was captured (empty, DEV bypass, local recovery) omit p_name and take the default.
+    const trimmedName = householdName?.trim();
     const { data: newId, error: cErr } = await client.rpc('create_household_with_membership', {
       p_timezone: deviceTimezone(),
+      ...(trimmedName ? { p_name: `${trimmedName}'s Household` } : {}),
     });
     if (cErr) throw cErr;
     householdId = newId as string;
@@ -475,7 +485,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
    * is reliably false once it resolves. `manualSwitchInProgress` stops the auth listener from
    * racing a duplicate resolution off the SIGNED_IN event verifyOtp emits.
    */
-  const verifyEmailCode = useCallback(async (email: string, code: string): Promise<void> => {
+  const verifyEmailCode = useCallback(async (email: string, code: string, name?: string): Promise<void> => {
     const client = getSupabaseClient();
     manualSwitchInProgress.current = true;
     try {
@@ -494,9 +504,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         email: emailOf(session),
       }));
 
+      // Best-effort: stash the display name on the auth user. Never block entry on it — a
+      // failure here (offline, provider hiccup) is swallowed so onboarding still completes.
+      const trimmedName = name?.trim();
+      if (trimmedName) {
+        try {
+          await client.auth.updateUser({ data: { full_name: trimmedName } });
+        } catch {
+          /* non-fatal — the household name below is the load-bearing use of the name */
+        }
+      }
+
       // Reuse the one household code path — freshUser:true (this is a brand-new verified user,
-      // so the warm-start cache from any previous session must not be trusted).
-      const householdId = await resolveAndActivateHousehold(client, userId, true);
+      // so the warm-start cache from any previous session must not be trusted). Pass the name
+      // so a FIRST household create is named after the user; an existing/joined one is untouched.
+      const householdId = await resolveAndActivateHousehold(client, userId, true, trimmedName);
       setState((prev) => ({
         ...prev,
         householdId,

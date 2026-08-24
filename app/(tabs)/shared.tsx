@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TopNavBar } from '../../components/TopNavBar';
@@ -8,7 +8,8 @@ import { HouseholdSection } from '../../components/HouseholdSection';
 import { useSession } from '../../context/SessionContext';
 import { usePets } from '../../context/PetsContext';
 import { useLogs } from '../../context/LogsContext';
-import type { Member } from '../../lib/household/invites';
+import { getSupabaseClient } from '../../lib/db/client';
+import { getHouseholdName, type Member } from '../../lib/household/invites';
 import { green, ink, surface } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 
@@ -29,8 +30,25 @@ export default function SharedScreen() {
   const { pets } = usePets();
   const { logs } = useLogs();
   const [memberCount, setMemberCount] = useState<number | null>(null);
+  const [householdName, setHouseholdName] = useState<string | null>(null);
 
   const isShared = synced && !!householdId;
+
+  // Read the real household name for the hero. Best-effort: on any miss we fall back to the
+  // generic "Your household" title below.
+  useEffect(() => {
+    if (!isShared || !householdId) {
+      setHouseholdName(null);
+      return;
+    }
+    let live = true;
+    void getHouseholdName(getSupabaseClient(), householdId).then((n) => {
+      if (live) setHouseholdName(n);
+    });
+    return () => {
+      live = false;
+    };
+  }, [isShared, householdId]);
 
   const logsToday = useMemo(() => {
     const today = new Date().toDateString();
@@ -49,7 +67,7 @@ export default function SharedScreen() {
           <>
             <HeroCard
               eyebrow="Everyone caring for your pets"
-              title="Your household"
+              title={householdName ?? 'Your household'}
               stats={[
                 { value: memberCount == null ? '—' : String(memberCount), label: 'Members' },
                 { value: String(petsShared), label: petsShared === 1 ? 'Pet shared' : 'Pets shared' },

@@ -45,6 +45,7 @@ export function AuthFlow() {
   const { sendEmailCode, verifyEmailCode } = useSession();
 
   const [step, setStep] = useState<Step>('email');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -106,7 +107,9 @@ export function AuthFlow() {
       setNotice(null);
       setBusy(true);
       try {
-        await verifyEmailCode(email, value);
+        // Carry the name captured on the first screen through to verification. It is
+        // best-effort stored on the auth user and used to name a newly created household.
+        await verifyEmailCode(email, value, name.trim());
         // Success: SessionContext flips `needsAuth` false and OnboardingGate routes onward.
         // Keep the spinner up until this screen unmounts.
       } catch (e) {
@@ -116,7 +119,7 @@ export function AuthFlow() {
         setTimeout(() => codeInputRef.current?.focus(), 50);
       }
     },
-    [busy, email, verifyEmailCode],
+    [busy, email, name, verifyEmailCode],
   );
 
   const onCodeChange = useCallback(
@@ -163,6 +166,24 @@ export function AuthFlow() {
               <Text style={styles.body}>
                 We&apos;ll send a 6-digit code to confirm it&apos;s you. No password needed.
               </Text>
+
+              <Text style={styles.label}>Your name</Text>
+              <View style={[styles.field, name.length > 0 && styles.fieldActive]}>
+                <Icon name="user" size={18} color={ink.faint} strokeWidth={2} />
+                <TextInput
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="Alex"
+                  placeholderTextColor={ink.faint2}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  autoComplete="name"
+                  textContentType="name"
+                  returnKeyType="next"
+                  style={styles.fieldInput}
+                  editable={!busy}
+                />
+              </View>
 
               <Text style={styles.label}>Email</Text>
               <View
