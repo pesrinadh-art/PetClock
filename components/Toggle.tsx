@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Pressable } from 'react-native';
-import { colors } from '../theme/colors';
+import { green, line, ink } from '../theme/colors';
 
+// Redesign pill toggle (screen_2f): green.mid track when on, warm hairline track
+// when off, white thumb. Sizing mirrors the mockup (44×26, 22px thumb).
 export function Toggle({
   on,
   onToggle,
@@ -24,7 +26,7 @@ export function Toggle({
 
   const trackColor = anim.interpolate({
     inputRange: [0, 1],
-    outputRange: [colors.stoneLight, colors.sage],
+    outputRange: [line.border, green.mid],
   });
   const translateX = anim.interpolate({ inputRange: [0, 1], outputRange: [2, 20] });
 
@@ -38,19 +40,19 @@ export function Toggle({
     >
       <Animated.View
         style={{
-          width: 40,
-          height: 22,
-          borderRadius: 99,
+          width: 44,
+          height: 26,
+          borderRadius: 999,
           backgroundColor: trackColor,
           justifyContent: 'center',
         }}
       >
         <Animated.View
           style={{
-            width: 18,
-            height: 18,
-            borderRadius: 9,
-            backgroundColor: colors.white,
+            width: 22,
+            height: 22,
+            borderRadius: 11,
+            backgroundColor: ink.onDark,
             transform: [{ translateX }],
             shadowColor: '#000',
             shadowOpacity: 0.2,
