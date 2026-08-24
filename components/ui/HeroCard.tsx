@@ -109,7 +109,10 @@ function ProgressRing({ progress, ringColor }: { progress: number; ringColor: st
   return (
     <View style={{ width: size, height: size }}>
       <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
-        <G rotation={-90} origin={`${size / 2}, ${size / 2}`}>
+        {/* Rotate via the SVG transform attribute (rotate deg cx cy) rather than the
+            rotation/origin props — react-native-svg-web maps `origin` to an invalid
+            `transform-origin` DOM attribute, which React 19 rejects on web. */}
+        <G transform={`rotate(-90 ${size / 2} ${size / 2})`}>
           <Circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(255,255,255,0.22)" strokeWidth={4} fill="none" />
           <Circle
             cx={size / 2}
