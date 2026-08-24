@@ -1,21 +1,29 @@
-import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
-import { colors } from '../theme/colors';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable } from 'react-native';
+import { category, ink, line, surface } from '../theme/colors';
 import { fonts } from '../theme/fonts';
+import { Icon, type IconName } from './Icon';
 import type { ApptType } from '../data/mockData';
 
 export type ApptFilter = 'all' | ApptType;
 
-const TABS: { key: ApptFilter; label: string; accent: string; light: string }[] = [
-  { key: 'all', label: 'All', accent: colors.stone, light: colors.white },
-  { key: 'vet', label: '🏥 Vet', accent: colors.apptVet, light: colors.apptVetLight },
-  { key: 'vaccine', label: '💉 Vaccine', accent: colors.apptVaccine, light: colors.apptVaccineLight },
-  { key: 'groom', label: '✂️ Grooming', accent: colors.apptGroom, light: colors.apptGroomLight },
-  { key: 'other', label: '📌 Other', accent: colors.apptOther, light: colors.apptOtherLight },
+// Filter chips mirror screen_2c: a dark "All" pill, then a colour-coded chip per
+// type carrying its category <Icon>. Colours come from the shared role tokens.
+const TABS: { key: ApptFilter; label: string; icon?: IconName; ink: string }[] = [
+  { key: 'all', label: 'All', ink: ink.primary },
+  { key: 'vet', label: 'Vet', icon: 'vet', ink: category.vetInk },
+  { key: 'vaccine', label: 'Vaccine', icon: 'vaccine', ink: category.vaccineInk },
+  { key: 'groom', label: 'Groom', icon: 'scissors', ink: category.groomInk },
 ];
 
 export function ApptTabs({ value, onChange }: { value: ApptFilter; onChange: (v: ApptFilter) => void }) {
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scroll} contentContainerStyle={styles.row}>
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.scroll}
+      contentContainerStyle={styles.row}
+    >
       {TABS.map((t) => {
         const selected = value === t.key;
         return (
@@ -27,14 +35,22 @@ export function ApptTabs({ value, onChange }: { value: ApptFilter; onChange: (v:
             aria-selected={selected}
             style={({ pressed }) => [
               styles.tab,
-              {
-                backgroundColor: selected ? t.accent : t.light,
-                borderColor: t.accent,
-              },
+              t.icon ? styles.tabWithIcon : null,
+              selected
+                ? { backgroundColor: t.ink, borderColor: t.ink }
+                : { backgroundColor: surface.card, borderColor: line.border },
               pressed && styles.pressed,
             ]}
           >
-            <Text style={{ fontSize: 12, fontFamily: fonts.extraBold, color: selected ? colors.white : t.accent }}>
+            {t.icon && (
+              <Icon name={t.icon} size={13} color={selected ? ink.onDark : t.ink} strokeWidth={2} />
+            )}
+            <Text
+              style={[
+                styles.label,
+                { color: selected ? ink.onDark : t.key === 'all' ? ink.primary : '#5d564c' },
+              ]}
+            >
               {t.label}
             </Text>
           </Pressable>
@@ -46,7 +62,16 @@ export function ApptTabs({ value, onChange }: { value: ApptFilter; onChange: (v:
 
 const styles = StyleSheet.create({
   scroll: { flexGrow: 0, flexShrink: 0 },
-  row: { gap: 8, paddingVertical: 4 },
-  tab: { paddingVertical: 7, paddingHorizontal: 14, borderRadius: 99, borderWidth: 2 },
-  pressed: { opacity: 0.75, transform: [{ scale: 0.96 }] },
+  row: { gap: 7, paddingVertical: 2, paddingRight: 4 },
+  tab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  tabWithIcon: { gap: 5, paddingHorizontal: 13 },
+  label: { fontSize: 12, fontFamily: fonts.bold },
+  pressed: { opacity: 0.7 },
 });
