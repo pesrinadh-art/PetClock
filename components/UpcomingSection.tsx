@@ -1,11 +1,10 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { amber, green, ink, radius } from '../theme/colors';
+import { amber, category, green, ink, logTint, radius, terracotta } from '../theme/colors';
 import { fonts } from '../theme/fonts';
-import { RemindersStrip } from './RemindersStrip';
-import { Card } from './ui';
-import { Icon } from './Icon';
-import type { Pet, Reminder } from '../data/mockData';
+import { Card, ListRow, SectionLabel } from './ui';
+import { Icon, type IconName } from './Icon';
+import type { Pet } from '../data/mockData';
 import {
   formatTimeRange,
   formatTimeUntil,
@@ -18,18 +17,48 @@ import {
 import { useLogs } from '../context/LogsContext';
 import { usePets } from '../context/PetsContext';
 
-function toReminder(item: UpcomingItem, now: Date): Reminder {
-  return {
-    id: item.id,
-    type: item.type,
-    icon: item.icon,
-    label: item.label,
-    time: formatTimeRange(item.timeStart, item.timeEnd),
-    sub:
-      item.kind === 'overdue'
-        ? `Overdue ${formatTimeUntilCompact(new Date(now.getTime() + item.overdueBy), now)}`
-        : formatTimeUntil(item.timeStart, now),
-  };
+/** Drawn-icon + tint per upcoming-item type (mirrors Timeline's TYPE_STYLE). */
+const ITEM_STYLE: Record<UpcomingItem['type'], { icon: IconName; bg: string; fg: string }> = {
+  pee: { icon: 'drop', bg: logTint.peeBg, fg: logTint.peeInk },
+  poo: { icon: 'poo', bg: logTint.pooBg, fg: logTint.pooInk },
+  food: { icon: 'bowl', bg: terracotta.tint, fg: terracotta.primary },
+  medication: { icon: 'pill', bg: category.medBg, fg: category.medInk },
+};
+
+/** One upcoming reminder as a ui ListRow: tinted type tile + label + relative "when", clock on the right. */
+function UpcomingRow({ item, now, divider }: { item: UpcomingItem; now: Date; divider: boolean }) {
+  const s = ITEM_STYLE[item.type];
+  const overdue = item.kind === 'overdue';
+  const sub = overdue
+    ? `Overdue ${formatTimeUntilCompact(new Date(now.getTime() + item.overdueBy), now)}`
+    : formatTimeUntil(item.timeStart, now);
+  return (
+    <ListRow
+      icon={s.icon}
+      iconBg={s.bg}
+      iconColor={s.fg}
+      title={item.label}
+      subtitle={sub}
+      right={
+        <Text style={[styles.time, overdue && styles.timeOverdue]}>
+          {formatTimeRange(item.timeStart, item.timeEnd)}
+        </Text>
+      }
+      divider={divider}
+    />
+  );
+}
+
+/** A Card of upcoming reminders. Renders nothing when there are none. */
+function UpcomingList({ items, now }: { items: UpcomingItem[]; now: Date }) {
+  if (items.length === 0) return null;
+  return (
+    <Card>
+      {items.map((item, i) => (
+        <UpcomingRow key={item.id} item={item} now={now} divider={i < items.length - 1} />
+      ))}
+    </Card>
+  );
 }
 
 export function UpcomingSection({ pet }: { pet: Pet }) {
@@ -46,7 +75,7 @@ export function UpcomingSection({ pet }: { pet: Pet }) {
 
   if (status.kind === 'calibrating') {
     return (
-      <View style={{ gap: 10 }}>
+      <View style={styles.sectionStack}>
         <Card padded style={styles.notice}>
           <View style={[styles.iconTile, { backgroundColor: amber.warnBg }]}>
             <Icon name="clock" size={16} color={amber.warnInk} strokeWidth={2} />
@@ -67,16 +96,14 @@ export function UpcomingSection({ pet }: { pet: Pet }) {
             </Pressable>
           </View>
         </Card>
-        {medicationItems.length > 0 && (
-          <RemindersStrip reminders={medicationItems.map((item) => toReminder(item, now))} />
-        )}
+        <UpcomingList items={medicationItems} now={now} />
       </View>
     );
   }
 
   if (status.kind === 'needsInfo') {
     return (
-      <View style={{ gap: 10 }}>
+      <View style={styles.sectionStack}>
         <Pressable
           onPress={() => router.push({ pathname: '/add-pet', params: { petId: pet.id } })}
           role="button"
@@ -97,23 +124,34 @@ export function UpcomingSection({ pet }: { pet: Pet }) {
             </Card>
           )}
         </Pressable>
-        {medicationItems.length > 0 && (
-          <RemindersStrip reminders={medicationItems.map((item) => toReminder(item, now))} />
-        )}
+        <UpcomingList items={medicationItems} now={now} />
       </View>
     );
   }
 
+  // Ready: the predicted pee/poo breaks + next meal (getUpcomingForPet) merged with any
+  // medication reminders, soonest first, capped at 5 — rendered as cards on Home.
   const holdItems = getUpcomingForPet(pet, feedTimes, getLogsForPet(pet.id), now);
-  const reminders = [...holdItems, ...medicationItems]
+  const items = [...holdItems, ...medicationItems]
     .sort((a, b) => a.timeStart.getTime() - b.timeStart.getTime())
-    .slice(0, 5)
-    .map((item) => toReminder(item, now));
+    .slice(0, 5);
 
-  return <RemindersStrip reminders={reminders} />;
+  // Tidy empty state: render nothing when there is genuinely nothing upcoming.
+  if (items.length === 0) return null;
+
+  return (
+    <View style={styles.section}>
+      <SectionLabel>Upcoming</SectionLabel>
+      <UpcomingList items={items} now={now} />
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
+  section: { marginTop: 18 },
+  sectionStack: { marginTop: 18, gap: 10 },
+  time: { fontSize: 12, fontFamily: fonts.bold, color: ink.muted },
+  timeOverdue: { color: terracotta.primary },
   notice: {
     flexDirection: 'row',
     alignItems: 'center',
