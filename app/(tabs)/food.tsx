@@ -1,3 +1,7 @@
+// TODO redesign: meal UI moved to the pet profile. This Food TAB is retired —
+// it's hidden from the bottom bar (href:null in (tabs)/_layout.tsx) but the file
+// and its meal logic/helpers are kept so nothing breaks until a Phase-2 agent
+// rebuilds meal logging inside the pet profile.
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
