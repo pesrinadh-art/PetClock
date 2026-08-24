@@ -2,8 +2,9 @@ import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, radius, shadow } from '../../../theme/colors';
+import { surface, ink, radius, shadow, line } from '../../../theme/colors';
 import { fonts } from '../../../theme/fonts';
+import { Icon } from '../../../components/Icon';
 import { usePets } from '../../../context/PetsContext';
 import { useLogs } from '../../../context/LogsContext';
 import { describeLog, formatClock } from '../../../lib/petSchedule';
@@ -61,7 +62,7 @@ export default function LogHistoryScreen() {
   const groups = useMemo(() => groupByDay(logs, feedTimes, now), [logs, feedTimes, now]);
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.titleRow}>
         <Pressable
           style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}
@@ -70,15 +71,15 @@ export default function LogHistoryScreen() {
           aria-label="Back"
           hitSlop={8}
         >
-          <Text style={styles.backBtnText}>‹</Text>
+          <Icon name="chevronLeft" size={18} color={ink.muted} strokeWidth={2.4} />
         </Pressable>
-        <Text style={styles.title} numberOfLines={1}>{pet ? `${pet.name}'s History` : 'History'}</Text>
-        <View style={{ width: 32 }} />
+        <Text style={styles.title} numberOfLines={1}>{pet ? `${pet.name}'s history` : 'History'}</Text>
+        <View style={{ width: 34 }} />
       </View>
 
       {groups.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>🗂️</Text>
+          <Icon name="clock" size={40} color={ink.faint} />
           <Text style={styles.emptyTitle}>No logs yet</Text>
           <Text style={styles.emptyBody}>Logged potty breaks, meals and meds will appear here, grouped by day.</Text>
         </View>
@@ -109,58 +110,55 @@ export default function LogHistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.cream },
+  safe: { flex: 1, backgroundColor: surface.app },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 12,
-    marginBottom: 8,
+    paddingTop: 6,
+    paddingBottom: 10,
   },
-  title: { fontSize: 20, fontFamily: fonts.black, color: colors.stone, textAlign: 'center', flex: 1 },
+  title: { fontSize: 18, fontFamily: fonts.extraBold, color: ink.primary, textAlign: 'center', flex: 1, letterSpacing: -0.4 },
   backBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.white,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: surface.chip,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backBtnText: { fontSize: 22, fontFamily: fonts.extraBold, color: colors.stoneMid, marginTop: -2 },
   pressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
 
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingBottom: 24 },
-  group: { marginBottom: 16 },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 24 },
+  group: { marginBottom: 18 },
   dayHeader: {
-    fontSize: 12,
-    fontFamily: fonts.extraBold,
-    color: colors.stoneMid,
+    fontSize: 10.5,
+    fontFamily: fonts.bold,
+    color: ink.faint,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
+    letterSpacing: 1.5,
+    marginBottom: 9,
     marginTop: 4,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: colors.white,
-    borderRadius: radius.sm,
-    padding: 14,
+    backgroundColor: surface.card,
+    borderRadius: radius.card,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
     marginBottom: 8,
-    ...shadow.sm,
+    ...shadow.card,
   },
   rowIcon: { fontSize: 20 },
-  rowLabel: { fontSize: 14, fontFamily: fonts.extraBold, color: colors.stone },
-  rowNote: { fontSize: 12, color: colors.stoneMid, marginTop: 2 },
-  rowTime: { fontSize: 12, fontFamily: fonts.mono, color: colors.stoneMid },
+  rowLabel: { fontSize: 14, fontFamily: fonts.bold, color: ink.primary },
+  rowNote: { fontSize: 12, fontFamily: fonts.medium, color: ink.muted, marginTop: 2 },
+  rowTime: { fontSize: 12, fontFamily: fonts.semiBold, color: ink.faint2 },
 
-  // No negative marginTop: on web it would pull this full-height view up over the header row and
-  // swallow taps on the back button — the same failure the notifications empty state had.
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 8 },
-  emptyIcon: { fontSize: 40, marginBottom: 4 },
-  emptyTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: colors.stone },
-  emptyBody: { fontSize: 13, color: colors.stoneMid, textAlign: 'center', lineHeight: 19 },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 10 },
+  emptyTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: ink.primary },
+  emptyBody: { fontSize: 13, color: ink.muted, textAlign: 'center', lineHeight: 19 },
 });
