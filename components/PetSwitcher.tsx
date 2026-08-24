@@ -1,7 +1,8 @@
-import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { colors, shadow } from '../theme/colors';
+import { green, ink, line, radius, surface } from '../theme/colors';
 import { fonts } from '../theme/fonts';
+import { Icon } from './Icon';
 import { PetAvatar } from './PetAvatar';
 import type { Pet } from '../data/mockData';
 
@@ -11,6 +12,11 @@ type Props = {
   onSelect: (id: string) => void;
 };
 
+/**
+ * Pet-switcher chips (screen 2a): the selected pet is a green pill — a white
+ * avatar circle + name — and every other pet a muted pill. A trailing dashed
+ * ＋ chip adds a new pet.
+ */
 export function PetSwitcher({ pets, activeId, onSelect }: Props) {
   return (
     <ScrollView
@@ -28,10 +34,24 @@ export function PetSwitcher({ pets, activeId, onSelect }: Props) {
             role="button"
             aria-label={`Switch to ${pet.name}`}
             aria-selected={active}
-            style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && styles.pressed]}
+            style={({ pressed }) => [
+              styles.chip,
+              active ? styles.chipActive : styles.chipIdle,
+              pressed && styles.pressed,
+            ]}
           >
-            <PetAvatar pet={pet} size={24} emojiSize={20} style={styles.avatar} />
-            <Text numberOfLines={1} style={styles.name}>{pet.name}</Text>
+            <PetAvatar
+              pet={pet}
+              size={24}
+              emojiSize={15}
+              style={[styles.avatar, active ? styles.avatarActive : styles.avatarIdle]}
+            />
+            <Text
+              numberOfLines={1}
+              style={[styles.name, active ? styles.nameActive : styles.nameIdle]}
+            >
+              {pet.name}
+            </Text>
           </Pressable>
         );
       })}
@@ -41,7 +61,7 @@ export function PetSwitcher({ pets, activeId, onSelect }: Props) {
         role="button"
         aria-label="Add pet"
       >
-        <Text style={{ fontSize: 20, color: colors.stoneLight }}>+</Text>
+        <Icon name="plus" size={15} color={ink.faint2} strokeWidth={2.2} />
       </Pressable>
     </ScrollView>
   );
@@ -49,34 +69,34 @@ export function PetSwitcher({ pets, activeId, onSelect }: Props) {
 
 const styles = StyleSheet.create({
   scroll: { flexGrow: 0, flexShrink: 0 },
-  row: { paddingHorizontal: 16, paddingVertical: 8, gap: 10, alignItems: 'center' },
+  row: { paddingHorizontal: 20, paddingBottom: 14, gap: 8, alignItems: 'center' },
   pressed: { opacity: 0.7, transform: [{ scale: 0.96 }] },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
-    paddingVertical: 8,
-    paddingLeft: 10,
-    paddingRight: 14,
-    borderRadius: 99,
-    backgroundColor: colors.white,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    ...shadow.sm,
+    gap: 8,
+    paddingVertical: 5,
+    paddingLeft: 6,
+    paddingRight: 12,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
   },
-  chipActive: { borderColor: colors.sage, backgroundColor: colors.sagePale },
-  avatar: { backgroundColor: 'transparent' },
-  name: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.stone, maxWidth: 160 },
+  chipActive: { backgroundColor: green.tint, borderColor: green.tintBorder },
+  chipIdle: { backgroundColor: surface.chip, borderColor: 'transparent' },
+  avatar: { width: 24, height: 24, borderRadius: 12 },
+  avatarActive: { backgroundColor: '#ffffff' },
+  avatarIdle: { backgroundColor: '#ffffff' },
+  name: { fontSize: 13, fontFamily: fonts.bold, maxWidth: 160 },
+  nameActive: { color: ink.primary },
+  nameIdle: { color: ink.muted },
   add: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.white,
-    borderWidth: 2,
-    borderColor: colors.stoneLight,
+    width: 34,
+    height: 34,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: line.dashed,
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
-    ...shadow.sm,
   },
 });

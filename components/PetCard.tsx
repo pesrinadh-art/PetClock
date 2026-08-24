@@ -1,13 +1,24 @@
-import { StyleSheet, Text, View } from 'react-native';
-import { colors, radius } from '../theme/colors';
-import { fonts } from '../theme/fonts';
+import { StyleSheet, View } from 'react-native';
 import type { Pet } from '../data/mockData';
-import { countLogsToday, formatTimeUntilCompact, getPetStatus, getUpcomingForPet } from '../lib/petSchedule';
-import { computeStreak } from '../lib/streaks';
+import {
+  countLogsToday,
+  formatTimeUntilCompact,
+  getPetStatus,
+  getTodaysMeals,
+  getUpcomingForPet,
+} from '../lib/petSchedule';
 import { useLogs } from '../context/LogsContext';
 import { usePets } from '../context/PetsContext';
+import { HeroCard, type Stat } from './ui';
 import { PetAvatar } from './PetAvatar';
 
+/**
+ * The green gradient hero at the top of Home (screen 2a): a progress ring with a
+ * paw at its centre, the pet's name + "breed · Nh hold time", and a divider with
+ * three stats — Next break / Logs today / Meals. Built on the shared
+ * {@link HeroCard}. All the numbers come from the same schedule helpers the old
+ * card used; only the presentation changed.
+ */
 export function PetCard({ pet }: { pet: Pet }) {
   const { getLogsForPet } = useLogs();
   const { getFeedTimesForPet } = usePets();
@@ -15,112 +26,72 @@ export function PetCard({ pet }: { pet: Pet }) {
   const feedTimes = getFeedTimesForPet(pet.id);
   const status = getPetStatus(pet, feedTimes);
   const now = new Date();
-  // 🔥 run of consecutive days every meal was logged (see lib/streaks).
-  const streak = computeStreak(feedTimes, petLogs, now);
 
-  // birthdate/age is a post-SYNC-1 picker; show breed only (or "—") where meta was.
-  const meta = pet.breed || '—';
-  let metaSuffix = '';
-  let holdTimeDisplay = '—';
+  const meals = getTodaysMeals(feedTimes, now, petLogs);
+  const mealsTotal = meals.length;
+  const mealsDone = meals.filter((m) => m.status === 'done').length;
+  const mealsStat = mealsTotal > 0 ? `${mealsDone}/${mealsTotal}` : '—';
+
+  const meta = pet.breed || 'Pet';
+  let subtitle = meta;
   let nextBreakDisplay = '—';
+  let progress: number | undefined;
 
   if (status.kind === 'calibrating') {
-    metaSuffix = ` · Day ${status.day} of calibration`;
+    subtitle = `${meta} · Day ${status.day} of calibration`;
   } else if (status.kind === 'needsInfo') {
-    metaSuffix = ' · Needs setup';
+    subtitle = `${meta} · Needs setup`;
   } else {
     const tightestHold = Math.min(pet.peeHoldHours ?? Infinity, pet.poopHoldHours ?? Infinity);
-    holdTimeDisplay = `${tightestHold}h`;
-    const nextPottyBreak = getUpcomingForPet(pet, feedTimes, petLogs, now).find((u) => u.type !== 'food');
-    if (nextPottyBreak) nextBreakDisplay = formatTimeUntilCompact(nextPottyBreak.timeStart, now);
+    if (Number.isFinite(tightestHold)) subtitle = `${meta} · ${tightestHold}h hold time`;
+    const nextBreak = getUpcomingForPet(pet, feedTimes, petLogs, now).find((u) => u.type !== 'food');
+    if (nextBreak) {
+      nextBreakDisplay = formatTimeUntilCompact(nextBreak.timeStart, now);
+      // Ring fills as the next break approaches: 0 just after a break, 1 at/after due.
+      if (Number.isFinite(tightestHold) && tightestHold > 0) {
+        const holdMs = tightestHold * 60 * 60 * 1000;
+        const remaining = nextBreak.timeStart.getTime() - now.getTime();
+        progress = Math.max(0, Math.min(1, 1 - remaining / holdMs));
+      }
+    }
   }
 
-  return (
-    <View style={styles.card}>
-      <Text style={styles.pawWatermark}>🐾</Text>
-      <View style={styles.top}>
-        <PetAvatar pet={pet} size={52} emojiSize={26} style={styles.avatar} />
-        <View style={{ flex: 1 }}>
-          <Text numberOfLines={1} style={styles.name}>{pet.name}</Text>
-          <Text numberOfLines={1} style={styles.meta}>{meta}{metaSuffix}</Text>
-        </View>
-        {streak > 0 ? (
-          <View style={styles.streakPill} aria-label={`${streak} day feeding streak`}>
-            <Text style={styles.streakText}>🔥 {streak}</Text>
-          </View>
-        ) : null}
-      </View>
-      <View style={styles.stats}>
-        <Stat value={holdTimeDisplay} label="Hold Time" />
-        <Stat value={String(countLogsToday(petLogs, now))} label="Logs Today" />
-        <Stat value={nextBreakDisplay} label="Next Break" />
-      </View>
-    </View>
-  );
-}
+  const stats: Stat[] = [
+    { value: nextBreakDisplay, label: 'Next break' },
+    { value: String(countLogsToday(petLogs, now)), label: 'Logs today' },
+    { value: mealsStat, label: 'Meals' },
+  ];
 
-function Stat({ value, label }: { value: string; label: string }) {
+  // Ready pets get the progress ring; calibrating / needs-info pets get the pet
+  // avatar so the hero still reads as "this pet".
+  const leading =
+    progress == null ? (
+      <View style={styles.avatarWrap}>
+        <PetAvatar pet={pet} size={44} emojiSize={24} style={styles.avatar} />
+      </View>
+    ) : undefined;
+
   return (
-    <View style={styles.stat}>
-      <Text numberOfLines={1} style={styles.statVal}>{value}</Text>
-      <Text numberOfLines={1} ellipsizeMode="tail" style={styles.statLbl}>{label}</Text>
-    </View>
+    <HeroCard
+      title={pet.name}
+      subtitle={subtitle}
+      progress={progress}
+      leading={leading}
+      stats={stats}
+      style={styles.hero}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.sage,
-    borderRadius: radius.lg,
-    padding: 18,
-    marginBottom: 16,
-    overflow: 'hidden',
-  },
-  pawWatermark: {
-    position: 'absolute',
-    right: 16,
-    top: 12,
-    fontSize: 44,
-    opacity: 0.15,
-  },
-  top: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 14 },
-  avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: colors.sageLight,
+  hero: { marginBottom: 18 },
+  avatarWrap: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    backgroundColor: 'rgba(255,255,255,0.16)',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.4)',
-    flexShrink: 0,
   },
-  streakPill: {
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    alignSelf: 'flex-start',
-    flexShrink: 0,
-  },
-  streakText: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.white },
-  name: { fontSize: 19, fontFamily: fonts.extraBold, color: colors.white },
-  meta: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
-  stats: { flexDirection: 'row', gap: 8 },
-  stat: {
-    flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 10,
-    paddingVertical: 9,
-    paddingHorizontal: 6,
-    alignItems: 'center',
-  },
-  statVal: { fontSize: 17, fontFamily: fonts.extraBold, color: colors.white },
-  statLbl: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.75)',
-    marginTop: 2,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
+  avatar: { backgroundColor: 'rgba(255,255,255,0.18)' },
 });
