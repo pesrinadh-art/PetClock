@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { ink, line, logTint, radius, shadow, surface, terracotta } from '../theme/colors';
+import { category, ink, line, logTint, radius, shadow, surface, terracotta } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import type { Pet } from '../data/mockData';
 import { useLogs } from '../context/LogsContext';
@@ -63,10 +63,12 @@ function successHaptic(): void {
 const BUTTONS: LogButtonSpec[] = [
   { key: 'pee', icon: 'drop', label: 'Pee', bg: logTint.peeBg, fg: logTint.peeInk },
   { key: 'poo', icon: 'poo', label: 'Poo', bg: logTint.pooBg, fg: logTint.pooInk },
-  // "Both" = pee + poo. Neutral chip tile carrying BOTH type icons (drop + poo)
-  // so it reads as "pee + poo", not a green "done" confirmation. `icon`/`fg` are
+  // "Both" = pee + poo. Lavender/indigo tile carrying BOTH type icons (drop + poo)
+  // so it reads as "pee + poo", not a green "done" confirmation. Uses the palette's
+  // groom lavender so it stays clearly distinct from Poo's warm-beige tile (they
+  // were nearly identical when Both used the neutral chip). `icon`/`fg` are
   // placeholders; the render special-cases `key === 'both'` (see below).
-  { key: 'both', icon: 'drop', label: 'Both', bg: surface.chip, fg: ink.primary },
+  { key: 'both', icon: 'drop', label: 'Both', bg: category.groomBg, fg: ink.primary },
   { key: 'fed', icon: 'bowl', label: 'Fed', bg: terracotta.tint, fg: terracotta.primary },
 ];
 

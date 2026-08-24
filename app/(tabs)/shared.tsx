@@ -10,8 +10,17 @@ import { usePets } from '../../context/PetsContext';
 import { useLogs } from '../../context/LogsContext';
 import { getSupabaseClient } from '../../lib/db/client';
 import { getHouseholdName, type Member } from '../../lib/household/invites';
-import { green, ink, surface } from '../../theme/colors';
+import { green, ink, surface, terracotta } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
+
+/**
+ * Warm-orange hero gradient for the Shared tab, so the household feels distinct
+ * from Home (green) and Appointments (charcoal). Top stop is a deepened orange
+ * (not `amber.primary` #e8a33d, which is too light — white title only ~2.2:1);
+ * `#d4761f` → `terracotta.primary` keeps the white title/subtitle/stats legible
+ * (~3.3:1 at the title, ~4.4:1 over the terracotta where the stats sit).
+ */
+const ORANGE_GRADIENT: [string, string] = ['#d4761f', terracotta.primary];
 
 /**
  * SHARED tab — the household-sharing flagship (mockup screen_2h).
@@ -68,6 +77,7 @@ export default function SharedScreen() {
             <HeroCard
               eyebrow="Everyone caring for your pets"
               title={householdName ?? 'Your household'}
+              gradient={ORANGE_GRADIENT}
               stats={[
                 { value: memberCount == null ? '—' : String(memberCount), label: 'Members' },
                 { value: String(petsShared), label: petsShared === 1 ? 'Pet shared' : 'Pets shared' },
