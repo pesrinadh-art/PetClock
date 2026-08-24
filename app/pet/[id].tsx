@@ -106,7 +106,7 @@ export default function PetDetailScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <Header title={pet.name} />
+      <Header title={pet.name} onEdit={editPet} editLabel={`Edit ${pet.name}`} />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <HeroCard
           title={pet.name}
@@ -257,7 +257,7 @@ export default function PetDetailScreen() {
   );
 }
 
-function Header({ title }: { title: string }) {
+function Header({ title, onEdit, editLabel }: { title: string; onEdit?: () => void; editLabel?: string }) {
   return (
     <View style={styles.titleRow}>
       <Pressable
@@ -270,7 +270,19 @@ function Header({ title }: { title: string }) {
         <Icon name="chevronLeft" size={18} color={ink.muted} strokeWidth={2.4} />
       </Pressable>
       <Text style={styles.title} numberOfLines={1}>{title}</Text>
-      <View style={{ width: 34 }} />
+      {onEdit ? (
+        <Pressable
+          style={({ pressed }) => [styles.editBtn, pressed && styles.pressed]}
+          onPress={onEdit}
+          role="button"
+          aria-label={editLabel ?? 'Edit'}
+          hitSlop={8}
+        >
+          <Icon name="pencil" size={17} color={green.primary} strokeWidth={2.2} />
+        </Pressable>
+      ) : (
+        <View style={{ width: 34 }} />
+      )}
     </View>
   );
 }
@@ -306,6 +318,16 @@ const styles = StyleSheet.create({
     height: 34,
     borderRadius: 17,
     backgroundColor: surface.chip,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: green.tint,
+    borderWidth: 1,
+    borderColor: green.tintBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -25,6 +25,7 @@ export type IconName =
   | 'bell'
   | 'gear'
   | 'plus'
+  | 'pencil' // edit
   | 'check'
   | 'chevronRight'
   | 'chevronLeft'
@@ -107,6 +108,12 @@ const GLYPHS: Record<IconName, React.ReactNode> = {
     </>
   ),
   plus: <Path d="M5 12h14M12 5v14" />,
+  pencil: (
+    <>
+      <Path d="M12 20h9" />
+      <Path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </>
+  ),
   check: <Path d="M20 6 9 17l-5-5" />,
   chevronRight: <Path d="m9 6 6 6-6 6" />,
   chevronLeft: <Path d="m15 18-6-6 6-6" />,
