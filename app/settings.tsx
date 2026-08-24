@@ -22,8 +22,6 @@ import { usePets } from '../context/PetsContext';
 import { useNotificationPrefs } from '../context/NotificationPrefsContext';
 import { useSession } from '../context/SessionContext';
 import { accountErrorMessage } from '../lib/auth/account';
-import { cancelAllOurNotifications } from '../lib/notifications/scheduler';
-import { loadDemoData, resetAll } from '../lib/repo/types';
 import { parseClockTime } from '../lib/petSchedule';
 
 // TimePickerField speaks "h:mm AM/PM"; prefs store quiet hours as "HH:MM" 24h.
@@ -42,24 +40,9 @@ function to12h(stored: string | null): string {
   return `${h12}:${String(parsed.getMinutes()).padStart(2, '0')} ${period}`;
 }
 
-// Data actions (loadDemoData/resetAll/cancelAllOurNotifications) return Promise<void>
-// and, in SYNCED mode, do backend work that can reject. Firing them as `void promise`
-// from an onPress turns any rejection into an uncaught promise rejection at runtime.
-// runSafely awaits the work inside a try/catch so a rejection can never surface, while
-// still letting the action execute. It never rejects, so `void runSafely(...)` is safe.
-async function runSafely(label: string, action: () => Promise<void>): Promise<void> {
-  try {
-    await action();
-  } catch (err) {
-    if (__DEV__) console.warn(`[Settings] ${label} failed:`, err);
-  }
-}
-
 export default function SettingsScreen() {
   const { pets } = usePets();
   const { prefs, setQuietHours, setPetMuted } = useNotificationPrefs();
-  const [confirmReset, setConfirmReset] = useState(false);
-  const [confirmDemo, setConfirmDemo] = useState(false);
 
   const muted = new Set(prefs.mutedPetIds);
 
@@ -144,107 +127,7 @@ export default function SettingsScreen() {
 
         {/* ACCOUNTS. Renders nothing in local mode — there's no server account to secure. */}
         <AccountSection />
-
-        {/* Data */}
-        <SectionLabel style={styles.sectionSpacer}>Data</SectionLabel>
-        <Card>
-          <Pressable
-            style={({ pressed }) => [styles.dataRow, pressed && styles.rowPressed]}
-            onPress={() => setConfirmDemo(true)}
-            role="button"
-            aria-label="Load demo data"
-          >
-            <View style={[styles.dataIcon, { backgroundColor: green.tint }]}>
-              <Icon name="paw" size={16} color={green.primary} strokeWidth={2} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.dataLabel}>Load demo data</Text>
-              <Text style={styles.dataSub}>Replace everything with sample pets, logs and appointments.</Text>
-            </View>
-          </Pressable>
-          <View style={styles.divider} />
-          <Pressable
-            style={({ pressed }) => [styles.dataRow, pressed && styles.rowPressed]}
-            onPress={() => setConfirmReset(true)}
-            role="button"
-            aria-label="Reset all data"
-          >
-            <View style={[styles.dataIcon, { backgroundColor: terracotta.tint }]}>
-              <Icon name="alert" size={16} color={terracotta.primary} strokeWidth={2} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.dataLabel, styles.danger]}>Reset all data</Text>
-              <Text style={styles.dataSub}>Clear every pet, log and appointment on this device.</Text>
-            </View>
-          </Pressable>
-        </Card>
       </ScrollView>
-
-      <AppModal visible={confirmDemo} transparent animationType="fade" onRequestClose={() => setConfirmDemo(false)}>
-        <Pressable style={styles.overlay} onPress={() => setConfirmDemo(false)}>
-          <Pressable style={styles.dialog} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.dialogTitle}>Load demo data?</Text>
-            <Text style={styles.dialogBody}>
-              This replaces your current pets, logs and appointments with a sample set. This can't be undone.
-            </Text>
-            <View style={styles.dialogActions}>
-              <Pressable
-                style={({ pressed }) => [styles.dialogBtn, styles.cancelBtn, pressed && styles.pressed]}
-                onPress={() => setConfirmDemo(false)}
-                role="button"
-                aria-label="Cancel"
-              >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [styles.dialogBtn, styles.confirmBtn, pressed && styles.pressed]}
-                onPress={() => {
-                  setConfirmDemo(false);
-                  void runSafely('loadDemoData', loadDemoData);
-                }}
-                role="button"
-                aria-label="Load demo data"
-              >
-                <Text style={styles.confirmBtnText}>Load</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </AppModal>
-
-      <AppModal visible={confirmReset} transparent animationType="fade" onRequestClose={() => setConfirmReset(false)}>
-        <Pressable style={styles.overlay} onPress={() => setConfirmReset(false)}>
-          <Pressable style={styles.dialog} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.dialogTitle}>Reset all data?</Text>
-            <Text style={styles.dialogBody}>
-              This clears every pet, log and appointment on this device. This can't be undone.
-            </Text>
-            <View style={styles.dialogActions}>
-              <Pressable
-                style={({ pressed }) => [styles.dialogBtn, styles.cancelBtn, pressed && styles.pressed]}
-                onPress={() => setConfirmReset(false)}
-                role="button"
-                aria-label="Cancel"
-              >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [styles.dialogBtn, styles.deleteBtn, pressed && styles.pressed]}
-                onPress={() => {
-                  setConfirmReset(false);
-                  void runSafely('resetAll', resetAll);
-                  // Drop any pushes we scheduled; the observer also re-reconciles to empty.
-                  void runSafely('cancelAllOurNotifications', cancelAllOurNotifications);
-                }}
-                role="button"
-                aria-label="Reset all data"
-              >
-                <Text style={styles.deleteBtnText}>Reset</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </AppModal>
     </SafeAreaView>
   );
 }
@@ -569,7 +452,6 @@ const styles = StyleSheet.create({
   },
   dataLabel: { fontSize: 14, fontFamily: fonts.bold, color: ink.primary },
   dataSub: { fontSize: 12, fontFamily: fonts.medium, color: ink.muted, marginTop: 2, lineHeight: 16 },
-  danger: { color: terracotta.primary },
 
   // Dialogs
   overlay: {
@@ -595,6 +477,4 @@ const styles = StyleSheet.create({
   cancelBtnText: { fontSize: 13, fontFamily: fonts.bold, color: ink.muted },
   confirmBtn: { backgroundColor: green.mid },
   confirmBtnText: { fontSize: 13, fontFamily: fonts.bold, color: ink.onDark },
-  deleteBtn: { backgroundColor: terracotta.primary },
-  deleteBtnText: { fontSize: 13, fontFamily: fonts.bold, color: ink.onDark },
 });
