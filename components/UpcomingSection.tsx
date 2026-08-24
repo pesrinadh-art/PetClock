@@ -1,8 +1,8 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { amber, category, green, ink, logTint, radius, terracotta } from '../theme/colors';
+import { amber, category, green, ink, logTint, radius, shadow, surface, terracotta } from '../theme/colors';
 import { fonts } from '../theme/fonts';
-import { Card, ListRow, SectionLabel } from './ui';
+import { Card, SectionLabel } from './ui';
 import { Icon, type IconName } from './Icon';
 import type { Pet } from '../data/mockData';
 import {
@@ -25,39 +25,50 @@ const ITEM_STYLE: Record<UpcomingItem['type'], { icon: IconName; bg: string; fg:
   medication: { icon: 'pill', bg: category.medBg, fg: category.medInk },
 };
 
-/** One upcoming reminder as a ui ListRow: tinted type tile + label + relative "when", clock on the right. */
-function UpcomingRow({ item, now, divider }: { item: UpcomingItem; now: Date; divider: boolean }) {
+/**
+ * One upcoming reminder as its own card: tinted drawn-icon tile, label, time
+ * range, and a relative "when" / "overdue" sub. Overdue items pick up a
+ * terracotta accent bar + terracotta time/sub text. (Restores the pre-redesign
+ * per-item card look, restyled in the new design system.)
+ */
+function UpcomingCard({ item, now }: { item: UpcomingItem; now: Date }) {
   const s = ITEM_STYLE[item.type];
   const overdue = item.kind === 'overdue';
   const sub = overdue
     ? `Overdue ${formatTimeUntilCompact(new Date(now.getTime() + item.overdueBy), now)}`
     : formatTimeUntil(item.timeStart, now);
   return (
-    <ListRow
-      icon={s.icon}
-      iconBg={s.bg}
-      iconColor={s.fg}
-      title={item.label}
-      subtitle={sub}
-      right={
-        <Text style={[styles.time, overdue && styles.timeOverdue]}>
-          {formatTimeRange(item.timeStart, item.timeEnd)}
-        </Text>
-      }
-      divider={divider}
-    />
+    <View style={[styles.card, overdue && styles.cardOverdue]}>
+      <View style={[styles.typeTile, { backgroundColor: overdue ? terracotta.tint : s.bg }]}>
+        <Icon name={s.icon} size={16} color={overdue ? terracotta.primary : s.fg} strokeWidth={2} />
+      </View>
+      <Text numberOfLines={1} style={styles.cardLabel}>
+        {item.label}
+      </Text>
+      <Text numberOfLines={1} style={[styles.time, overdue && styles.timeOverdue]}>
+        {formatTimeRange(item.timeStart, item.timeEnd)}
+      </Text>
+      <Text numberOfLines={1} style={[styles.cardSub, overdue && styles.timeOverdue]}>
+        {sub}
+      </Text>
+    </View>
   );
 }
 
-/** A Card of upcoming reminders. Renders nothing when there are none. */
+/** A horizontal strip of upcoming-reminder cards. Renders nothing when there are none. */
 function UpcomingList({ items, now }: { items: UpcomingItem[]; now: Date }) {
   if (items.length === 0) return null;
   return (
-    <Card>
-      {items.map((item, i) => (
-        <UpcomingRow key={item.id} item={item} now={now} divider={i < items.length - 1} />
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.strip}
+      contentContainerStyle={styles.stripContent}
+    >
+      {items.map((item) => (
+        <UpcomingCard key={item.id} item={item} now={now} />
       ))}
-    </Card>
+    </ScrollView>
   );
 }
 
@@ -150,7 +161,34 @@ export function UpcomingSection({ pet }: { pet: Pet }) {
 const styles = StyleSheet.create({
   section: { marginTop: 18 },
   sectionStack: { marginTop: 18, gap: 10 },
-  time: { fontSize: 12, fontFamily: fonts.bold, color: ink.muted },
+
+  // Horizontal strip of individual upcoming cards.
+  strip: { flexGrow: 0, flexShrink: 0, marginHorizontal: -2 },
+  stripContent: { gap: 10, paddingVertical: 4, paddingHorizontal: 2 },
+  card: {
+    minWidth: 150,
+    maxWidth: 220,
+    backgroundColor: surface.card,
+    borderRadius: radius.card,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderTopWidth: 3,
+    borderTopColor: 'transparent',
+    ...shadow.card,
+  },
+  cardOverdue: { borderTopColor: terracotta.primary },
+  typeTile: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.iconTileSm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  cardLabel: { fontSize: 13.5, fontFamily: fonts.bold, color: ink.primary, marginBottom: 3 },
+  cardSub: { fontSize: 11.5, fontFamily: fonts.medium, color: ink.muted, marginTop: 2 },
+
+  time: { fontSize: 13, fontFamily: fonts.extraBold, color: ink.primary },
   timeOverdue: { color: terracotta.primary },
   notice: {
     flexDirection: 'row',

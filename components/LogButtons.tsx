@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { green, ink, line, logTint, radius, shadow, surface, terracotta } from '../theme/colors';
+import { ink, line, logTint, radius, shadow, surface, terracotta } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import type { Pet } from '../data/mockData';
 import { useLogs } from '../context/LogsContext';
@@ -63,7 +63,10 @@ function successHaptic(): void {
 const BUTTONS: LogButtonSpec[] = [
   { key: 'pee', icon: 'drop', label: 'Pee', bg: logTint.peeBg, fg: logTint.peeInk },
   { key: 'poo', icon: 'poo', label: 'Poo', bg: logTint.pooBg, fg: logTint.pooInk },
-  { key: 'both', icon: 'check', label: 'Both', bg: green.mid, fg: '#ffffff' },
+  // "Both" = pee + poo. Neutral chip tile carrying BOTH type icons (drop + poo)
+  // so it reads as "pee + poo", not a green "done" confirmation. `icon`/`fg` are
+  // placeholders; the render special-cases `key === 'both'` (see below).
+  { key: 'both', icon: 'drop', label: 'Both', bg: surface.chip, fg: ink.primary },
   { key: 'fed', icon: 'bowl', label: 'Fed', bg: terracotta.tint, fg: terracotta.primary },
 ];
 
@@ -142,7 +145,16 @@ export function LogButtons({ pet }: { pet: Pet }) {
           aria-label={`Log ${targetLabel(b.key).toLowerCase()} for ${pet.name}. Long press to backdate.`}
           style={({ pressed }) => [styles.tile, { backgroundColor: b.bg }, pressed && styles.tilePressed]}
         >
-          <Icon name={b.icon} size={19} color={b.fg} strokeWidth={2.2} />
+          {b.key === 'both' ? (
+            // Two icons so "Both" literally reads as pee + poo: drop in pee-blue,
+            // poo in poo-brown, on the neutral chip tile.
+            <View style={styles.bothIcons}>
+              <Icon name="drop" size={17} color={logTint.peeInk} strokeWidth={2.2} />
+              <Icon name="poo" size={17} color={logTint.pooInk} strokeWidth={2.2} />
+            </View>
+          ) : (
+            <Icon name={b.icon} size={19} color={b.fg} strokeWidth={2.2} />
+          )}
           <Text numberOfLines={1} style={[styles.tileLabel, { color: b.fg }]}>
             {b.label}
           </Text>
@@ -228,6 +240,7 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   tilePressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
+  bothIcons: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   tileLabel: { fontSize: 11.5, fontFamily: fonts.bold },
 
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', padding: 24 },
