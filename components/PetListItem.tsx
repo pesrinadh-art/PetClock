@@ -1,85 +1,79 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { colors, radius, shadow } from '../theme/colors';
+import { surface, ink, radius, shadow, terracotta } from '../theme/colors';
 import { fonts } from '../theme/fonts';
+import { Icon } from './Icon';
 import { PetAvatar } from './PetAvatar';
 import type { Pet } from '../data/mockData';
 
+/**
+ * A pet row on the Pets list: a white card whose main area opens the pet
+ * profile (where meals, meds and records now live). Editing is reached inside
+ * that profile; the trailing control here is a quiet delete affordance.
+ */
 export function PetListItem({
   pet,
-  onEdit,
   onDelete,
 }: {
   pet: Pet;
-  onEdit?: () => void;
   onDelete?: () => void;
 }) {
   return (
-    <View style={styles.row}>
-      {/* Tapping the pet's avatar / name opens the detail screen (FE-5). */}
+    <View style={styles.card}>
       <Pressable
         style={({ pressed }) => [styles.main, pressed && styles.mainPressed]}
         onPress={() => router.push({ pathname: '/pet/[id]', params: { id: pet.id } })}
         role="button"
         aria-label={`Open ${pet.name}`}
       >
-        <PetAvatar pet={pet} size={48} emojiSize={24} style={styles.avatar} />
+        <PetAvatar pet={pet} size={44} emojiSize={22} style={styles.avatar} />
         <View style={{ flex: 1 }}>
           <Text numberOfLines={1} style={styles.name}>{pet.name}</Text>
-          {/* birthdate/age picker is post-SYNC-1; show breed only for now. */}
           <Text numberOfLines={1} style={styles.sub}>{pet.breed || 'No details yet'}</Text>
         </View>
+        <Icon name="chevronRight" size={16} color="#c0b8a8" strokeWidth={2.3} />
       </Pressable>
-      <Pressable
-        style={({ pressed }) => [styles.iconBtn, styles.editBtn, pressed && styles.iconBtnPressed]}
-        onPress={onEdit}
-        role="button"
-        aria-label={`Edit ${pet.name}`}
-        hitSlop={8}
-      >
-        <Text style={styles.iconBtnText}>✏️</Text>
-      </Pressable>
-      <Pressable
-        style={({ pressed }) => [styles.iconBtn, styles.deleteBtn, pressed && styles.iconBtnPressed]}
-        onPress={onDelete}
-        role="button"
-        aria-label={`Delete ${pet.name}`}
-        hitSlop={8}
-      >
-        <Text style={styles.iconBtnText}>🗑️</Text>
-      </Pressable>
+      {onDelete && (
+        <Pressable
+          style={({ pressed }) => [styles.deleteBtn, pressed && styles.deletePressed]}
+          onPress={onDelete}
+          role="button"
+          aria-label={`Delete ${pet.name}`}
+          hitSlop={8}
+        >
+          <Icon name="close" size={15} color={terracotta.primary} strokeWidth={2.4} />
+        </Pressable>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  row: {
+  card: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    backgroundColor: colors.white,
-    borderRadius: radius.sm,
-    padding: 14,
-    marginBottom: 8,
-    ...shadow.sm,
+    gap: 6,
+    backgroundColor: surface.card,
+    borderRadius: radius.card,
+    paddingVertical: 12,
+    paddingLeft: 14,
+    paddingRight: 10,
+    marginBottom: 10,
+    ...shadow.card,
   },
-  main: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  main: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   mainPressed: { opacity: 0.6 },
-  avatar: {
-    backgroundColor: colors.sagePale,
-  },
-  name: { fontSize: 15, fontFamily: fonts.extraBold, color: colors.stone },
-  sub: { fontSize: 12, color: colors.stoneMid, marginTop: 2 },
-  iconBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  avatar: { backgroundColor: surface.chip },
+  name: { fontSize: 15, fontFamily: fonts.extraBold, color: ink.primary, letterSpacing: -0.2 },
+  sub: { fontSize: 12, fontFamily: fonts.medium, color: ink.muted, marginTop: 2 },
+  deleteBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: terracotta.tint,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
-  editBtn: { backgroundColor: colors.sagePale },
-  deleteBtn: { backgroundColor: '#FDECEA' },
-  iconBtnPressed: { opacity: 0.7, transform: [{ scale: 0.94 }] },
-  iconBtnText: { fontSize: 15 },
+  deletePressed: { opacity: 0.7, transform: [{ scale: 0.94 }] },
 });
