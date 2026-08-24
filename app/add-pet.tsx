@@ -3,9 +3,10 @@ import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleShee
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { colors, radius } from '../theme/colors';
+import { surface, ink, line, green, terracotta, radius, shadow } from '../theme/colors';
 import { fonts } from '../theme/fonts';
-import { SectionTitle } from '../components/SectionTitle';
+import { Icon } from '../components/Icon';
+import { Card, SectionLabel } from '../components/ui';
 import { TimePickerField } from '../components/TimePickerField';
 import { BreedAutocomplete } from '../components/BreedAutocomplete';
 import { usePets } from '../context/PetsContext';
@@ -190,346 +191,472 @@ export default function AddPetScreen() {
     else router.replace('/(tabs)');
   };
 
+  const closeForm = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)'));
+
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.handle} />
-        <View style={styles.titleRow}>
-          <View style={{ width: 32 }} />
-          <Text style={styles.modalTitle}>{isEditing ? 'Edit Pet' : 'New Pet'}</Text>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>{isEditing ? 'Edit pet' : 'New pet'}</Text>
           <Pressable
             style={({ pressed }) => [styles.closeBtn, pressed && styles.pressed]}
-            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
+            onPress={closeForm}
             role="button"
             aria-label="Close"
             hitSlop={8}
           >
-            <Text style={styles.closeBtnText}>✕</Text>
+            <Icon name="close" size={15} color={ink.muted} strokeWidth={2.3} />
           </Pressable>
         </View>
 
-        <SectionTitle>Photo</SectionTitle>
-        <View style={styles.photoRow}>
-          <View style={styles.photoPreview}>
-            {displayPhoto ? (
-              <Image source={{ uri: displayPhoto }} style={styles.photoImage} />
-            ) : (
-              <Text style={{ fontSize: 32 }}>{avatar}</Text>
-            )}
-          </View>
-          <View style={styles.photoActions}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          {/* Photo */}
+          <View style={styles.photoRow}>
+            <View style={styles.avatarCircle}>
+              {displayPhoto ? (
+                <Image source={{ uri: displayPhoto }} style={styles.photoImage} />
+              ) : (
+                <Icon name="paw" size={30} color={green.mid} strokeWidth={1.8} />
+              )}
+            </View>
             <Pressable
-              style={({ pressed }) => [styles.photoBtn, pressed && styles.pressed]}
+              style={({ pressed }) => [styles.addPhotoBtn, pressed && styles.pressed]}
               onPress={() => void pickPhoto()}
               role="button"
               aria-label={displayPhoto ? 'Change photo' : 'Add photo'}
             >
-              <Text style={styles.photoBtnText}>{displayPhoto ? '🖼️ Change photo' : '🖼️ Add photo'}</Text>
+              <Icon name="plus" size={16} color={ink.muted} strokeWidth={2} />
+              <Text style={styles.addPhotoText}>{displayPhoto ? 'Change photo' : 'Add photo'}</Text>
             </Pressable>
-            {displayPhoto ? (
-              <Pressable
-                style={({ pressed }) => [styles.photoRemoveBtn, pressed && styles.pressed]}
-                onPress={clearPhoto}
-                role="button"
-                aria-label="Remove photo"
-              >
-                <Text style={styles.photoRemoveText}>Remove</Text>
-              </Pressable>
-            ) : null}
           </View>
-        </View>
-
-        <SectionTitle>Species</SectionTitle>
-        <View style={styles.avatarGrid}>
-          {AVATAR_OPTIONS.map((emoji) => {
-            const selected = avatar === emoji;
-            return (
-              <Pressable
-                key={emoji}
-                onPress={() => setAvatar(emoji)}
-                role="button"
-                aria-label={AVATAR_LABELS[emoji] ?? 'Pet type'}
-                aria-selected={selected}
-                style={({ pressed }) => [
-                  styles.avatarChip,
-                  selected && styles.avatarChipSelected,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text style={{ fontSize: 26 }}>{emoji}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <Field
-          label="Name"
-          value={name}
-          onChangeText={(v) => {
-            setName(v);
-            clearError('name');
-          }}
-          placeholder="e.g. Biscuit"
-          error={errors.name}
-        />
-        <BreedAutocomplete label="Breed" value={breed} onChange={setBreed} placeholder="e.g. Beagle" species={AVATAR_LABELS[avatar]} />
-        {/* TODO(post-SYNC-1): species + birthdate pickers — the free-text Age field is dropped
-            this wave (birthdate stays null; breed alone shows where age used to). */}
-
-        <SectionTitle>Feeding & Potty Schedule</SectionTitle>
-        <Text style={styles.helperText}>
-          Optional — add what you know now. We'll show "Calibrating" on Home for a few days, then
-          nudge you if it's still blank.
-        </Text>
-
-        <View style={styles.formGroup}>
-          <Text style={styles.formLabel}>Usual Feed Times</Text>
-          {feedRows.map((row, i) => (
-            <View key={row.rowId} style={styles.feedRow}>
-              <TimePickerField
-                value={row.time}
-                onChange={(v) => updateFeedRow(row.rowId, v)}
-                placeholder={`Feed time ${i + 1}`}
-                style={styles.feedTimeInput}
-              />
-              <Pressable
-                style={({ pressed }) => [styles.removeMedBtn, pressed && styles.pressed]}
-                onPress={() => removeFeedRow(row.rowId)}
-                role="button"
-                aria-label={`Remove feed time ${i + 1}`}
-                hitSlop={8}
-              >
-                <Text style={styles.removeMedBtnText}>✕</Text>
-              </Pressable>
-            </View>
-          ))}
-          {feedRows.length < MAX_FEED_TIMES && (
+          {displayPhoto ? (
             <Pressable
-              style={({ pressed }) => [styles.addMedBtn, styles.addFeedBtn, pressed && styles.pressed]}
-              onPress={addFeedRow}
+              style={({ pressed }) => [styles.removePhoto, pressed && styles.pressed]}
+              onPress={clearPhoto}
               role="button"
-              aria-label="Add feed time"
+              aria-label="Remove photo"
             >
-              <Text style={styles.addMedBtnText}>➕ Add Feed Time</Text>
+              <Text style={styles.removePhotoText}>Remove photo</Text>
+            </Pressable>
+          ) : null}
+
+          {/* Species */}
+          <SectionLabel style={styles.sectionSpacer}>Species</SectionLabel>
+          <View style={styles.speciesGrid}>
+            {AVATAR_OPTIONS.map((emoji) => {
+              const selected = avatar === emoji;
+              return (
+                <Pressable
+                  key={emoji}
+                  onPress={() => setAvatar(emoji)}
+                  role="button"
+                  aria-label={AVATAR_LABELS[emoji] ?? 'Pet type'}
+                  aria-selected={selected}
+                  style={({ pressed }) => [
+                    styles.speciesChip,
+                    selected && styles.speciesChipSelected,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text style={[styles.speciesChipText, selected && styles.speciesChipTextSelected]}>
+                    {AVATAR_LABELS[emoji]}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* Name + breed */}
+          <View style={styles.fieldStack}>
+            <LabeledCard
+              label="Name"
+              value={name}
+              onChangeText={(v) => {
+                setName(v);
+                clearError('name');
+              }}
+              placeholder="e.g. Biscuit"
+              error={errors.name}
+            />
+            <BreedAutocomplete label="Breed" value={breed} onChange={setBreed} placeholder="e.g. Beagle" species={AVATAR_LABELS[avatar]} />
+          </View>
+          {/* TODO(post-SYNC-1): species + birthdate pickers — the free-text Age field is dropped
+              this wave (birthdate stays null; breed alone shows where age used to). */}
+
+          {/* Feeding & potty */}
+          <SectionLabel style={styles.sectionSpacer} right={<Text style={styles.optionalTag}>Optional</Text>}>
+            Feeding & potty
+          </SectionLabel>
+          <Text style={styles.helperText}>
+            Add what you know now. We'll show "Calibrating" on Home for a few days, then nudge you if
+            it's still blank.
+          </Text>
+          <Card padded>
+            {feedRows.map((row, i) => (
+              <View key={row.rowId} style={styles.feedRow}>
+                <TimePickerField
+                  label={`Feed ${i + 1}`}
+                  value={row.time}
+                  onChange={(v) => updateFeedRow(row.rowId, v)}
+                  placeholder={`Feed time ${i + 1}`}
+                  style={styles.feedTimeInput}
+                />
+                <Pressable
+                  style={({ pressed }) => [styles.removeChip, pressed && styles.pressed]}
+                  onPress={() => removeFeedRow(row.rowId)}
+                  role="button"
+                  aria-label={`Remove feed time ${i + 1}`}
+                  hitSlop={8}
+                >
+                  <Icon name="close" size={14} color={ink.faint2} strokeWidth={2.2} />
+                </Pressable>
+              </View>
+            ))}
+            {feedRows.length < MAX_FEED_TIMES && (
+              <Pressable
+                style={({ pressed }) => [styles.addBtn, pressed && styles.pressed]}
+                onPress={addFeedRow}
+                role="button"
+                aria-label="Add feed time"
+              >
+                <Icon name="plus" size={15} color={ink.muted} strokeWidth={2.2} />
+                <Text style={styles.addBtnText}>Add feed time</Text>
+              </Pressable>
+            )}
+
+            <View style={styles.holdRow}>
+              <HoldTile
+                label="Hold pee"
+                value={peeHoldHours}
+                onChangeText={(v) => {
+                  setPeeHoldHours(v);
+                  clearError('peeHoldHours');
+                }}
+                placeholder="e.g. 4"
+                error={errors.peeHoldHours}
+              />
+              <HoldTile
+                label="Hold poop"
+                value={poopHoldHours}
+                onChangeText={(v) => {
+                  setPoopHoldHours(v);
+                  clearError('poopHoldHours');
+                }}
+                placeholder="e.g. 6"
+                error={errors.poopHoldHours}
+              />
+            </View>
+          </Card>
+
+          {/* Medications */}
+          <SectionLabel style={styles.sectionSpacer}>Medications</SectionLabel>
+          <Text style={styles.helperText}>
+            Only add these if {name.trim() || 'your pet'} needs regular medicine. They'll show up in
+            Upcoming on Home regardless of calibration status.
+          </Text>
+
+          {medications.length > 0 && (
+            <Card padded style={styles.medCard}>
+              {medications.map((med) => (
+                <View key={med.rowId} style={styles.medRow}>
+                  <TextInput
+                    value={med.name}
+                    onChangeText={(v) => updateMedicationRow(med.rowId, 'name', v)}
+                    placeholder="Medicine name"
+                    placeholderTextColor={ink.faint2}
+                    style={styles.medNameInput}
+                  />
+                  <View style={styles.medTimeInput}>
+                    <TimePickerField
+                      value={med.time}
+                      onChange={(v) => updateMedicationRow(med.rowId, 'time', v)}
+                      placeholder="Time"
+                    />
+                  </View>
+                  <Pressable
+                    style={({ pressed }) => [styles.removeChip, pressed && styles.pressed]}
+                    onPress={() => removeMedicationRow(med.rowId)}
+                    role="button"
+                    aria-label={med.name.trim() ? `Remove ${med.name.trim()}` : 'Remove medication'}
+                    hitSlop={8}
+                  >
+                    <Icon name="close" size={14} color={ink.faint2} strokeWidth={2.2} />
+                  </Pressable>
+                </View>
+              ))}
+            </Card>
+          )}
+
+          {medications.length < MAX_MEDICATIONS && (
+            <Pressable
+              style={({ pressed }) => [styles.addBtnStandalone, pressed && styles.pressed]}
+              onPress={addMedicationRow}
+              role="button"
+              aria-label="Add medication"
+            >
+              <Icon name="plus" size={15} color={ink.muted} strokeWidth={2.2} />
+              <Text style={styles.addBtnText}>Add medication</Text>
             </Pressable>
           )}
-        </View>
 
-        <View style={styles.row2}>
-          <Field
-            label="Hold Pee (hrs)"
-            value={peeHoldHours}
-            onChangeText={(v) => {
-              setPeeHoldHours(v);
-              clearError('peeHoldHours');
-            }}
-            placeholder="e.g. 4"
-            keyboardType="numeric"
-            style={{ flex: 1 }}
-            error={errors.peeHoldHours}
-          />
-          <Field
-            label="Hold Poop (hrs)"
-            value={poopHoldHours}
-            onChangeText={(v) => {
-              setPoopHoldHours(v);
-              clearError('poopHoldHours');
-            }}
-            placeholder="e.g. 6"
-            keyboardType="numeric"
-            style={{ flex: 1 }}
-            error={errors.poopHoldHours}
-          />
-        </View>
-
-        <SectionTitle>Medications</SectionTitle>
-        <Text style={styles.helperText}>
-          Optional — only add these if {name.trim() || 'your pet'} needs regular medicine. They'll show up in
-          Upcoming on Home regardless of calibration status.
-        </Text>
-
-        {medications.map((med) => (
-          <View key={med.rowId} style={styles.medRow}>
-            <TextInput
-              value={med.name}
-              onChangeText={(v) => updateMedicationRow(med.rowId, 'name', v)}
-              placeholder="Medicine name"
-              placeholderTextColor={colors.stoneLight}
-              style={[styles.input, styles.medNameInput, med.name ? styles.inputFilled : null]}
-            />
-            <TimePickerField
-              value={med.time}
-              onChange={(v) => updateMedicationRow(med.rowId, 'time', v)}
-              placeholder="Time"
-              style={styles.medTimeInput}
-            />
-            <Pressable
-              style={({ pressed }) => [styles.removeMedBtn, pressed && styles.pressed]}
-              onPress={() => removeMedicationRow(med.rowId)}
-              role="button"
-              aria-label={med.name.trim() ? `Remove ${med.name.trim()}` : 'Remove medication'}
-              hitSlop={8}
-            >
-              <Text style={styles.removeMedBtnText}>✕</Text>
-            </Pressable>
-          </View>
-        ))}
-
-        {medications.length < MAX_MEDICATIONS && (
           <Pressable
-            style={({ pressed }) => [styles.addMedBtn, pressed && styles.pressed]}
-            onPress={addMedicationRow}
+            style={({ pressed }) => [styles.saveBtn, pressed && styles.saveBtnPressed]}
+            onPress={handleSave}
             role="button"
-            aria-label="Add medication"
+            aria-label={isEditing ? 'Save changes' : 'Save pet'}
           >
-            <Text style={styles.addMedBtnText}>➕ Add Medication</Text>
+            <Icon name="check" size={15} color={ink.onDark} strokeWidth={2.6} />
+            <Text style={styles.saveBtnText}>{isEditing ? 'Save changes' : 'Save pet'}</Text>
           </Pressable>
-        )}
-
-        <Pressable
-          style={({ pressed }) => [styles.saveBtn, pressed && styles.saveBtnPressed]}
-          onPress={handleSave}
-          role="button"
-          aria-label={isEditing ? 'Save changes' : 'Save pet'}
-        >
-          <Text style={styles.saveBtnText}>{isEditing ? 'Save Changes' : 'Save Pet'}</Text>
-        </Pressable>
-      </ScrollView>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-function Field({
+/** White field card with an inline uppercase label (matches the design's Name cell). */
+function LabeledCard({
   label,
-  style,
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType,
   error,
-  ...inputProps
 }: {
   label: string;
   value: string;
   onChangeText: (v: string) => void;
   placeholder?: string;
   keyboardType?: 'default' | 'numeric';
-  style?: object;
   error?: string;
 }) {
   return (
-    <View style={[styles.formGroup, style]}>
-      <Text style={styles.formLabel}>{label}</Text>
-      <TextInput
-        {...inputProps}
-        style={[
-          styles.input,
-          inputProps.value ? styles.inputFilled : null,
-          error ? styles.inputError : null,
-        ]}
-        placeholderTextColor={colors.stoneLight}
-      />
+    <View>
+      <View style={styles.labeledCard}>
+        <Text style={styles.cellLabel}>{label}</Text>
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={ink.faint2}
+          keyboardType={keyboardType}
+          style={styles.cellInput}
+        />
+      </View>
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+    </View>
+  );
+}
+
+/** Inset value well for the pee/poo hold durations (surface.field tile). */
+function HoldTile({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  error,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (v: string) => void;
+  placeholder?: string;
+  error?: string;
+}) {
+  return (
+    <View style={styles.holdTileWrap}>
+      <View style={[styles.holdTile, error ? styles.holdTileError : null]}>
+        <Text style={styles.holdLabel}>{label}</Text>
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={ink.faint2}
+          keyboardType="numeric"
+          style={styles.holdInput}
+        />
+      </View>
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.cream },
-  content: { paddingHorizontal: 16, paddingBottom: 32 },
-  handle: { width: 40, height: 4, backgroundColor: colors.stoneLight, borderRadius: 99, alignSelf: 'center', marginTop: 12, marginBottom: 10 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
-  modalTitle: { fontSize: 20, fontFamily: fonts.black, color: colors.stone, textAlign: 'center', flex: 1 },
+  safe: { flex: 1, backgroundColor: surface.app },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 12,
+  },
+  headerTitle: { fontSize: 19, fontFamily: fonts.black, color: ink.primary, letterSpacing: -0.4 },
   closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.white,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: surface.chipAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  closeBtnText: { fontSize: 14, fontFamily: fonts.extraBold, color: colors.stoneMid },
-  pressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
-  photoRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 20 },
-  photoPreview: {
+  pressed: { opacity: 0.7 },
+  content: { paddingHorizontal: 20, paddingBottom: 40 },
+
+  // Photo
+  photoRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  avatarCircle: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: colors.sagePale,
+    backgroundColor: green.tint,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   photoImage: { width: 72, height: 72, borderRadius: 36 },
-  photoActions: { flex: 1, gap: 8 },
-  photoBtn: {
-    borderWidth: 2,
-    borderColor: colors.stoneLight,
+  addPhotoBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 20,
+    borderRadius: 16,
+    borderWidth: 1.5,
     borderStyle: 'dashed',
-    borderRadius: radius.sm,
-    paddingVertical: 12,
+    borderColor: line.dashed,
+  },
+  addPhotoText: { fontSize: 13, fontFamily: fonts.semiBold, color: ink.muted },
+  removePhoto: { alignSelf: 'flex-start', marginTop: 10, paddingVertical: 2 },
+  removePhotoText: { fontSize: 12, fontFamily: fonts.bold, color: terracotta.primary },
+
+  // Sections
+  sectionSpacer: { marginTop: 20 },
+  optionalTag: { fontSize: 11, fontFamily: fonts.semiBold, color: ink.faint2 },
+  helperText: { fontSize: 12, fontFamily: fonts.medium, color: ink.muted, lineHeight: 17, marginBottom: 12 },
+
+  // Species grid
+  speciesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  speciesChip: {
+    flexGrow: 1,
+    flexBasis: '22%',
+    paddingVertical: 11,
+    borderRadius: 13,
+    backgroundColor: surface.card,
+    borderWidth: 1,
+    borderColor: line.border,
     alignItems: 'center',
   },
-  photoBtnText: { fontSize: 13, fontFamily: fonts.bold, color: colors.stoneMid },
-  photoRemoveBtn: { alignSelf: 'flex-start', paddingVertical: 4, paddingHorizontal: 4 },
-  photoRemoveText: { fontSize: 12, fontFamily: fonts.bold, color: '#C0392B' },
-  avatarGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
-  avatarChip: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: colors.white,
-    borderWidth: 2,
-    borderColor: colors.stoneLight,
+  speciesChipSelected: { backgroundColor: green.tint, borderWidth: 1.5, borderColor: green.mid },
+  speciesChipText: { fontSize: 12, fontFamily: fonts.semiBold, color: ink.muted },
+  speciesChipTextSelected: { fontFamily: fonts.bold, color: green.primary },
+
+  // Name / breed
+  fieldStack: { marginTop: 20, gap: 10 },
+  labeledCard: {
+    backgroundColor: surface.card,
+    borderRadius: radius.card,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    ...shadow.card,
+  },
+  cellLabel: {
+    fontSize: 10,
+    fontFamily: fonts.bold,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color: ink.faint2,
+    marginBottom: 3,
+  },
+  cellInput: { fontFamily: fonts.semiBold, fontSize: 14.5, color: ink.primary, padding: 0 },
+  errorText: { fontSize: 12, fontFamily: fonts.semiBold, color: terracotta.primary, marginTop: 5, marginLeft: 4 },
+
+  // Feed rows
+  feedRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-end', marginBottom: 10 },
+  feedTimeInput: { flex: 1 },
+  removeChip: {
+    width: 38,
+    height: 44,
+    borderRadius: radius.tile,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: line.dashed,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarChipSelected: { borderColor: colors.sage, backgroundColor: colors.sagePale },
-  formGroup: { marginBottom: 14, gap: 5 },
-  formLabel: { fontSize: 11, fontFamily: fonts.extraBold, textTransform: 'uppercase', letterSpacing: 1, color: colors.stoneMid },
-  input: {
-    backgroundColor: colors.white,
-    borderWidth: 2,
-    borderColor: colors.stoneLight,
-    borderRadius: radius.sm,
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     paddingVertical: 12,
-    paddingHorizontal: 14,
+    borderRadius: radius.tile,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: line.dashed,
+  },
+  addBtnText: { fontSize: 13, fontFamily: fonts.bold, color: ink.muted },
+
+  // Hold tiles
+  holdRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  holdTileWrap: { flex: 1 },
+  holdTile: {
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    borderRadius: radius.tile,
+    backgroundColor: surface.field,
+  },
+  holdTileError: { borderWidth: 1.5, borderColor: terracotta.primary },
+  holdLabel: {
+    fontSize: 9.5,
+    fontFamily: fonts.bold,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: ink.faint2,
+  },
+  holdInput: { fontFamily: fonts.bold, fontSize: 14, color: ink.primary, padding: 0, marginTop: 2 },
+
+  // Medications
+  medCard: { gap: 10 },
+  medRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  medNameInput: {
+    flex: 1.4,
+    backgroundColor: surface.field,
+    borderRadius: radius.tile,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
     fontFamily: fonts.semiBold,
     fontSize: 14,
-    color: colors.stone,
+    color: ink.primary,
   },
-  inputFilled: { borderColor: colors.sage },
-  inputError: { borderColor: '#C0392B' },
-  errorText: { fontSize: 12, fontFamily: fonts.semiBold, color: '#C0392B' },
-  helperText: { fontSize: 12, color: colors.stoneMid, lineHeight: 17, marginBottom: 14 },
-  feedRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 8 },
-  feedTimeInput: { flex: 1 },
-  addFeedBtn: { marginBottom: 0 },
-  row2: { flexDirection: 'row', gap: 10 },
-  medRow: { flexDirection: 'row', gap: 8, marginBottom: 10, alignItems: 'center' },
-  medNameInput: { flex: 1.4 },
   medTimeInput: { flex: 1 },
-  removeMedBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FDECEA',
+  addBtnStandalone: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  removeMedBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: '#C0392B' },
-  addMedBtn: {
-    borderWidth: 2,
-    borderColor: colors.stoneLight,
+    gap: 6,
+    paddingVertical: 13,
+    borderRadius: radius.tile,
+    borderWidth: 1.5,
     borderStyle: 'dashed',
-    borderRadius: radius.sm,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginBottom: 20,
+    borderColor: line.dashed,
   },
-  addMedBtnText: { fontSize: 13, fontFamily: fonts.bold, color: colors.stoneMid },
-  saveBtn: { backgroundColor: colors.sage, borderRadius: radius.lg, paddingVertical: 16, alignItems: 'center', marginTop: 8 },
-  saveBtnPressed: { opacity: 0.85, transform: [{ scale: 0.99 }] },
-  saveBtnText: { color: colors.white, fontSize: 15, fontFamily: fonts.extraBold },
+
+  // Save
+  saveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: green.mid,
+    borderRadius: 15,
+    paddingVertical: 16,
+    marginTop: 24,
+    ...shadow.fab,
+  },
+  saveBtnPressed: { opacity: 0.9 },
+  saveBtnText: { color: ink.onDark, fontSize: 15, fontFamily: fonts.bold },
 });
