@@ -31,6 +31,10 @@ export type AccountErrorCode =
   | 'RATE_LIMITED'
   | 'NOT_AUTHENTICATED'
   | 'OFFLINE'
+  // Mandatory-OTP onboarding (Phase-2): sending the code, and verifying it.
+  | 'EMAIL_SEND_FAILED'
+  | 'CODE_INVALID'
+  | 'CODE_EXPIRED'
   | 'UNKNOWN';
 
 export class AccountError extends Error {
@@ -49,6 +53,9 @@ const MESSAGES: Record<AccountErrorCode, string> = {
   RATE_LIMITED: 'Too many attempts. Wait a little while and try again.',
   NOT_AUTHENTICATED: 'Sign-in is still starting up. Try again in a moment.',
   OFFLINE: "Couldn't reach the server. Check your connection and try again.",
+  EMAIL_SEND_FAILED: "Couldn't send a code. Check the email and try again.",
+  CODE_INVALID: "That code isn't right. Check it and try again.",
+  CODE_EXPIRED: 'That code has expired. Send a new one and try again.',
   UNKNOWN: 'Something went wrong. Try again.',
 };
 
@@ -70,6 +77,25 @@ function classify(code: string | undefined, raw: string): AccountErrorCode {
     return 'EMAIL_IN_USE';
   }
   if (c.includes('rate') || m.includes('rate limit') || m.includes('too many')) return 'RATE_LIMITED';
+  // OTP verification failures. "Token has expired or is invalid" contains "expired", so it
+  // resolves to CODE_EXPIRED (prompt a resend) — the safe, actionable default.
+  if (c === 'otp_expired' || m.includes('expired')) return 'CODE_EXPIRED';
+  if (
+    (c.includes('otp') || c === 'invalid_credentials' || m.includes('token') || m.includes('otp') || m.includes('code')) &&
+    (m.includes('invalid') || c.includes('invalid'))
+  ) {
+    return 'CODE_INVALID';
+  }
+  // Email delivery / SMTP problems when *sending* a code (BE SMTP not yet confirmed).
+  if (
+    c === 'unexpected_failure' ||
+    c === 'email_provider_disabled' ||
+    m.includes('error sending') ||
+    m.includes('confirmation email') ||
+    m.includes('smtp')
+  ) {
+    return 'EMAIL_SEND_FAILED';
+  }
   if (c.includes('invalid_email') || m.includes('invalid email') || m.includes('unable to validate email')) {
     return 'EMAIL_INVALID';
   }
@@ -151,6 +177,61 @@ export async function signInWithEmail(
       shouldCreateUser: false,
       ...(emailRedirectTo ? { emailRedirectTo } : {}),
     },
+  });
+  if (error) throw toError(error);
+}
+
+/**
+ * MANDATORY-OTP ONBOARDING (Phase-2). Send a 6-digit one-time code to `email` so a
+ * first-launch user can verify it and get a permanent, verified session. Unlike the
+ * recovery `signInWithEmail`, this uses `shouldCreateUser: true` — the whole point of
+ * first launch is to create the account if it doesn't exist yet.
+ *
+ * This is a passwordless CODE flow, not a magic-link flow: we deliberately omit
+ * `emailRedirectTo` so nothing depends on deep-link handling. Whether the email arrives
+ * as a 6-digit code vs. a link is a BE email-template concern (`{{ .Token }}` must be in
+ * the template) — see the task report. On the client we always verify via `verifyEmailOtp`.
+ *
+ * Throws `AccountError`; `EMAIL_SEND_FAILED` specifically covers the "SMTP not configured"
+ * case so the UI can show a readable "couldn't send a code, try again".
+ */
+export async function sendEmailOtp(
+  client: SupabaseClient<Database>,
+  email: string,
+): Promise<void> {
+  const trimmed = email.trim();
+  if (!isEmailish(trimmed)) throw new AccountError('EMAIL_INVALID', MESSAGES.EMAIL_INVALID);
+
+  const { error } = await client.auth.signInWithOtp({
+    email: trimmed,
+    options: { shouldCreateUser: true },
+  });
+  if (error) throw toError(error);
+}
+
+/**
+ * Verify the 6-digit `token` the user typed for `email`. On success the Supabase client
+ * holds a permanent, verified (non-anonymous) session and emits SIGNED_IN; the caller
+ * (SessionContext) resolves the household and activates the synced repo.
+ *
+ * `type: 'email'` matches a `signInWithOtp`-issued code for both brand-new and returning
+ * accounts. Throws `AccountError` — `CODE_INVALID` / `CODE_EXPIRED` are written for a person
+ * re-typing a code.
+ */
+export async function verifyEmailOtp(
+  client: SupabaseClient<Database>,
+  email: string,
+  token: string,
+): Promise<void> {
+  const trimmedEmail = email.trim();
+  const trimmedToken = token.trim();
+  if (!isEmailish(trimmedEmail)) throw new AccountError('EMAIL_INVALID', MESSAGES.EMAIL_INVALID);
+  if (!/^\d{6}$/.test(trimmedToken)) throw new AccountError('CODE_INVALID', MESSAGES.CODE_INVALID);
+
+  const { error } = await client.auth.verifyOtp({
+    email: trimmedEmail,
+    token: trimmedToken,
+    type: 'email',
   });
   if (error) throw toError(error);
 }
