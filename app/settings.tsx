@@ -4,26 +4,24 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, radius, shadow } from '../theme/colors';
+import { surface, ink, line, green, amber, terracotta, category, radius, shadow } from '../theme/colors';
 import { fonts } from '../theme/fonts';
-import { SectionTitle } from '../components/SectionTitle';
+import { Icon } from '../components/Icon';
+import { Card, SectionLabel, Pill } from '../components/ui';
+import { Toggle } from '../components/Toggle';
 import { PetAvatar } from '../components/PetAvatar';
 import { TimePickerField } from '../components/TimePickerField';
 import { AppModal } from '../components/AppModal';
-import { HouseholdSection } from '../components/HouseholdSection';
 import { usePets } from '../context/PetsContext';
 import { useNotificationPrefs } from '../context/NotificationPrefsContext';
 import { useSession } from '../context/SessionContext';
 import { accountErrorMessage } from '../lib/auth/account';
-import { cancelAllOurNotifications } from '../lib/notifications/scheduler';
-import { loadDemoData, resetAll } from '../lib/repo/types';
 import { parseClockTime } from '../lib/petSchedule';
 
 // TimePickerField speaks "h:mm AM/PM"; prefs store quiet hours as "HH:MM" 24h.
@@ -42,30 +40,15 @@ function to12h(stored: string | null): string {
   return `${h12}:${String(parsed.getMinutes()).padStart(2, '0')} ${period}`;
 }
 
-// Data actions (loadDemoData/resetAll/cancelAllOurNotifications) return Promise<void>
-// and, in SYNCED mode, do backend work that can reject. Firing them as `void promise`
-// from an onPress turns any rejection into an uncaught promise rejection at runtime.
-// runSafely awaits the work inside a try/catch so a rejection can never surface, while
-// still letting the action execute. It never rejects, so `void runSafely(...)` is safe.
-async function runSafely(label: string, action: () => Promise<void>): Promise<void> {
-  try {
-    await action();
-  } catch (err) {
-    if (__DEV__) console.warn(`[Settings] ${label} failed:`, err);
-  }
-}
-
 export default function SettingsScreen() {
   const { pets } = usePets();
   const { prefs, setQuietHours, setPetMuted } = useNotificationPrefs();
-  const [confirmReset, setConfirmReset] = useState(false);
-  const [confirmDemo, setConfirmDemo] = useState(false);
 
   const muted = new Set(prefs.mutedPetIds);
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.titleRow}>
+      <View style={styles.header}>
         <Pressable
           style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
@@ -73,160 +56,78 @@ export default function SettingsScreen() {
           aria-label="Back"
           hitSlop={8}
         >
-          <Text style={styles.backBtnText}>‹</Text>
+          <Icon name="chevronLeft" size={16} color={ink.primary} strokeWidth={2.3} />
         </Pressable>
         <Text style={styles.title}>Settings</Text>
-        <View style={{ width: 32 }} />
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <SectionTitle>Quiet Hours</SectionTitle>
-        <Text style={styles.helperText}>
-          Pause potty-break and meal reminders overnight. Medication and appointment reminders still
-          come through. Set both a start and end to turn it on.
-        </Text>
-        <View style={styles.row2}>
-          <TimePickerField
-            label="From"
-            value={to12h(prefs.quietHoursStart)}
-            onChange={(v) => setQuietHours(v ? to24h(v) : null, prefs.quietHoursEnd)}
-            placeholder="Start"
-            defaultTime="9:00 PM"
-            style={{ flex: 1 }}
-          />
-          <TimePickerField
-            label="Until"
-            value={to12h(prefs.quietHoursEnd)}
-            onChange={(v) => setQuietHours(prefs.quietHoursStart, v ? to24h(v) : null)}
-            placeholder="End"
-            defaultTime="7:00 AM"
-            style={{ flex: 1 }}
-          />
-        </View>
+        {/* Quiet hours */}
+        <SectionLabel>Quiet hours</SectionLabel>
+        <Card padded>
+          <View style={styles.qhTop}>
+            <View style={styles.qhIcon}>
+              <Icon name="moon" size={16} color={category.dinnerInk} strokeWidth={2} />
+            </View>
+            <Text style={styles.qhDesc}>
+              Pauses potty and meal reminders overnight. Medication and appointments still come
+              through. Set both a start and end to turn it on.
+            </Text>
+          </View>
+          <View style={styles.qhRow}>
+            <TimePickerField
+              label="From"
+              value={to12h(prefs.quietHoursStart)}
+              onChange={(v) => setQuietHours(v ? to24h(v) : null, prefs.quietHoursEnd)}
+              placeholder="Start"
+              defaultTime="9:00 PM"
+              style={{ flex: 1 }}
+            />
+            <TimePickerField
+              label="Until"
+              value={to12h(prefs.quietHoursEnd)}
+              onChange={(v) => setQuietHours(prefs.quietHoursStart, v ? to24h(v) : null)}
+              placeholder="End"
+              defaultTime="7:00 AM"
+              style={{ flex: 1 }}
+            />
+          </View>
+        </Card>
 
-        <SectionTitle>Per-pet Notifications</SectionTitle>
+        {/* Per-pet notifications */}
+        <SectionLabel style={styles.sectionSpacer}>Per-pet notifications</SectionLabel>
         {pets.length === 0 ? (
           <Text style={styles.helperText}>Add a pet to manage its reminders.</Text>
         ) : (
-          pets.map((pet) => {
-            const enabled = !muted.has(pet.id);
-            return (
-              <View key={pet.id} style={styles.muteRow}>
-                <PetAvatar pet={pet} size={36} emojiSize={24} style={styles.muteAvatar} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.muteName}>{pet.name}</Text>
-                  <Text style={styles.muteSub}>{enabled ? 'Reminders on' : 'Muted'}</Text>
+          <Card>
+            {pets.map((pet, i) => {
+              const enabled = !muted.has(pet.id);
+              return (
+                <View key={pet.id}>
+                  <View style={styles.muteRow}>
+                    <PetAvatar pet={pet} size={34} emojiSize={20} style={styles.muteAvatar} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.muteName} numberOfLines={1}>
+                        {pet.name}
+                      </Text>
+                      <Text style={styles.muteSub}>{enabled ? 'Reminders on' : 'Muted'}</Text>
+                    </View>
+                    <Toggle
+                      on={enabled}
+                      onToggle={() => setPetMuted(pet.id, enabled)}
+                      aria-label={`Reminders for ${pet.name}`}
+                    />
+                  </View>
+                  {i < pets.length - 1 && <View style={styles.divider} />}
                 </View>
-                <Switch
-                  value={enabled}
-                  onValueChange={(next) => setPetMuted(pet.id, !next)}
-                  trackColor={{ true: colors.sage, false: colors.stoneLight }}
-                  thumbColor={colors.white}
-                  aria-label={`Reminders for ${pet.name}`}
-                />
-              </View>
-            );
-          })
+              );
+            })}
+          </Card>
         )}
 
         {/* ACCOUNTS. Renders nothing in local mode — there's no server account to secure. */}
         <AccountSection />
-
-        {/* SYNC-4. Renders nothing in local mode — no household exists to share. */}
-        <HouseholdSection />
-
-        <SectionTitle>Data</SectionTitle>
-        <Pressable
-          style={({ pressed }) => [styles.dataRow, pressed && styles.linkRowPressed]}
-          onPress={() => setConfirmDemo(true)}
-          role="button"
-          aria-label="Load demo data"
-        >
-          <Text style={styles.dataIcon}>🧪</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.dataLabel}>Load demo data</Text>
-            <Text style={styles.dataSub}>Replace everything with sample pets, logs and appointments.</Text>
-          </View>
-        </Pressable>
-        <Pressable
-          style={({ pressed }) => [styles.dataRow, pressed && styles.linkRowPressed]}
-          onPress={() => setConfirmReset(true)}
-          role="button"
-          aria-label="Reset all data"
-        >
-          <Text style={styles.dataIcon}>🗑️</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.dataLabel, styles.danger]}>Reset all data</Text>
-            <Text style={styles.dataSub}>Clear every pet, log and appointment on this device.</Text>
-          </View>
-        </Pressable>
       </ScrollView>
-
-      <AppModal visible={confirmDemo} transparent animationType="fade" onRequestClose={() => setConfirmDemo(false)}>
-        <Pressable style={styles.overlay} onPress={() => setConfirmDemo(false)}>
-          <Pressable style={styles.dialog} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.dialogTitle}>Load demo data?</Text>
-            <Text style={styles.dialogBody}>
-              This replaces your current pets, logs and appointments with a sample set. This can't be undone.
-            </Text>
-            <View style={styles.dialogActions}>
-              <Pressable
-                style={({ pressed }) => [styles.dialogBtn, styles.cancelBtn, pressed && styles.pressed]}
-                onPress={() => setConfirmDemo(false)}
-                role="button"
-                aria-label="Cancel"
-              >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [styles.dialogBtn, styles.confirmBtn, pressed && styles.pressed]}
-                onPress={() => {
-                  setConfirmDemo(false);
-                  void runSafely('loadDemoData', loadDemoData);
-                }}
-                role="button"
-                aria-label="Load demo data"
-              >
-                <Text style={styles.confirmBtnText}>Load</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </AppModal>
-
-      <AppModal visible={confirmReset} transparent animationType="fade" onRequestClose={() => setConfirmReset(false)}>
-        <Pressable style={styles.overlay} onPress={() => setConfirmReset(false)}>
-          <Pressable style={styles.dialog} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.dialogTitle}>Reset all data?</Text>
-            <Text style={styles.dialogBody}>
-              This clears every pet, log and appointment on this device. This can't be undone.
-            </Text>
-            <View style={styles.dialogActions}>
-              <Pressable
-                style={({ pressed }) => [styles.dialogBtn, styles.cancelBtn, pressed && styles.pressed]}
-                onPress={() => setConfirmReset(false)}
-                role="button"
-                aria-label="Cancel"
-              >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [styles.dialogBtn, styles.deleteBtn, pressed && styles.pressed]}
-                onPress={() => {
-                  setConfirmReset(false);
-                  void runSafely('resetAll', resetAll);
-                  // Drop any pushes we scheduled; the observer also re-reconciles to empty.
-                  void runSafely('cancelAllOurNotifications', cancelAllOurNotifications);
-                }}
-                role="button"
-                aria-label="Reset all data"
-              >
-                <Text style={styles.deleteBtnText}>Reset</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </AppModal>
     </SafeAreaView>
   );
 }
@@ -288,11 +189,11 @@ function AccountSection() {
 
   return (
     <>
-      <SectionTitle>Account</SectionTitle>
+      <SectionLabel style={styles.sectionSpacer}>Account</SectionLabel>
 
       {isAnonymous ? (
         pending ? (
-          <View style={accountStyles.card}>
+          <Card padded>
             <Text style={accountStyles.cardTitle}>Check your email</Text>
             <Text style={accountStyles.cardBody}>
               We sent a confirmation link to {pending}. Open it on this device to finish
@@ -306,10 +207,17 @@ function AccountSection() {
             >
               <Text style={accountStyles.linkText}>Use a different email</Text>
             </Pressable>
-          </View>
+          </Card>
         ) : (
-          <View style={accountStyles.card}>
-            <Text style={accountStyles.cardBody}>
+          <Card padded>
+            <Pill
+              label="Not secured"
+              bg={amber.warnBg}
+              color={amber.warnInk}
+              size="sm"
+              icon={<Icon name="alert" size={11} color={amber.warnInk} strokeWidth={2.4} />}
+            />
+            <Text style={[accountStyles.cardBody, accountStyles.cardBodyTop]}>
               You’re signed in anonymously — add an email so you never lose your pets’ history.
             </Text>
             <TextInput
@@ -317,7 +225,7 @@ function AccountSection() {
               value={emailInput}
               onChangeText={setEmailInput}
               placeholder="you@example.com"
-              placeholderTextColor={colors.stoneLight}
+              placeholderTextColor={ink.faint2}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="email-address"
@@ -337,21 +245,30 @@ function AccountSection() {
               aria-label="Secure account"
             >
               {securing ? (
-                <ActivityIndicator color={colors.white} />
+                <ActivityIndicator color={ink.onDark} />
               ) : (
-                <Text style={accountStyles.primaryBtnText}>Secure account</Text>
+                <>
+                  <Icon name="lock" size={15} color={ink.onDark} strokeWidth={2.2} />
+                  <Text style={accountStyles.primaryBtnText}>Secure account</Text>
+                </>
               )}
             </Pressable>
-          </View>
+          </Card>
         )
       ) : (
-        <View style={accountStyles.card}>
-          <Text style={accountStyles.cardTitle}>Account secured</Text>
-          <Text style={accountStyles.cardBody}>
+        <Card padded>
+          <Pill
+            label="Secured"
+            bg={green.tint}
+            color={green.primary}
+            size="sm"
+            icon={<Icon name="lock" size={11} color={green.primary} strokeWidth={2.4} />}
+          />
+          <Text style={[accountStyles.cardBody, accountStyles.cardBodyTop]}>
             Secured as {email ?? 'your email'}. Your history is recoverable — sign in with this
             email on a new phone to pick up where you left off.
           </Text>
-        </View>
+        </Card>
       )}
 
       {recoverSent ? (
@@ -359,21 +276,26 @@ function AccountSection() {
           Check your email — we sent a sign-in link to {recoverSent}.
         </Text>
       ) : (
-        <Pressable
-          style={({ pressed }) => [accountStyles.row, pressed && accountStyles.rowPressed]}
-          onPress={() => {
-            setRecoverError(null);
-            setRecoverOpen(true);
-          }}
-          role="button"
-          aria-label="Sign in with email"
-        >
-          <Text style={accountStyles.rowIcon}>✉️</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={accountStyles.rowLabel}>Sign in with email</Text>
-            <Text style={accountStyles.rowSub}>Recover an existing account onto this device.</Text>
-          </View>
-        </Pressable>
+        <Card style={styles.rowCardSpacer}>
+          <Pressable
+            style={({ pressed }) => [styles.dataRow, pressed && styles.rowPressed]}
+            onPress={() => {
+              setRecoverError(null);
+              setRecoverOpen(true);
+            }}
+            role="button"
+            aria-label="Sign in with email"
+          >
+            <View style={[styles.dataIcon, { backgroundColor: category.medBg }]}>
+              <Icon name="mail" size={16} color={category.medInk} strokeWidth={2} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.dataLabel}>Sign in with email</Text>
+              <Text style={styles.dataSub}>Recover an existing account onto this device.</Text>
+            </View>
+            <Icon name="chevronRight" size={15} color="#c0b8a8" strokeWidth={2.3} />
+          </Pressable>
+        </Card>
       )}
 
       <AppModal
@@ -382,20 +304,20 @@ function AccountSection() {
         animationType="fade"
         onRequestClose={() => setRecoverOpen(false)}
       >
-        <Pressable style={accountStyles.overlay} onPress={() => setRecoverOpen(false)}>
-          <Pressable style={accountStyles.dialog} onPress={(e) => e.stopPropagation()}>
-            <Text style={accountStyles.dialogTitle}>Sign in with email</Text>
-            <Text style={accountStyles.dialogBody}>
+        <Pressable style={styles.overlay} onPress={() => setRecoverOpen(false)}>
+          <Pressable style={styles.dialog} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.dialogTitle}>Sign in with email</Text>
+            <Text style={styles.dialogBody}>
               This switches this device to the account for that email. The pets, logs and
               history currently on this device will no longer show here (they stay in their own
               account). We’ll email you a sign-in link.
             </Text>
             <TextInput
-              style={accountStyles.dialogInput}
+              style={accountStyles.input}
               value={recoverEmail}
               onChangeText={setRecoverEmail}
               placeholder="you@example.com"
-              placeholderTextColor={colors.stoneLight}
+              placeholderTextColor={ink.faint2}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="email-address"
@@ -403,25 +325,21 @@ function AccountSection() {
               accessibilityLabel="Email address"
             />
             {recoverError ? <Text style={accountStyles.errorText}>{recoverError}</Text> : null}
-            <View style={accountStyles.dialogActions}>
+            <View style={styles.dialogActions}>
               <Pressable
-                style={({ pressed }) => [
-                  accountStyles.dialogBtn,
-                  accountStyles.cancelBtn,
-                  pressed && accountStyles.pressed,
-                ]}
+                style={({ pressed }) => [styles.dialogBtn, styles.cancelBtn, pressed && styles.pressed]}
                 onPress={() => setRecoverOpen(false)}
                 role="button"
                 aria-label="Cancel"
               >
-                <Text style={accountStyles.cancelBtnText}>Cancel</Text>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
               </Pressable>
               <Pressable
                 style={({ pressed }) => [
-                  accountStyles.dialogBtn,
-                  accountStyles.confirmBtn,
+                  styles.dialogBtn,
+                  styles.confirmBtn,
                   (!recoverEmail.trim() || recovering) && accountStyles.disabled,
-                  pressed && accountStyles.pressed,
+                  pressed && styles.pressed,
                 ]}
                 onPress={() => void submitRecover()}
                 disabled={!recoverEmail.trim() || recovering}
@@ -429,9 +347,9 @@ function AccountSection() {
                 aria-label="Send sign-in link"
               >
                 {recovering ? (
-                  <ActivityIndicator color={colors.white} />
+                  <ActivityIndicator color={ink.onDark} />
                 ) : (
-                  <Text style={accountStyles.confirmBtnText}>Send link</Text>
+                  <Text style={styles.confirmBtnText}>Send link</Text>
                 )}
               </Pressable>
             </View>
@@ -443,149 +361,102 @@ function AccountSection() {
 }
 
 const accountStyles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.white,
-    borderRadius: radius.sm,
-    padding: 16,
-    marginBottom: 8,
-    ...shadow.sm,
-  },
-  cardTitle: { fontSize: 14, fontFamily: fonts.extraBold, color: colors.stone, marginBottom: 6 },
-  cardBody: { fontSize: 13, color: colors.stoneMid, lineHeight: 19, marginBottom: 12 },
+  cardTitle: { fontSize: 14, fontFamily: fonts.bold, color: ink.primary, marginBottom: 6 },
+  cardBody: { fontSize: 12.5, fontFamily: fonts.medium, color: ink.muted, lineHeight: 19, marginBottom: 12 },
+  cardBodyTop: { marginTop: 9 },
   input: {
-    borderWidth: 1,
-    borderColor: colors.stoneLight,
-    borderRadius: radius.sm,
+    backgroundColor: surface.field,
+    borderRadius: radius.tile,
     paddingVertical: 12,
     paddingHorizontal: 14,
-    fontSize: 15,
-    color: colors.stone,
+    fontFamily: fonts.semiBold,
+    fontSize: 14,
+    color: ink.primary,
     marginBottom: 10,
   },
-  errorText: { fontSize: 12, color: '#C0392B', lineHeight: 17, marginBottom: 10 },
+  errorText: { fontSize: 12, fontFamily: fonts.semiBold, color: terracotta.primary, lineHeight: 17, marginBottom: 10 },
   primaryBtn: {
-    backgroundColor: colors.sage,
-    borderRadius: radius.sm,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  primaryBtnText: { fontSize: 14, fontFamily: fonts.extraBold, color: colors.white },
-  linkText: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.sage },
-
-  message: { fontSize: 12, color: colors.sage, lineHeight: 17, marginBottom: 8, paddingHorizontal: 2 },
-
-  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.white,
-    borderRadius: radius.sm,
-    padding: 14,
-    marginBottom: 8,
-    ...shadow.sm,
-  },
-  rowPressed: { opacity: 0.7 },
-  rowIcon: { fontSize: 18 },
-  rowLabel: { fontSize: 14, fontFamily: fonts.extraBold, color: colors.stone },
-  rowSub: { fontSize: 12, color: colors.stoneMid, marginTop: 2, lineHeight: 16 },
-
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
+    gap: 8,
+    backgroundColor: green.mid,
+    borderRadius: radius.tile,
+    paddingVertical: 13,
   },
-  dialog: {
-    width: '100%',
-    maxWidth: 320,
-    backgroundColor: colors.white,
-    borderRadius: radius.lg,
-    padding: 20,
-    ...shadow.card,
-  },
-  dialogTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: colors.stone, marginBottom: 8 },
-  dialogBody: { fontSize: 13, color: colors.stoneMid, lineHeight: 19, marginBottom: 14 },
-  dialogInput: {
-    borderWidth: 1,
-    borderColor: colors.stoneLight,
-    borderRadius: radius.sm,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    fontSize: 15,
-    color: colors.stone,
-    marginBottom: 12,
-  },
-  dialogActions: { flexDirection: 'row', gap: 10 },
-  dialogBtn: { flex: 1, borderRadius: radius.sm, paddingVertical: 12, alignItems: 'center' },
-  cancelBtn: { backgroundColor: colors.sagePale },
-  cancelBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.sage },
-  confirmBtn: { backgroundColor: colors.sage },
-  confirmBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.white },
+  primaryBtnText: { fontSize: 14, fontFamily: fonts.bold, color: ink.onDark },
+  linkText: { fontSize: 13, fontFamily: fonts.bold, color: green.primary },
+  message: { fontSize: 12, fontFamily: fonts.medium, color: green.primary, lineHeight: 17, marginTop: 8, paddingHorizontal: 2 },
   disabled: { opacity: 0.5 },
-  pressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
+  pressed: { opacity: 0.7 },
 });
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.cream },
-  titleRow: {
+  safe: { flex: 1, backgroundColor: surface.app },
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    marginBottom: 8,
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 12,
   },
-  title: { fontSize: 20, fontFamily: fonts.black, color: colors.stone, textAlign: 'center', flex: 1 },
+  title: { fontSize: 19, fontFamily: fonts.black, color: ink.primary, letterSpacing: -0.4 },
   backBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: colors.white,
+    backgroundColor: surface.chipAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backBtnText: { fontSize: 22, fontFamily: fonts.extraBold, color: colors.stoneMid, marginTop: -2 },
-  pressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
+  pressed: { opacity: 0.7 },
+  rowPressed: { opacity: 0.6 },
 
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingBottom: 32 },
-  helperText: { fontSize: 12, color: colors.stoneMid, lineHeight: 17, marginBottom: 14 },
-  row2: { flexDirection: 'row', gap: 10, marginBottom: 8 },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 40 },
+  sectionSpacer: { marginTop: 20 },
+  helperText: { fontSize: 12, fontFamily: fonts.medium, color: ink.muted, lineHeight: 17 },
 
-  muteRow: {
-    flexDirection: 'row',
+  // Quiet hours
+  qhTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
+  qhIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.iconTileSm,
+    backgroundColor: category.dinnerBg,
     alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.white,
-    borderRadius: radius.sm,
-    padding: 14,
-    marginBottom: 8,
-    ...shadow.sm,
+    justifyContent: 'center',
+    flexShrink: 0,
   },
+  qhDesc: { flex: 1, fontSize: 12.5, fontFamily: fonts.medium, color: ink.muted, lineHeight: 18 },
+  qhRow: { flexDirection: 'row', gap: 8, marginTop: 13 },
+
+  // Per-pet mute rows
+  muteRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 16 },
   muteAvatar: { backgroundColor: 'transparent' },
-  muteName: { fontSize: 14, fontFamily: fonts.extraBold, color: colors.stone },
-  muteSub: { fontSize: 12, color: colors.stoneMid, marginTop: 2 },
+  muteName: { fontSize: 14, fontFamily: fonts.bold, color: ink.primary },
+  muteSub: { fontSize: 12, fontFamily: fonts.medium, color: ink.muted, marginTop: 2 },
+  divider: { height: 1, backgroundColor: line.hairline, marginHorizontal: 16 },
 
-  dataRow: {
-    flexDirection: 'row',
+  // Generic action rows (data, recover)
+  rowCardSpacer: { marginTop: 8 },
+  dataRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 16 },
+  dataIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.iconTile,
     alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.white,
-    borderRadius: radius.sm,
-    padding: 14,
-    marginBottom: 8,
-    ...shadow.sm,
+    justifyContent: 'center',
+    flexShrink: 0,
   },
-  linkRowPressed: { opacity: 0.7 },
-  dataIcon: { fontSize: 18 },
-  dataLabel: { fontSize: 14, fontFamily: fonts.extraBold, color: colors.stone },
-  dataSub: { fontSize: 12, color: colors.stoneMid, marginTop: 2, lineHeight: 16 },
-  danger: { color: '#C0392B' },
+  dataLabel: { fontSize: 14, fontFamily: fonts.bold, color: ink.primary },
+  dataSub: { fontSize: 12, fontFamily: fonts.medium, color: ink.muted, marginTop: 2, lineHeight: 16 },
 
+  // Dialogs
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(42,39,36,0.5)',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
@@ -593,19 +464,17 @@ const styles = StyleSheet.create({
   dialog: {
     width: '100%',
     maxWidth: 320,
-    backgroundColor: colors.white,
-    borderRadius: radius.lg,
+    backgroundColor: surface.card,
+    borderRadius: radius.sheet,
     padding: 20,
     ...shadow.card,
   },
-  dialogTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: colors.stone, marginBottom: 8 },
-  dialogBody: { fontSize: 13, color: colors.stoneMid, lineHeight: 19, marginBottom: 18 },
+  dialogTitle: { fontSize: 16, fontFamily: fonts.bold, color: ink.primary, marginBottom: 8 },
+  dialogBody: { fontSize: 13, fontFamily: fonts.medium, color: ink.muted, lineHeight: 19, marginBottom: 18 },
   dialogActions: { flexDirection: 'row', gap: 10 },
-  dialogBtn: { flex: 1, borderRadius: radius.sm, paddingVertical: 12, alignItems: 'center' },
-  cancelBtn: { backgroundColor: colors.sagePale },
-  cancelBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.sage },
-  confirmBtn: { backgroundColor: colors.sage },
-  confirmBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.white },
-  deleteBtn: { backgroundColor: '#C0392B' },
-  deleteBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.white },
+  dialogBtn: { flex: 1, borderRadius: radius.tile, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
+  cancelBtn: { backgroundColor: surface.field },
+  cancelBtnText: { fontSize: 13, fontFamily: fonts.bold, color: ink.muted },
+  confirmBtn: { backgroundColor: green.mid },
+  confirmBtnText: { fontSize: 13, fontFamily: fonts.bold, color: ink.onDark },
 });
