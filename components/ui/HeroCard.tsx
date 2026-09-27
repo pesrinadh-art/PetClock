@@ -1,10 +1,10 @@
 import * as React from 'react';
-import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, G } from 'react-native-svg';
-import { green, ink, radius, shadow } from '../../theme/colors';
+import { amber, green, ink, radius, shadow } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
-import { Icon } from '../Icon';
+import { Icon, type IconName } from '../Icon';
 import { StatGroup, type Stat } from './StatGroup';
 
 export type { Stat };
@@ -25,6 +25,13 @@ const DEFAULT_GRADIENT: [string, string] = [green.gradientFrom, green.gradientTo
  * `stats` renders the divider + {@link StatGroup} underneath either shape.
  * Override `gradient` for the charcoal appointments look
  * (`['#3c3a46','#2a2833']`).
+ *
+ * Pet-owner additions (optional, existing usage unchanged):
+ *  - `children` renders under the header/stats (e.g. a <ProgressBar variant="onDark">
+ *    or a friendly one-liner)
+ *  - `action` renders a white pill CTA at the bottom ("Log a break", "Edit Mochi")
+ *  - `right` renders a node at the header's trailing edge (e.g. an onDark IconButton)
+ *  - subtitle may wrap to 2 lines
  */
 export function HeroCard({
   title,
@@ -35,7 +42,10 @@ export function HeroCard({
   leading,
   gradient = DEFAULT_GRADIENT,
   watermark = true,
-  ringColor = '#f3d27a',
+  ringColor = amber.gold,
+  children,
+  action,
+  right,
   style,
 }: {
   title: string;
@@ -47,6 +57,9 @@ export function HeroCard({
   gradient?: [string, string];
   watermark?: boolean;
   ringColor?: string;
+  children?: React.ReactNode;
+  action?: { label: string; onPress: () => void; icon?: IconName };
+  right?: React.ReactNode;
   style?: ViewStyle;
 }) {
   const hasLeading = progress != null || leading != null;
@@ -65,9 +78,19 @@ export function HeroCard({
       )}
 
       {eyebrow != null ? (
-        <View>
-          <Text style={styles.eyebrow}>{eyebrow}</Text>
-          <Text style={styles.bigTitle}>{title}</Text>
+        <View style={styles.headerRow}>
+          <View style={styles.headerText}>
+            <Text style={styles.eyebrow}>{eyebrow}</Text>
+            <Text style={styles.bigTitle} role="heading">
+              {title}
+            </Text>
+            {!!subtitle && (
+              <Text style={styles.subtitle} numberOfLines={2}>
+                {subtitle}
+              </Text>
+            )}
+          </View>
+          {right}
         </View>
       ) : (
         <View style={styles.headerRow}>
@@ -78,15 +101,16 @@ export function HeroCard({
               leading
             ))}
           <View style={styles.headerText}>
-            <Text style={styles.title} numberOfLines={1}>
+            <Text style={styles.title} numberOfLines={2} role="heading">
               {title}
             </Text>
             {!!subtitle && (
-              <Text style={styles.subtitle} numberOfLines={1}>
+              <Text style={styles.subtitle} numberOfLines={2}>
                 {subtitle}
               </Text>
             )}
           </View>
+          {right}
         </View>
       )}
 
@@ -95,6 +119,20 @@ export function HeroCard({
           <StatGroup stats={stats} variant="onDark" />
         </View>
       )}
+
+      {children ? <View style={styles.childrenWrap}>{children}</View> : null}
+
+      {action ? (
+        <Pressable
+          onPress={action.onPress}
+          role="button"
+          aria-label={action.label}
+          style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
+        >
+          {action.icon ? <Icon name={action.icon} size={18} color={green.primary} strokeWidth={2.4} /> : null}
+          <Text style={styles.actionText}>{action.label}</Text>
+        </Pressable>
+      ) : null}
     </LinearGradient>
   );
 }
@@ -137,23 +175,37 @@ function ProgressRing({ progress, ringColor }: { progress: number; ringColor: st
 const styles = StyleSheet.create({
   hero: {
     borderRadius: radius.hero,
-    padding: 18,
+    padding: 20,
     overflow: 'hidden',
     ...shadow.hero,
   },
   watermark: { position: 'absolute', right: 4, bottom: -10 },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   headerText: { flex: 1 },
-  title: { fontFamily: fonts.extraBold, fontSize: 24, color: ink.onDark, letterSpacing: -0.5, lineHeight: 27 },
-  subtitle: { fontFamily: fonts.medium, fontSize: 12.5, color: 'rgba(255,255,255,0.72)', marginTop: 2 },
+  title: { fontFamily: fonts.extraBold, fontSize: 26, color: ink.onDark, letterSpacing: -0.5, lineHeight: 30 },
+  subtitle: { fontFamily: fonts.medium, fontSize: 14, lineHeight: 19, color: ink.onDarkMuted, marginTop: 3 },
   eyebrow: {
     fontFamily: fonts.bold,
-    fontSize: 10.5,
-    letterSpacing: 1.5,
+    fontSize: 12,
+    letterSpacing: 1.1,
     textTransform: 'uppercase',
-    color: 'rgba(255,255,255,0.66)',
+    color: 'rgba(255,255,255,0.8)',
   },
-  bigTitle: { fontFamily: fonts.extraBold, fontSize: 26, color: ink.onDark, letterSpacing: -0.5, marginTop: 3 },
+  bigTitle: { fontFamily: fonts.extraBold, fontSize: 27, color: ink.onDark, letterSpacing: -0.5, marginTop: 3 },
+  childrenWrap: { marginTop: 16 },
+  action: {
+    marginTop: 16,
+    minHeight: 48,
+    borderRadius: 14,
+    backgroundColor: '#ffffff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 18,
+  },
+  actionPressed: { opacity: 0.88, transform: [{ scale: 0.98 }] },
+  actionText: { fontFamily: fonts.extraBold, fontSize: 15.5, color: green.primary },
   statsWrap: {
     marginTop: 16,
     paddingTop: 14,

@@ -1,16 +1,23 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { colors, shadow } from '../theme/colors';
-import { fonts } from '../theme/fonts';
+import { ink, radius, shadow, space, surface, tones, type Tone } from '../theme/colors';
+import { type } from '../theme/fonts';
 import type { Reminder } from '../data/mockData';
+import { IconTile } from './ui';
+import type { IconName } from './Icon';
 
-const ACCENTS: Record<Reminder['type'], string> = {
-  pee: colors.pee,
-  poo: colors.pooLight,
-  food: colors.food,
-  appt: colors.apptVet,
-  medication: colors.medicine,
+const STYLE: Record<Reminder['type'], { icon: IconName; tone: Tone }> = {
+  pee: { icon: 'drop', tone: 'pee' },
+  poo: { icon: 'poo', tone: 'poo' },
+  food: { icon: 'bowl', tone: 'food' },
+  appt: { icon: 'vet', tone: 'vet' },
+  medication: { icon: 'pill', tone: 'med' },
 };
 
+/**
+ * Legacy horizontal strip of reminder cards (not rendered by the current Home,
+ * which lists "Coming up for <pet>" vertically). Restyled to the pet-owner
+ * tokens: drawn icon tiles by role, sentence-case labels, text >= 12px.
+ */
 export function RemindersStrip({ reminders }: { reminders: Reminder[] }) {
   return (
     <ScrollView
@@ -19,14 +26,17 @@ export function RemindersStrip({ reminders }: { reminders: Reminder[] }) {
       style={styles.scroll}
       contentContainerStyle={styles.row}
     >
-      {reminders.map((r) => (
-        <View key={r.id} style={[styles.card, { borderTopColor: ACCENTS[r.type] }]}>
-          <Text style={styles.icon}>{r.icon}</Text>
-          <Text numberOfLines={1} ellipsizeMode="tail" style={styles.type}>{r.label}</Text>
-          <Text numberOfLines={1} style={styles.time}>{r.time}</Text>
-          <Text numberOfLines={1} style={styles.sub}>{r.sub}</Text>
-        </View>
-      ))}
+      {reminders.map((r) => {
+        const s = STYLE[r.type];
+        return (
+          <View key={r.id} style={[styles.card, { borderTopColor: tones[s.tone].solid }]}>
+            <IconTile icon={s.icon} tone={s.tone} size={36} style={styles.tile} />
+            <Text numberOfLines={1} style={styles.type}>{r.label}</Text>
+            <Text numberOfLines={1} style={styles.time}>{r.time}</Text>
+            <Text numberOfLines={1} style={styles.sub}>{r.sub}</Text>
+          </View>
+        );
+      })}
     </ScrollView>
   );
 }
@@ -35,18 +45,17 @@ const styles = StyleSheet.create({
   scroll: { flexGrow: 0, flexShrink: 0 },
   row: { gap: 10, paddingVertical: 6, paddingRight: 4 },
   card: {
-    minWidth: 136,
+    minWidth: 150,
     maxWidth: 220,
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 12,
-    paddingHorizontal: 14,
+    backgroundColor: surface.card,
+    borderRadius: radius.card,
+    padding: space.md,
     borderTopWidth: 3,
     borderTopColor: 'transparent',
-    ...shadow.sm,
+    ...shadow.card,
   },
-  icon: { fontSize: 18, marginBottom: 4 },
-  type: { fontSize: 10, fontFamily: fonts.extraBold, textTransform: 'uppercase', letterSpacing: 0.5, color: colors.stoneMid },
-  time: { fontSize: 14, fontFamily: fonts.extraBold, color: colors.stone, marginVertical: 2 },
-  sub: { fontSize: 11, color: colors.stoneMid },
+  tile: { marginBottom: space.xs },
+  type: { ...type.subhead, color: ink.primary },
+  time: { ...type.bodySm, fontFamily: type.subhead.fontFamily, color: ink.primary, marginTop: 2 },
+  sub: { ...type.caption, color: ink.muted, marginTop: 1 },
 });

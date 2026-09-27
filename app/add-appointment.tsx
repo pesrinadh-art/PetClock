@@ -1,34 +1,38 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { category, green, ink, line, radius, surface } from '../theme/colors';
-import { fonts } from '../theme/fonts';
-import { Card, GlassSurface, SectionLabel } from '../components/ui';
-import { Icon, type IconName } from '../components/Icon';
+import { ink, line, space, tones } from '../theme/colors';
+import { fonts, type } from '../theme/fonts';
+import {
+  Button,
+  Card,
+  ChoiceChip,
+  ChoiceChipRow,
+  Pill,
+  Screen,
+  ScreenHeader,
+  SectionLabel,
+  TextField,
+} from '../components/ui';
+import { Icon } from '../components/Icon';
 import { Toggle } from '../components/Toggle';
 import { DatePickerField } from '../components/DatePickerField';
 import { TimePickerField } from '../components/TimePickerField';
 import { PetAvatar } from '../components/PetAvatar';
+import { APPT_TYPE_META, APPT_TYPE_ORDER } from '../components/appointments/apptMeta';
 import { type ApptType } from '../data/mockData';
 import { usePets } from '../context/PetsContext';
 import { useAppointments } from '../context/AppointmentsContext';
 import { formatApptTime, parseAppointmentDateTime } from '../lib/appointmentUtils';
 import { allDayToHasTime, hasTimeToAllDay } from '../lib/db/models';
-
-const TYPES: { key: ApptType; icon: IconName; label: string; bg: string; ink: string }[] = [
-  { key: 'vet', icon: 'vet', label: 'Vet', bg: category.vetBg, ink: category.vetInk },
-  { key: 'vaccine', icon: 'vaccine', label: 'Vaccine', bg: category.vaccineBg, ink: category.vaccineInk },
-  { key: 'groom', icon: 'scissors', label: 'Groom', bg: category.groomBg, ink: category.groomInk },
-  { key: 'other', icon: 'dots', label: 'Other', bg: category.otherBg, ink: category.otherInk },
-];
+import { friendlyIn, joinNames, possessive } from '../lib/petVoice';
 
 const MINUTES_PER_DAY = 24 * 60;
 
-const REMINDER_OPTIONS: { label: string; offsetMinutes: number }[] = [
-  { label: '1 week before', offsetMinutes: 7 * MINUTES_PER_DAY },
-  { label: '1 day before', offsetMinutes: MINUTES_PER_DAY },
-  { label: '2 hours before', offsetMinutes: 2 * 60 },
+const REMINDER_OPTIONS: { label: string; hint: string; offsetMinutes: number }[] = [
+  { label: 'A week before', hint: 'Plenty of time to plan ahead', offsetMinutes: 7 * MINUTES_PER_DAY },
+  { label: 'The day before', hint: 'Pack records and treats', offsetMinutes: MINUTES_PER_DAY },
+  { label: '2 hours before', hint: 'A heads-up to get going', offsetMinutes: 2 * 60 },
 ];
 
 const DEFAULT_OFFSETS = [7 * MINUTES_PER_DAY, MINUTES_PER_DAY];
@@ -95,277 +99,245 @@ export default function AddAppointmentScreen() {
 
   const closeSheet = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)'));
 
+  // ── Presentation-only derivations ───────────────────────────────────────
+  const meta = APPT_TYPE_META[type];
+  const chosenPets = pets.filter((p) => selectedPets.includes(p.id));
+  const chosenNames = chosenPets.length > 0 ? joinNames(chosenPets.map((p) => p.name)) : null;
+  const headerSubtitle = chosenNames
+    ? `For ${chosenNames}`
+    : pets.length > 0
+      ? "Pick who's going below"
+      : 'Vet, vaccines and grooming';
+  const saveLabel = isEditing
+    ? 'Save changes'
+    : chosenPets.length === 1
+      ? `Save ${possessive(chosenPets[0].name)} visit`
+      : 'Save visit';
+  const missing: string[] = [];
+  if (!title.trim()) missing.push('a title');
+  if (!date.trim()) missing.push('a date');
+  const saveHint = canSave
+    ? null
+    : missing.length > 0
+      ? `Add ${missing.join(' and ')} to save.`
+      : 'That date or time looks a little off. Pick one from the list?';
+  const now = new Date();
+  const whenPreview =
+    parsedDateTime && parsedDateTime.getTime() > now.getTime()
+      ? `That's ${friendlyIn(parsedDateTime, now)}`
+      : null;
+
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <GlassSurface fallbackColor={surface.app} fallbackOpacity={0.98} style={styles.header}>
-          <View style={styles.handle} />
-          <View style={styles.titleRow}>
-            <Text style={styles.modalTitle}>{isEditing ? 'Edit appointment' : 'New appointment'}</Text>
-            <Pressable
-              style={({ pressed }) => [styles.closeBtn, pressed && styles.pressed]}
-              onPress={closeSheet}
-              role="button"
-              aria-label="Close"
-              hitSlop={8}
-            >
-              <Icon name="close" size={15} color={ink.muted} strokeWidth={2.3} />
-            </Pressable>
+    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <Screen
+        edges={[]}
+        keyboardShouldPersistTaps="handled"
+        header={
+          <View>
+            <View style={styles.handle} />
+            <ScreenHeader
+              title={isEditing ? 'Edit visit' : 'Plan a visit'}
+              subtitle={headerSubtitle}
+              backIcon="close"
+              backLabel="Close"
+              onBack={closeSheet}
+            />
           </View>
-        </GlassSurface>
-
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <SectionLabel>Type</SectionLabel>
-          <View style={styles.typeGrid}>
-            {TYPES.map((t) => {
-              const selected = type === t.key;
-              return (
-                <Pressable
-                  key={t.key}
-                  onPress={() => setType(t.key)}
-                  role="button"
-                  aria-label={t.label}
-                  aria-selected={selected}
-                  style={({ pressed }) => [
-                    styles.typeChip,
-                    { backgroundColor: t.bg, borderColor: selected ? t.ink : 'transparent' },
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <Icon name={t.icon} size={19} color={t.ink} strokeWidth={2} />
-                  <Text style={[styles.typeChipLabel, { color: t.ink }, selected && styles.typeChipLabelSelected]}>
-                    {t.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
+        }
+        contentStyle={styles.content}
+        footer={
+          <View style={styles.footerInner}>
+            {!!saveHint && (
+              <Text style={styles.saveHint} role="status">
+                {saveHint}
+              </Text>
+            )}
+            <Button
+              label={saveLabel}
+              icon="check"
+              fullWidth
+              disabled={!canSave}
+              onPress={handleSave}
+              accessibilityLabel={isEditing ? 'Save changes' : 'Save appointment'}
+            />
           </View>
-
-          <SectionLabel style={styles.groupLabel}>Pet(s)</SectionLabel>
-          <View style={styles.petRow}>
-            {pets.map((p) => {
-              const selected = selectedPets.includes(p.id);
-              return (
-                <Pressable
+        }
+      >
+        {pets.length > 0 && (
+          <>
+            <SectionLabel hint="Tap everyone who's coming along">Who's going?</SectionLabel>
+            <ChoiceChipRow>
+              {pets.map((p) => (
+                <ChoiceChip
                   key={p.id}
+                  multi
+                  label={p.name}
+                  selected={selectedPets.includes(p.id)}
                   onPress={() => togglePet(p.id)}
-                  role="button"
-                  aria-label={p.name}
-                  aria-selected={selected}
-                  style={({ pressed }) => [
-                    styles.petChip,
-                    selected
-                      ? { backgroundColor: green.tint, borderColor: green.mid }
-                      : { backgroundColor: surface.card, borderColor: line.border },
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <PetAvatar pet={p} size={22} emojiSize={13} style={styles.petChipAvatar} />
-                  <Text style={[styles.petChipText, { color: selected ? green.primary : ink.muted }]}>
-                    {p.name}
-                  </Text>
-                  {selected && <Icon name="check" size={13} color={green.mid} strokeWidth={3} />}
-                </Pressable>
-              );
-            })}
+                  leading={<PetAvatar pet={p} size={30} emojiSize={17} />}
+                />
+              ))}
+            </ChoiceChipRow>
+          </>
+        )}
+
+        <SectionLabel style={pets.length > 0 ? styles.groupLabel : undefined}>What kind of visit?</SectionLabel>
+        <View style={styles.typeGrid}>
+          {APPT_TYPE_ORDER.map((key) => {
+            const m = APPT_TYPE_META[key];
+            return (
+              <View key={key} style={styles.typeCell}>
+                <ChoiceChip
+                  label={m.label}
+                  icon={m.icon}
+                  tone={m.tone}
+                  selected={type === key}
+                  onPress={() => setType(key)}
+                  fill
+                />
+              </View>
+            );
+          })}
+        </View>
+
+        <View style={styles.groupLabel}>
+          <TextField
+            label="What's it for?"
+            value={title}
+            onChangeText={setTitle}
+            placeholder={meta.placeholder}
+            returnKeyType="done"
+          />
+          <ChoiceChipRow style={styles.suggestions}>
+            {meta.suggestions.map((s) => (
+              <ChoiceChip
+                key={s}
+                label={s}
+                tone={meta.tone}
+                selected={title.trim() === s}
+                onPress={() => setTitle(s)}
+              />
+            ))}
+          </ChoiceChipRow>
+        </View>
+
+        <SectionLabel style={styles.groupLabel} hint="Leave the time empty for an all-day visit">
+          When?
+        </SectionLabel>
+        <Card>
+          <View style={styles.splitRow}>
+            <DatePickerField
+              inset
+              label="Date"
+              value={date}
+              onChange={setDate}
+              placeholder="Pick a day"
+              minDate={new Date()}
+              style={styles.splitCell}
+            />
+            <View style={styles.vDivider} />
+            <TimePickerField
+              inset
+              label="Time"
+              value={time}
+              onChange={setTime}
+              placeholder="Any time"
+              defaultTime="9:00 AM"
+              style={styles.splitCell}
+            />
           </View>
+        </Card>
+        {!!whenPreview && (
+          <Pill tone="pet" icon="clock" label={whenPreview} style={styles.whenPill} />
+        )}
 
-          <Card style={styles.detailsCard}>
-            <InsetField label="Title" value={title} onChangeText={setTitle} placeholder="e.g. Annual checkup" />
-            <View style={styles.hairline} />
-            <View style={styles.splitRow}>
-              <DatePickerField
-                inset
-                label="Date"
-                value={date}
-                onChange={setDate}
-                placeholder="Jul 4, 2026"
-                minDate={new Date()}
-                style={styles.splitCell}
-              />
-              <View style={styles.vDivider} />
-              <TimePickerField
-                inset
-                label="Time"
-                value={time}
-                onChange={setTime}
-                placeholder="10:00 AM"
-                defaultTime="9:00 AM"
-                style={styles.splitCell}
-              />
-            </View>
-            <View style={styles.hairline} />
-            <InsetField
-              label="Clinic / Location"
-              icon="mapPin"
-              value={location}
-              onChangeText={setLocation}
-              placeholder="City Vet Clinic"
-            />
-            <View style={styles.hairline} />
-            <InsetField
-              label="Notes"
-              value={notes}
-              onChangeText={setNotes}
-              placeholder="e.g. bring vaccination records…"
-            />
-          </Card>
+        <SectionLabel style={styles.groupLabel}>Where and what to bring</SectionLabel>
+        <View style={styles.fields}>
+          <TextField
+            label="Clinic or place"
+            value={location}
+            onChangeText={setLocation}
+            placeholder="e.g. City Vet Clinic"
+          />
+          <TextField
+            label="Notes"
+            value={notes}
+            onChangeText={setNotes}
+            placeholder="e.g. Bring vaccine records and a favourite treat"
+            hint={chosenNames ? `Anything to remember for ${chosenNames}.` : 'Anything to remember on the day.'}
+            multiline
+            style={styles.notesInput}
+          />
+        </View>
 
-          <SectionLabel style={styles.groupLabel}>Reminders</SectionLabel>
-          <Card>
-            {REMINDER_OPTIONS.map((opt, i) => (
+        <SectionLabel
+          style={styles.groupLabel}
+          hint={
+            chosenNames ? `So ${chosenNames} never misses a visit` : "We'll nudge you before the visit"
+          }
+        >
+          Reminders
+        </SectionLabel>
+        <Card>
+          {REMINDER_OPTIONS.map((opt, i) => {
+            const on = reminderOffsets.includes(opt.offsetMinutes);
+            return (
               <View key={opt.offsetMinutes}>
                 <View style={styles.notifOption}>
-                  <View style={styles.notifLabelWrap}>
-                    <Icon name="bell" size={16} color={ink.muted} strokeWidth={2} />
-                    <Text style={styles.notifLabel}>Remind {opt.label}</Text>
+                  <Icon name="bell" size={18} color={on ? tones.pet.ink : ink.muted} strokeWidth={2} />
+                  <View style={styles.notifText}>
+                    <Text style={styles.notifLabel}>{opt.label}</Text>
+                    <Text style={styles.notifHint}>{opt.hint}</Text>
                   </View>
                   <Toggle
-                    on={reminderOffsets.includes(opt.offsetMinutes)}
+                    on={on}
                     onToggle={() => toggleReminder(opt.offsetMinutes)}
-                    aria-label={`Remind ${opt.label}`}
+                    aria-label={`Remind ${opt.label.toLowerCase()}`}
                   />
                 </View>
                 {i < REMINDER_OPTIONS.length - 1 && <View style={styles.hairline} />}
               </View>
-            ))}
-          </Card>
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.saveBtn,
-              !canSave && styles.saveBtnDisabled,
-              pressed && canSave && styles.saveBtnPressed,
-            ]}
-            onPress={handleSave}
-            disabled={!canSave}
-            role="button"
-            aria-label={isEditing ? 'Save changes' : 'Save appointment'}
-            aria-disabled={!canSave}
-          >
-            <Icon name="check" size={15} color={ink.onDark} strokeWidth={2.6} />
-            <Text style={styles.saveBtnText}>{isEditing ? 'Save changes' : 'Save appointment'}</Text>
-          </Pressable>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
-  );
-}
-
-function InsetField({
-  label,
-  icon,
-  ...inputProps
-}: {
-  label: string;
-  icon?: IconName;
-  value: string;
-  onChangeText: (v: string) => void;
-  placeholder?: string;
-}) {
-  return (
-    <View style={styles.insetRow}>
-      {icon && (
-        <View style={styles.insetIcon}>
-          <Icon name={icon} size={16} color={ink.faint} strokeWidth={2} />
-        </View>
-      )}
-      <View style={styles.insetTextWrap}>
-        <Text style={styles.insetLabel}>{label}</Text>
-        <TextInput
-          {...inputProps}
-          style={styles.insetInput}
-          placeholderTextColor="#c0b8a8"
-        />
-      </View>
-    </View>
+            );
+          })}
+        </Card>
+      </Screen>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: surface.app },
   flex: { flex: 1 },
-  header: { paddingBottom: 4, borderTopLeftRadius: radius.sheet, borderTopRightRadius: radius.sheet },
-  handle: { width: 38, height: 4, backgroundColor: '#ddd6c7', borderRadius: 2, alignSelf: 'center', marginTop: 9 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 6 },
-  modalTitle: { fontSize: 19, fontFamily: fonts.extraBold, color: ink.primary, letterSpacing: -0.4 },
-  closeBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: surface.chipAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
+  handle: {
+    width: 40,
+    height: 5,
+    backgroundColor: line.dashed,
+    borderRadius: 3,
+    alignSelf: 'center',
+    marginTop: space.xs,
   },
-  pressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
-  content: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 36 },
-  groupLabel: { marginTop: 20 },
-  typeGrid: { flexDirection: 'row', gap: 8 },
-  typeChip: {
-    flex: 1,
-    borderRadius: 16,
-    paddingTop: 12,
-    paddingBottom: 10,
-    alignItems: 'center',
-    gap: 6,
-    borderWidth: 1.5,
-  },
-  typeChipLabel: { fontSize: 10.5, fontFamily: fonts.semiBold },
-  typeChipLabelSelected: { fontFamily: fonts.bold },
-  petRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  petChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    paddingVertical: 5,
-    paddingLeft: 6,
-    paddingRight: 14,
-    borderRadius: 999,
-    borderWidth: 1.5,
-  },
-  petChipAvatar: { backgroundColor: surface.card },
-  petChipText: { fontSize: 13, fontFamily: fonts.bold },
-  detailsCard: { marginTop: 18 },
-  insetRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 16 },
-  insetIcon: { paddingTop: 20 },
-  insetTextWrap: { flex: 1, paddingVertical: 11 },
-  insetLabel: { fontSize: 10, fontFamily: fonts.bold, textTransform: 'uppercase', letterSpacing: 1.2, color: ink.faint2 },
-  insetInput: {
-    fontFamily: fonts.semiBold,
-    fontSize: 14.5,
-    color: ink.primary,
-    paddingVertical: 0,
-    marginTop: 3,
-  },
-  hairline: { height: 1, backgroundColor: line.hairline, marginHorizontal: 16 },
+  content: { paddingTop: space.xs },
+  groupLabel: { marginTop: space.section },
+  typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  typeCell: { flexBasis: '47%', flexGrow: 1 },
+  suggestions: { marginTop: space.sm },
   splitRow: { flexDirection: 'row', alignItems: 'stretch' },
   splitCell: { flex: 1 },
   vDivider: { width: 1, backgroundColor: line.hairline, marginVertical: 10 },
+  whenPill: { marginTop: space.sm },
+  fields: { gap: space.lg },
+  notesInput: { minHeight: 76, textAlignVertical: 'top' },
   notifOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 13,
-    paddingHorizontal: 16,
+    gap: space.sm,
+    minHeight: 64,
+    paddingVertical: space.xs,
+    paddingHorizontal: space.lg,
   },
-  notifLabelWrap: { flexDirection: 'row', alignItems: 'center', gap: 11, flex: 1, paddingRight: 8 },
-  notifLabel: { fontSize: 14, fontFamily: fonts.semiBold, color: ink.primary },
-  saveBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: green.mid,
-    borderRadius: 15,
-    paddingVertical: 15,
-    marginTop: 18,
-    shadowColor: green.mid,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  saveBtnDisabled: { backgroundColor: '#c8c3ba', shadowOpacity: 0 },
-  saveBtnPressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
-  saveBtnText: { color: ink.onDark, fontSize: 14, fontFamily: fonts.extraBold },
+  notifText: { flex: 1, minWidth: 0 },
+  notifLabel: { ...type.subhead, color: ink.primary },
+  notifHint: { ...type.caption, color: ink.muted, marginTop: 1 },
+  hairline: { height: 1, backgroundColor: line.hairline, marginHorizontal: space.lg },
+  footerInner: { gap: space.xs },
+  saveHint: { ...type.caption, fontFamily: fonts.semiBold, color: ink.muted, textAlign: 'center' },
 });

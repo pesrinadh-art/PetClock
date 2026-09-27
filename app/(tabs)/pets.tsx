@@ -1,23 +1,33 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { surface, green, ink, line, radius } from '../../theme/colors';
-import { fonts } from '../../theme/fonts';
-import { Icon } from '../../components/Icon';
-import { HeroCard, SectionLabel, type Stat } from '../../components/ui';
+import { ink, space } from '../../theme/colors';
+import { type } from '../../theme/fonts';
+import {
+  Button,
+  HeroCard,
+  PetEmptyState,
+  Screen,
+  SectionLabel,
+  type Stat,
+} from '../../components/ui';
 import { TopNavBar } from '../../components/TopNavBar';
 import { PetListItem } from '../../components/PetListItem';
-import { AppModal } from '../../components/AppModal';
+import { PetAvatar } from '../../components/PetAvatar';
+import { ConfirmDialog } from '../../components/pets/ConfirmDialog';
 import { usePets } from '../../context/PetsContext';
 import { useLogs } from '../../context/LogsContext';
 import { useDeletePetCascade } from '../../hooks/useDeletePetCascade';
 import { countLogsToday } from '../../lib/petSchedule';
 import { useNow } from '../../hooks/useNow';
+import { joinNames, possessive } from '../../lib/petVoice';
 // TODO(FE-5): move to Settings — the demo-data / reset escape hatch lives here
 // temporarily on the empty Pets tab until the Settings screen (FE-5) exists.
 import { loadDemoData, resetAll } from '../../lib/repo/types';
 import type { Pet } from '../../data/mockData';
+
+/** How many faces to stack in the hero before collapsing into "+N". */
+const MAX_STACKED = 4;
 
 export default function PetsScreen() {
   const { pets, getMedicationsForPet } = usePets();
@@ -37,205 +47,166 @@ export default function PetsScreen() {
     if (!ok) setBlockedMessage(true);
   };
 
+  const addPet = () => router.push('/add-pet');
+
   // Household summary for the hero — sums across every pet.
   const logsToday = pets.reduce((sum, p) => sum + countLogsToday(getLogsForPet(p.id), now), 0);
   const medsCount = pets.reduce((sum, p) => sum + getMedicationsForPet(p.id).filter((m) => m.active).length, 0);
   const stats: Stat[] = [
-    { value: String(pets.length), label: 'Pets' },
+    { value: String(pets.length), label: pets.length === 1 ? 'Pet' : 'Pets' },
     { value: pets.length > 0 ? String(logsToday) : '—', label: 'Logs today' },
-    { value: medsCount > 0 ? String(medsCount) : '—', label: 'Meds' },
+    { value: medsCount > 0 ? String(medsCount) : '—', label: 'Daily meds' },
   ];
 
+  const names = joinNames(pets.map((p) => p.name));
+  const stacked = pets.slice(0, MAX_STACKED);
+  const extra = pets.length - stacked.length;
+  const heroSubtitle =
+    logsToday > 0
+      ? `${logsToday} ${logsToday === 1 ? 'moment' : 'moments'} logged today. Lovely work.`
+      : 'Tap a pet to see their meals, meds and diary.';
+
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopNavBar />
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <HeroCard
-          eyebrow="PawClock"
-          title="Your pets"
-          stats={stats}
-        />
+    <Screen header={<TopNavBar title="Your pets" eyebrow={pets.length > 0 ? 'Family' : undefined} />} tabBar>
+      {pets.length === 0 ? (
+        <>
+          <PetEmptyState
+            title="Let's meet your pet"
+            body="Add your first pet and we'll help you keep track of their day."
+            icon="paw"
+            tone="pet"
+            action={{ label: 'Add your first pet', icon: 'plus', onPress: addPet }}
+            style={styles.emptyState}
+          />
 
-        <View style={styles.section}>
-          <SectionLabel>In your care</SectionLabel>
-          {pets.map((pet) => (
-            <PetListItem key={pet.id} pet={pet} onDelete={() => setPendingDelete(pet)} />
-          ))}
-
-          <Pressable
-            style={({ pressed }) => [styles.dashed, pressed && styles.dashedPressed]}
-            onPress={() => router.push('/add-pet')}
-            role="button"
-            aria-label="Add pet"
-          >
-            <Icon name="plus" size={15} color={ink.muted} strokeWidth={2.2} />
-            <Text style={styles.dashedText}>Add pet</Text>
-          </Pressable>
-        </View>
-
-        {/* TODO(FE-5): move to Settings — temporary demo-data escape hatch shown
-            only when there are no pets (a fresh install starts empty). */}
-        {pets.length === 0 && (
+          {/* TODO(FE-5): move to Settings — temporary demo-data escape hatch shown
+              only when there are no pets (a fresh install starts empty). */}
           <View style={styles.demoBox}>
             <Text style={styles.demoText}>
-              Just exploring? Load sample pets, logs and appointments to try PawClock out.
+              Just exploring? Load sample pets, logs and visits to try PawClock out.
             </Text>
-            <Pressable
-              style={({ pressed }) => [styles.demoBtn, pressed && styles.pressed]}
+            <Button
+              label="Load demo data"
+              variant="secondary"
+              size="md"
+              icon="sparkle"
               onPress={() => void loadDemoData()}
-              role="button"
-              aria-label="Load demo data"
-            >
-              <Text style={styles.demoBtnText}>Load demo data</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.resetLink, pressed && styles.pressed]}
+              style={styles.center}
+            />
+            <Button
+              label="Reset all data"
+              variant="ghost"
+              tone="neutral"
+              size="md"
               onPress={() => setConfirmReset(true)}
-              role="button"
-              aria-label="Reset all data"
-            >
-              <Text style={styles.resetLinkText}>Reset all data</Text>
-            </Pressable>
+              style={styles.center}
+            />
           </View>
-        )}
-      </ScrollView>
-
-      <AppModal visible={!!pendingDelete} transparent animationType="fade" onRequestClose={() => setPendingDelete(null)}>
-        <Pressable style={styles.overlay} onPress={() => setPendingDelete(null)}>
-          <Pressable style={styles.dialog} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.dialogTitle}>Remove {pendingDelete?.name}?</Text>
-            <Text style={styles.dialogBody}>
-              This deletes their profile and log history. This can't be undone.
-            </Text>
-            <View style={styles.dialogActions}>
-              <Pressable
-                style={({ pressed }) => [styles.dialogBtn, styles.cancelBtn, pressed && styles.pressed]}
-                onPress={() => setPendingDelete(null)}
-                role="button"
-                aria-label="Cancel"
-              >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [styles.dialogBtn, styles.deleteBtn, pressed && styles.pressed]}
-                onPress={confirmDelete}
-                role="button"
-                aria-label={`Remove ${pendingDelete?.name}`}
-              >
-                <Text style={styles.deleteBtnText}>Remove</Text>
-              </Pressable>
+        </>
+      ) : (
+        <>
+          <HeroCard
+            eyebrow={pets.length === 1 ? 'In your care' : `${pets.length} in your care`}
+            title={names}
+            subtitle={heroSubtitle}
+            stats={stats}
+          >
+            <View style={styles.faces} aria-label={`Photos of ${names}`}>
+              {stacked.map((pet, i) => (
+                <View key={pet.id} style={[styles.face, i > 0 && styles.faceOverlap]}>
+                  <PetAvatar pet={pet} size={40} ring="onDark" />
+                </View>
+              ))}
+              {extra > 0 ? (
+                <View style={[styles.face, styles.faceOverlap, styles.more]}>
+                  <Text style={styles.moreText}>+{extra}</Text>
+                </View>
+              ) : null}
             </View>
-          </Pressable>
-        </Pressable>
-      </AppModal>
+          </HeroCard>
 
-      {/* TODO(FE-5): move to Settings — destructive reset confirm (reuses AppModal). */}
-      <AppModal visible={confirmReset} transparent animationType="fade" onRequestClose={() => setConfirmReset(false)}>
-        <Pressable style={styles.overlay} onPress={() => setConfirmReset(false)}>
-          <Pressable style={styles.dialog} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.dialogTitle}>Reset all data?</Text>
-            <Text style={styles.dialogBody}>
-              This clears every pet, log and appointment on this device. This can't be undone.
-            </Text>
-            <View style={styles.dialogActions}>
-              <Pressable
-                style={({ pressed }) => [styles.dialogBtn, styles.cancelBtn, pressed && styles.pressed]}
-                onPress={() => setConfirmReset(false)}
-                role="button"
-                aria-label="Cancel"
-              >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [styles.dialogBtn, styles.deleteBtn, pressed && styles.pressed]}
-                onPress={() => {
-                  setConfirmReset(false);
-                  void resetAll();
-                }}
-                role="button"
-                aria-label="Reset all data"
-              >
-                <Text style={styles.deleteBtnText}>Reset</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </AppModal>
+          <View style={styles.section}>
+            <SectionLabel hint="Tap a pet to open their profile.">
+              Your family
+            </SectionLabel>
+            {pets.map((pet) => (
+              <PetListItem key={pet.id} pet={pet} onDelete={() => setPendingDelete(pet)} />
+            ))}
 
-      <AppModal visible={blockedMessage} transparent animationType="fade" onRequestClose={() => setBlockedMessage(false)}>
-        <Pressable style={styles.overlay} onPress={() => setBlockedMessage(false)}>
-          <Pressable style={styles.dialog} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.dialogTitle}>Can't remove your last pet</Text>
-            <Text style={styles.dialogBody}>PawClock needs at least one pet. Add another before removing this one.</Text>
-            <Pressable
-              style={({ pressed }) => [styles.dialogBtn, styles.cancelBtn, pressed && styles.pressed, { marginTop: 4 }]}
-              onPress={() => setBlockedMessage(false)}
-              role="button"
-              aria-label="Got it"
-            >
-              <Text style={styles.cancelBtnText}>Got it</Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </AppModal>
-    </SafeAreaView>
+            <Button
+              label={pets.length === 1 ? 'Add another pet' : 'Add a pet'}
+              icon="plus"
+              variant="secondary"
+              fullWidth
+              onPress={addPet}
+              style={styles.addBtn}
+            />
+          </View>
+        </>
+      )}
+
+      <ConfirmDialog
+        visible={!!pendingDelete}
+        onClose={() => setPendingDelete(null)}
+        leading={pendingDelete ? <PetAvatar pet={pendingDelete} size={64} ring /> : undefined}
+        title={`Remove ${pendingDelete?.name ?? 'this pet'}?`}
+        body={`This deletes ${possessive(pendingDelete?.name)} profile and diary. It can't be undone.`}
+        confirm={{
+          label: `Remove ${pendingDelete?.name ?? 'pet'}`,
+          icon: 'trash',
+          tone: 'neutral',
+          onPress: confirmDelete,
+        }}
+        cancel={{ label: `Keep ${pendingDelete?.name ?? 'pet'}` }}
+      />
+
+      {/* TODO(FE-5): move to Settings — destructive reset confirm. */}
+      <ConfirmDialog
+        visible={confirmReset}
+        onClose={() => setConfirmReset(false)}
+        title="Reset all data?"
+        body="This clears every pet, log and visit on this device. It can't be undone."
+        cancel={{ label: 'Keep my data' }}
+        confirm={{
+          label: 'Reset everything',
+          tone: 'neutral',
+          accessibilityLabel: 'Reset all data',
+          onPress: () => {
+            setConfirmReset(false);
+            void resetAll();
+          },
+        }}
+      />
+
+      <ConfirmDialog
+        visible={blockedMessage}
+        onClose={() => setBlockedMessage(false)}
+        title="Your last pet stays"
+        body="PawClock needs at least one pet. Add another before removing this one."
+        cancel={{ label: 'Got it' }}
+      />
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: surface.app },
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 24 },
-  section: { marginTop: 18 },
-  dashed: {
-    flexDirection: 'row',
+  emptyState: { paddingTop: space.xxl * 2 },
+  center: { alignSelf: 'center' },
+  demoBox: { marginTop: space.xs, alignItems: 'center', gap: space.xs, paddingHorizontal: space.xs },
+  demoText: { ...type.bodySm, color: ink.muted, textAlign: 'center', marginBottom: space.xxs },
+
+  faces: { flexDirection: 'row', alignItems: 'center', marginTop: space.md },
+  face: { borderRadius: 999 },
+  faceOverlap: { marginLeft: -10 },
+  more: {
+    width: 44,
+    height: 44,
+    backgroundColor: 'rgba(255,255,255,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 7,
-    marginTop: 2,
-    paddingVertical: 13,
-    borderRadius: 15,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: line.dashed,
   },
-  dashedPressed: { opacity: 0.6 },
-  dashedText: { fontSize: 12.5, fontFamily: fonts.semiBold, color: ink.muted },
+  moreText: { ...type.caption, color: ink.onDark },
 
-  // TODO(FE-5): move to Settings — styling for the temporary demo/reset affordance.
-  demoBox: { marginTop: 24, alignItems: 'center', gap: 12, paddingHorizontal: 8 },
-  demoText: { fontSize: 13, color: ink.muted, textAlign: 'center', lineHeight: 19 },
-  demoBtn: {
-    backgroundColor: green.mid,
-    borderRadius: radius.pill,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-  },
-  demoBtnText: { color: ink.onDark, fontSize: 14, fontFamily: fonts.extraBold },
-  resetLink: { paddingVertical: 6, paddingHorizontal: 8 },
-  resetLinkText: { fontSize: 12, fontFamily: fonts.bold, color: ink.faint },
-
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  dialog: {
-    width: '100%',
-    maxWidth: 320,
-    backgroundColor: surface.card,
-    borderRadius: radius.lg,
-    padding: 20,
-  },
-  dialogTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: ink.primary, marginBottom: 8 },
-  dialogBody: { fontSize: 13, color: ink.muted, lineHeight: 19, marginBottom: 18 },
-  dialogActions: { flexDirection: 'row', gap: 10 },
-  dialogBtn: { flex: 1, borderRadius: radius.sm, paddingVertical: 12, alignItems: 'center' },
-  pressed: { opacity: 0.8 },
-  cancelBtn: { backgroundColor: green.tint },
-  cancelBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: green.primary },
-  deleteBtn: { backgroundColor: '#C0392B' },
-  deleteBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: ink.onDark },
+  section: { marginTop: space.section },
+  addBtn: { marginTop: space.xxs },
 });

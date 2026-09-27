@@ -55,7 +55,21 @@ export type IconName =
   | 'alert'
   | 'share'
   | 'copy'
-  | 'key';
+  | 'key'
+  // pet-owner redesign additions
+  | 'heart'
+  | 'star'
+  | 'sparkle' // small wins / celebration
+  | 'cake' // birthday
+  | 'camera' // pet photo
+  | 'info'
+  | 'arrowRight'
+  | 'history'
+  | 'trash'
+  | 'search'
+  | 'bone'
+  | 'leash' // dog walk
+  | 'sunrise';
 
 export type IconProps = {
   name: IconName;
@@ -68,6 +82,74 @@ export type IconProps = {
 
 // Each glyph renders its inner primitives; stroke/fill are applied by the wrapper.
 const GLYPHS: Record<IconName, React.ReactNode> = {
+  heart: <Path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20Z" />,
+  star: <Path d="m12 3.5 2.6 5.3 5.8.85-4.2 4.1 1 5.75L12 16.8l-5.2 2.7 1-5.75-4.2-4.1 5.8-.85Z" />,
+  sparkle: (
+    <>
+      <Path d="M12 3.5c.6 3.9 2.6 5.9 6.5 6.5-3.9.6-5.9 2.6-6.5 6.5-.6-3.9-2.6-5.9-6.5-6.5 3.9-.6 5.9-2.6 6.5-6.5Z" />
+      <Path d="M19 16.5v4M17 18.5h4" />
+    </>
+  ),
+  cake: (
+    <>
+      <Path d="M4 21h16" />
+      <Path d="M5 21v-6.5A2.5 2.5 0 0 1 7.5 12h9a2.5 2.5 0 0 1 2.5 2.5V21" />
+      <Path d="M5 16.5c1.2.9 2.3.9 3.5 0s2.3-.9 3.5 0 2.3.9 3.5 0 2.3-.9 3.5 0" />
+      <Path d="M12 12V8.5" />
+      <Path d="M12 6.2c.9-.7.9-1.7 0-2.7-.9 1-.9 2 0 2.7Z" />
+    </>
+  ),
+  camera: (
+    <>
+      <Path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.6-2.2h5.8L16.5 7h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5Z" />
+      <Circle cx={12} cy={12.8} r={3.3} />
+    </>
+  ),
+  info: (
+    <>
+      <Circle cx={12} cy={12} r={9} />
+      <Path d="M12 11v5.5M12 7.8h.01" />
+    </>
+  ),
+  arrowRight: <Path d="M5 12h14M13 6l6 6-6 6" />,
+  history: (
+    <>
+      <Path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1L3.5 8.5" />
+      <Path d="M3.5 4v4.5H8" />
+      <Path d="M12 7.5V12l3 2" />
+    </>
+  ),
+  trash: (
+    <>
+      <Path d="M4 7h16M9.5 7V4.5h5V7" />
+      <Path d="M6 7l1 12.5A1.5 1.5 0 0 0 8.5 21h7a1.5 1.5 0 0 0 1.5-1.5L18 7" />
+      <Path d="M10 11v6M14 11v6" />
+    </>
+  ),
+  search: (
+    <>
+      <Circle cx={11} cy={11} r={6.5} />
+      <Path d="m20 20-4.2-4.2" />
+    </>
+  ),
+  bone: (
+    <Path d="M16.2 4.2a2.3 2.3 0 0 1 3.6 2.7 2.3 2.3 0 0 1-2.7 3.6L10.5 17.1a2.3 2.3 0 0 1-3.6 2.7 2.3 2.3 0 0 1-2.7-3.6 2.3 2.3 0 0 1 2.7-3.6l6.6-6.6a2.3 2.3 0 0 1 2.7-1.8Z" />
+  ),
+  leash: (
+    <>
+      <Circle cx={17} cy={6.5} r={3} />
+      <Path d="M14.9 8.6 12 11.5" />
+      <Path d="M12 11.5c-3 3-5.5 5.2-8 8.5" />
+      <Path d="M9 14.5l2 2" />
+    </>
+  ),
+  sunrise: (
+    <>
+      <Path d="M4 18h16M7.5 18a4.5 4.5 0 0 1 9 0" />
+      <Path d="M12 4v5M5.6 9.6l1.4 1.4M18.4 9.6 17 11M3 14h1.5M19.5 14H21" />
+      <Path d="m9.5 6.5 2.5-2.5 2.5 2.5" />
+    </>
+  ),
   home: (
     <>
       <Path d="M3 10.5 12 3l9 7.5" />

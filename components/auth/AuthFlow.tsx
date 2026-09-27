@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -11,9 +10,11 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { green, ink, line, radius, shadow, surface, terracotta } from '../../theme/colors';
-import { fonts } from '../../theme/fonts';
+import { amber, green, ink, line, radius, shadow, space, surface, tap } from '../../theme/colors';
+import { fonts, type } from '../../theme/fonts';
 import { Icon } from '../Icon';
+import { Button, TextField } from '../ui';
+import { BrandMark, InlineNotice } from '../onboarding/OnboardingKit';
 import { useSession } from '../../context/SessionContext';
 import { accountErrorMessage } from '../../lib/auth/account';
 
@@ -29,8 +30,10 @@ import { accountErrorMessage } from '../../lib/auth/account';
  *     "Use a different email" walks back to step 1.
  *
  * Passwordless and mandatory by product decision: no password, no OAuth, no skip. The design
- * mockup's password/Apple/Google/Skip affordances are intentionally omitted. Styling follows
- * `docs/DESIGN_SYSTEM.md` tokens + the drawn `Icon` set.
+ * mockup's password/Apple/Google/Skip affordances are intentionally omitted.
+ *
+ * Pet-owner redesign: calm, reassuring copy; 56px CTAs; big code cells; gentle amber
+ * (never red) notices that pair an icon with the text.
  *
  * Delivery failures never crash: `EMAIL_SEND_FAILED` shows a readable retry message (BE SMTP
  * may not be configured yet — see the task report / DEV bypass).
@@ -140,6 +143,8 @@ export function AuthFlow() {
     setNotice(null);
   }, []);
 
+  const codeComplete = code.length === CODE_LENGTH;
+
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView
@@ -153,91 +158,77 @@ export function AuthFlow() {
         >
           {/* Brand lockup (shared by both steps) */}
           <View style={styles.brand}>
-            <View style={styles.logoTile}>
-              <Icon name="paw" size={40} color={green.primary} strokeWidth={2} />
-            </View>
+            <BrandMark size={72} />
             <Text style={styles.wordmark}>PawClock</Text>
-            <Text style={styles.tagline}>Never miss a break, meal or med.</Text>
+            <Text style={styles.tagline}>Never miss a potty break again</Text>
           </View>
 
           {step === 'email' ? (
             <View style={styles.card}>
-              <Text style={styles.heading}>Verify your email</Text>
-              <Text style={styles.body}>
-                We&apos;ll send a 6-digit code to confirm it&apos;s you. No password needed.
-              </Text>
-
-              <Text style={styles.label}>Your name</Text>
-              <View style={[styles.field, name.length > 0 && styles.fieldActive]}>
-                <Icon name="user" size={18} color={ink.faint} strokeWidth={2} />
-                <TextInput
-                  value={name}
-                  onChangeText={setName}
-                  placeholder="Alex"
-                  placeholderTextColor={ink.faint2}
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                  autoComplete="name"
-                  textContentType="name"
-                  returnKeyType="next"
-                  style={styles.fieldInput}
-                  editable={!busy}
-                />
+              <View style={styles.cardHead}>
+                <Text style={styles.heading} role="heading">
+                  Welcome! Let&apos;s get you in
+                </Text>
+                <Text style={styles.body}>
+                  We&apos;ll email you a 6-digit code. No password to remember.
+                </Text>
               </View>
 
-              <Text style={styles.label}>Email</Text>
-              <View
-                style={[styles.field, email.length > 0 && styles.fieldActive, error && styles.fieldError]}
-              >
-                <Icon name="mail" size={18} color={ink.faint} strokeWidth={2} />
-                <TextInput
-                  value={email}
-                  onChangeText={(v) => {
-                    setEmail(v);
-                    if (error) setError(null);
-                  }}
-                  placeholder="you@example.com"
-                  placeholderTextColor={ink.faint2}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  autoComplete="email"
-                  textContentType="emailAddress"
-                  returnKeyType="go"
-                  onSubmitEditing={() => void onSendCode()}
-                  style={styles.fieldInput}
-                  editable={!busy}
-                />
-              </View>
+              <TextField
+                label="Your name"
+                hint="Optional. We'll use it to name your household."
+                value={name}
+                onChangeText={setName}
+                placeholder="e.g. Alex"
+                autoCapitalize="words"
+                autoCorrect={false}
+                autoComplete="name"
+                textContentType="name"
+                returnKeyType="next"
+                editable={!busy}
+              />
 
-              {error ? <ErrorRow message={error} /> : null}
+              <TextField
+                label="Email"
+                value={email}
+                onChangeText={(v) => {
+                  setEmail(v);
+                  if (error) setError(null);
+                }}
+                placeholder="you@example.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="email"
+                textContentType="emailAddress"
+                returnKeyType="go"
+                onSubmitEditing={() => void onSendCode()}
+                editable={!busy}
+              />
 
-              <Pressable
+              {error ? <InlineNotice tone="attention" message={error} /> : null}
+
+              <Button
+                label="Email me a code"
+                accessibilityLabel="Continue"
+                icon="mail"
+                fullWidth
+                loading={busy}
                 onPress={() => void onSendCode()}
-                disabled={busy}
-                role="button"
-                aria-label="Continue"
-                style={({ pressed }) => [
-                  styles.primaryBtn,
-                  pressed && styles.primaryBtnPressed,
-                  busy && styles.primaryBtnDisabled,
-                ]}
-              >
-                {busy ? (
-                  <ActivityIndicator color={ink.onDark} />
-                ) : (
-                  <Text style={styles.primaryBtnText}>Continue</Text>
-                )}
-              </Pressable>
+              />
             </View>
           ) : (
             <View style={styles.card}>
-              <Text style={styles.heading}>Enter the code</Text>
-              <Text style={styles.body}>
-                We sent a 6-digit code to <Text style={styles.bodyStrong}>{email}</Text>.
-              </Text>
+              <View style={styles.cardHead}>
+                <Text style={styles.heading} role="heading">
+                  Check your inbox
+                </Text>
+                <Text style={styles.body}>
+                  We sent a 6-digit code to <Text style={styles.bodyStrong}>{email}</Text>. Type it below.
+                </Text>
+              </View>
 
-              {/* Fresh segmented code input: 6 cells over one hidden TextInput. */}
+              {/* Segmented code input: 6 big cells over one hidden TextInput. */}
               <Pressable
                 style={styles.codeRow}
                 onPress={() => codeInputRef.current?.focus()}
@@ -257,6 +248,7 @@ export function AuthFlow() {
                       ]}
                     >
                       <Text style={styles.cellText}>{char}</Text>
+                      {active && char === '' && !error ? <View style={styles.caret} /> : null}
                     </View>
                   );
                 })}
@@ -275,155 +267,125 @@ export function AuthFlow() {
                 />
               </Pressable>
 
-              {error ? <ErrorRow message={error} /> : null}
-              {!error && notice ? <Text style={styles.notice}>{notice}</Text> : null}
+              {error ? (
+                <InlineNotice tone="attention" message={error} />
+              ) : notice ? (
+                <InlineNotice tone="pet" message={notice} />
+              ) : (
+                <Text style={styles.hint}>It usually arrives within a minute. Not there? Check your spam folder.</Text>
+              )}
 
-              <Pressable
+              <Button
+                label="Verify and continue"
+                accessibilityLabel="Verify"
+                icon="check"
+                fullWidth
+                loading={busy}
+                disabled={!codeComplete}
                 onPress={() => void onVerify(code)}
-                disabled={busy || code.length !== CODE_LENGTH}
-                role="button"
-                aria-label="Verify"
-                style={({ pressed }) => [
-                  styles.primaryBtn,
-                  pressed && styles.primaryBtnPressed,
-                  (busy || code.length !== CODE_LENGTH) && styles.primaryBtnDisabled,
-                ]}
-              >
-                {busy ? (
-                  <ActivityIndicator color={ink.onDark} />
-                ) : (
-                  <Text style={styles.primaryBtnText}>Verify</Text>
-                )}
-              </Pressable>
+              />
 
-              <View style={styles.resendRow}>
+              <View style={styles.secondaryActions}>
                 {cooldown > 0 ? (
-                  <Text style={styles.resendMuted}>Resend code in {cooldown}s</Text>
+                  <View style={styles.cooldownRow}>
+                    <Icon name="clock" size={16} color={ink.muted} strokeWidth={2} />
+                    <Text style={styles.cooldownText}>You can resend a code in {cooldown}s</Text>
+                  </View>
                 ) : (
-                  <Pressable onPress={() => void onResend()} disabled={busy} role="button" aria-label="Resend code">
-                    <Text style={styles.resendLink}>Didn&apos;t get it? Resend code</Text>
-                  </Pressable>
+                  <Button
+                    label="Send me a new code"
+                    accessibilityLabel="Resend code"
+                    variant="ghost"
+                    size="md"
+                    icon="mail"
+                    disabled={busy}
+                    onPress={() => void onResend()}
+                    style={styles.centerBtn}
+                  />
                 )}
+                <Button
+                  label="Use a different email"
+                  variant="ghost"
+                  tone="neutral"
+                  size="md"
+                  icon="chevronLeft"
+                  disabled={busy}
+                  onPress={editEmail}
+                  style={styles.centerBtn}
+                />
               </View>
-
-              <Pressable onPress={editEmail} disabled={busy} role="button" aria-label="Use a different email" style={styles.backBtn}>
-                <Icon name="chevronLeft" size={16} color={ink.muted} strokeWidth={2} />
-                <Text style={styles.backText}>Use a different email</Text>
-              </Pressable>
             </View>
           )}
+
+          <View style={styles.reassure}>
+            <Icon name="lock" size={16} color={ink.muted} strokeWidth={2} />
+            <Text style={styles.reassureText}>
+              Signing in keeps your pet&apos;s day safe and shared with your household.
+            </Text>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-function ErrorRow({ message }: { message: string }) {
-  return (
-    <View style={styles.errorRow}>
-      <Icon name="alert" size={16} color={terracotta.primary} strokeWidth={2} />
-      <Text style={styles.errorText}>{message}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: surface.app },
   flex: { flex: 1 },
-  content: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 28, paddingVertical: 40 },
+  content: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: space.gutter, paddingVertical: space.xxl },
 
-  brand: { alignItems: 'center', marginBottom: 28 },
-  logoTile: {
-    width: 76,
-    height: 76,
-    borderRadius: radius.hero,
-    backgroundColor: green.tint,
-    borderWidth: 1,
-    borderColor: green.tintBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-  },
-  wordmark: { fontSize: 30, fontFamily: fonts.black, color: ink.primary, letterSpacing: -0.5 },
-  tagline: { fontSize: 14.5, fontFamily: fonts.medium, color: ink.muted, marginTop: 4 },
+  brand: { alignItems: 'center', marginBottom: space.section, gap: 6 },
+  wordmark: { ...type.title, color: green.primary, marginTop: space.xs },
+  tagline: { ...type.body, color: ink.muted, textAlign: 'center' },
 
   card: {
     backgroundColor: surface.card,
     borderRadius: radius.card,
-    padding: 22,
+    padding: space.xl,
+    gap: space.lg,
     ...shadow.card,
   },
-  heading: { fontSize: 21, fontFamily: fonts.black, color: ink.primary, letterSpacing: -0.4 },
-  body: { fontSize: 14.5, fontFamily: fonts.regular, color: ink.muted, lineHeight: 21, marginTop: 6 },
+  cardHead: { gap: 6 },
+  heading: { ...type.title, color: ink.primary },
+  body: { ...type.body, color: ink.muted },
   bodyStrong: { fontFamily: fonts.bold, color: ink.primary },
-
-  label: {
-    fontSize: 10.5,
-    fontFamily: fonts.bold,
-    textTransform: 'uppercase',
-    letterSpacing: 1.4,
-    color: ink.faint,
-    marginTop: 20,
-    marginBottom: 8,
-  },
-  field: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: surface.field,
-    borderWidth: 1.5,
-    borderColor: line.border,
-    borderRadius: radius.tile,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-  },
-  fieldActive: { borderColor: green.tintBorder, backgroundColor: surface.card },
-  fieldError: { borderColor: terracotta.primary },
-  fieldInput: { flex: 1, fontFamily: fonts.semiBold, fontSize: 15.5, color: ink.primary, padding: 0 },
+  hint: { ...type.bodySm, color: ink.muted, textAlign: 'center' },
 
   // Segmented code input
-  codeRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginTop: 22 },
+  codeRow: { flexDirection: 'row', justifyContent: 'center', gap: space.xs },
   cell: {
     flex: 1,
-    aspectRatio: 0.82,
     maxWidth: 52,
+    height: 62,
     borderRadius: radius.tile,
     backgroundColor: surface.field,
-    borderWidth: 1.5,
+    borderWidth: 2,
     borderColor: line.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   cellFilled: { backgroundColor: surface.card, borderColor: green.tintBorder },
   cellActive: { borderColor: green.mid, backgroundColor: surface.card },
-  cellError: { borderColor: terracotta.primary },
-  cellText: { fontSize: 24, fontFamily: fonts.black, color: ink.primary },
+  cellError: { borderColor: amber.primary, backgroundColor: amber.warnBg },
+  cellText: { fontSize: 26, fontFamily: fonts.extraBold, color: ink.primary },
+  caret: { position: 'absolute', bottom: 14, width: 16, height: 3, borderRadius: 2, backgroundColor: green.mid },
   hiddenInput: { position: 'absolute', width: '100%', height: '100%', opacity: 0 },
 
-  errorRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 12 },
-  errorText: { flex: 1, fontSize: 13, fontFamily: fonts.semiBold, color: terracotta.primary, lineHeight: 18 },
-  notice: { fontSize: 13, fontFamily: fonts.semiBold, color: green.primary, marginTop: 12 },
+  secondaryActions: { alignItems: 'center', gap: 2 },
+  // Button hugs with alignSelf 'flex-start' when not fullWidth; re-centre it here.
+  centerBtn: { alignSelf: 'center' },
+  cooldownRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: tap.min },
+  cooldownText: { ...type.bodySm, color: ink.muted },
 
-  primaryBtn: {
-    backgroundColor: green.mid,
-    borderRadius: radius.tile,
-    paddingVertical: 16,
+  reassure: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 22,
-    minHeight: 54,
-    ...shadow.fab,
+    gap: space.xs,
+    marginTop: space.xl,
+    paddingHorizontal: space.xs,
   },
-  primaryBtnPressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
-  primaryBtnDisabled: { opacity: 0.55 },
-  primaryBtnText: { color: ink.onDark, fontSize: 15.5, fontFamily: fonts.extraBold, letterSpacing: 0.2 },
-
-  resendRow: { alignItems: 'center', marginTop: 18 },
-  resendMuted: { fontSize: 13.5, fontFamily: fonts.medium, color: ink.faint },
-  resendLink: { fontSize: 13.5, fontFamily: fonts.bold, color: green.primary },
-
-  backBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, marginTop: 16 },
-  backText: { fontSize: 13.5, fontFamily: fonts.semiBold, color: ink.muted },
+  reassureText: { ...type.caption, color: ink.muted, textAlign: 'center', flexShrink: 1 },
 });
 
 export default AuthFlow;

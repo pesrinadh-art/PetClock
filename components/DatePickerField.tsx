@@ -89,7 +89,7 @@ export function DatePickerField({ label, value, onChange, placeholder = 'Select 
             aria-label={`${label ? `${label}: ` : ''}${value || placeholder}`}
           >
             <Text style={[styles.valueText, !value && styles.placeholderText]}>{value || placeholder}</Text>
-            <Icon name="calendar" size={16} color={ink.faint} strokeWidth={2} />
+            <Icon name="calendar" size={18} color={ink.muted} strokeWidth={2} />
           </Pressable>
         </>
       )}
@@ -169,17 +169,20 @@ export function DatePickerField({ label, value, onChange, placeholder = 'Select 
   );
 }
 
-const CELL_SIZE = 38;
+// 42px cells: 7 across = 294px, fits the 340px sheet with padding.
+const CELL_SIZE = 42;
 
 const styles = StyleSheet.create({
   formGroup: { gap: 6 },
-  formLabel: { fontSize: 11, fontFamily: fonts.extraBold, textTransform: 'uppercase', letterSpacing: 1, color: ink.muted },
+  // Sentence-case label above the field (matches ui/TextField).
+  formLabel: { fontSize: 14.5, fontFamily: fonts.bold, color: ink.primary },
   field: {
     backgroundColor: surface.card,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: line.border,
     borderRadius: radius.tile,
-    paddingVertical: 13,
+    minHeight: 52,
+    paddingVertical: 12,
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
@@ -188,19 +191,19 @@ const styles = StyleSheet.create({
   fieldFilled: { borderColor: green.tintBorder },
   // inset (card cell) variant
   insetGroup: {},
-  insetField: { paddingVertical: 13, paddingHorizontal: 16 },
-  insetLabel: { fontSize: 10, fontFamily: fonts.bold, textTransform: 'uppercase', letterSpacing: 1.2, color: ink.faint2 },
-  insetValue: { fontFamily: fonts.bold, fontSize: 14.5, color: ink.primary, marginTop: 3 },
-  insetPlaceholder: { fontFamily: fonts.semiBold, color: '#c0b8a8' },
+  insetField: { minHeight: 60, justifyContent: 'center', paddingVertical: 12, paddingHorizontal: 16 },
+  insetLabel: { fontSize: 12.5, fontFamily: fonts.semiBold, color: ink.muted },
+  insetValue: { fontFamily: fonts.bold, fontSize: 16, color: ink.primary, marginTop: 2 },
+  insetPlaceholder: { fontFamily: fonts.semiBold, color: ink.placeholder },
   pressed: { opacity: 0.7 },
-  valueText: { fontFamily: fonts.semiBold, fontSize: 14, color: ink.primary },
-  placeholderText: { color: '#c0b8a8' },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  valueText: { fontFamily: fonts.semiBold, fontSize: 16, color: ink.primary },
+  placeholderText: { color: ink.placeholder },
+  overlay: { flex: 1, backgroundColor: 'rgba(42,39,36,0.45)', alignItems: 'center', justifyContent: 'center', padding: 24 },
   sheet: {
     width: '100%',
-    maxWidth: 340,
+    maxWidth: 350,
     backgroundColor: surface.card,
-    borderRadius: radius.card,
+    borderRadius: radius.sheet,
     padding: 18,
     shadowColor: '#2a2724',
     shadowOffset: { width: 0, height: 8 },
@@ -210,20 +213,20 @@ const styles = StyleSheet.create({
   },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   navBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: green.tint,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerTitle: { fontSize: 14, fontFamily: fonts.extraBold, color: ink.primary },
+  headerTitle: { fontSize: 17, fontFamily: fonts.extraBold, color: ink.primary },
   weekdayRow: { flexDirection: 'row', marginBottom: 6 },
   weekdayLabel: {
     width: CELL_SIZE,
     textAlign: 'center',
-    fontSize: 11,
-    fontFamily: fonts.extraBold,
+    fontSize: 12.5,
+    fontFamily: fonts.bold,
     color: ink.muted,
   },
   weekRow: { flexDirection: 'row' },
@@ -231,7 +234,7 @@ const styles = StyleSheet.create({
   dayCellPressable: { borderRadius: CELL_SIZE / 2 },
   dayCellToday: { borderWidth: 1.5, borderColor: green.mid },
   dayCellSelected: { backgroundColor: green.mid },
-  dayText: { fontSize: 13, fontFamily: fonts.semiBold, color: ink.primary },
+  dayText: { fontSize: 15, fontFamily: fonts.semiBold, color: ink.primary },
   dayTextSelected: { color: ink.onDark, fontFamily: fonts.extraBold },
-  dayTextDisabled: { color: '#c8c3ba' },
+  dayTextDisabled: { color: ink.placeholder },
 });

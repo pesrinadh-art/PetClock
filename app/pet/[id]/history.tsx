@@ -1,14 +1,16 @@
 import { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { surface, ink, radius, shadow, line } from '../../../theme/colors';
-import { fonts } from '../../../theme/fonts';
-import { Icon } from '../../../components/Icon';
+import { ink, line, radius, shadow, space, surface } from '../../../theme/colors';
+import { fonts, type } from '../../../theme/fonts';
+import { IconTile, PetEmptyState, Screen, ScreenHeader } from '../../../components/ui';
+import { PetAvatar } from '../../../components/PetAvatar';
+import { logVisual } from '../../../components/pets/logVisual';
 import { usePets } from '../../../context/PetsContext';
 import { useLogs } from '../../../context/LogsContext';
 import { describeLog, formatClock } from '../../../lib/petSchedule';
 import { useNow } from '../../../hooks/useNow';
+import { possessive, pottyBreakPhrase } from '../../../lib/petVoice';
 import type { FeedTime, LogEntry } from '../../../lib/db/models';
 
 function startOfDay(ms: number): number {
@@ -49,6 +51,29 @@ function groupByDay(logs: LogEntry[], feedTimes: FeedTime[], now: Date): DayGrou
     .map(([dayMs, entries]) => ({ dayMs, label: dayLabel(dayMs, now), entries }));
 }
 
+/** A short, warm summary of one day's entries: "2 meals · 3 potty walks". */
+function daySummary(entries: LogEntry[], species: string | null | undefined): string {
+  let meals = 0;
+  let potty = 0;
+  let meds = 0;
+  let other = 0;
+  for (const e of entries) {
+    if (e.type === 'food') meals += 1;
+    else if (e.type === 'pee' || e.type === 'poo') potty += 1;
+    else if (e.type === 'medication') meds += 1;
+    else other += 1;
+  }
+  const parts: string[] = [];
+  const phrase = pottyBreakPhrase(species);
+  if (meals) parts.push(`${meals} ${meals === 1 ? 'meal' : 'meals'}`);
+  if (potty) parts.push(`${potty} ${potty === 1 ? phrase : `${phrase}s`}`);
+  if (meds) parts.push(`${meds} ${meds === 1 ? 'med' : 'meds'}`);
+  if (other) parts.push(`${other} more`);
+  return parts.join(' · ');
+}
+
+const goBack = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)/pets'));
+
 export default function LogHistoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { pets, getFeedTimesForPet } = usePets();
@@ -60,105 +85,117 @@ export default function LogHistoryScreen() {
   const logs = pet ? getLogsForPet(pet.id) : [];
 
   const groups = useMemo(() => groupByDay(logs, feedTimes, now), [logs, feedTimes, now]);
+  const total = groups.reduce((n, g) => n + g.entries.length, 0);
+
+  const header = (
+    <ScreenHeader
+      title={pet ? `${possessive(pet.name)} diary` : 'Diary'}
+      subtitle={
+        groups.length > 0
+          ? `${total} ${total === 1 ? 'moment' : 'moments'} over ${groups.length} ${groups.length === 1 ? 'day' : 'days'}`
+          : undefined
+      }
+      onBack={goBack}
+      backLabel="Back"
+      right={pet ? <PetAvatar pet={pet} size={40} ring /> : undefined}
+    />
+  );
+
+  if (groups.length === 0) {
+    return (
+      <Screen header={header} scroll={false}>
+        <PetEmptyState
+          pet={pet}
+          icon="history"
+          title={pet ? `${possessive(pet.name)} diary is empty` : 'No logs yet'}
+          body={`Log a ${pottyBreakPhrase(pet?.species)}, a meal or a med and it'll show up here, day by day.`}
+          action={{ label: pet ? `Back to ${pet.name}` : 'Go back', icon: 'chevronLeft', onPress: goBack }}
+        />
+      </Screen>
+    );
+  }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.titleRow}>
-        <Pressable
-          style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/pets'))}
-          role="button"
-          aria-label="Back"
-          hitSlop={8}
-        >
-          <Icon name="chevronLeft" size={18} color={ink.muted} strokeWidth={2.4} />
-        </Pressable>
-        <Text style={styles.title} numberOfLines={1}>{pet ? `${pet.name}'s history` : 'History'}</Text>
-        <View style={{ width: 34 }} />
-      </View>
+    <Screen header={header}>
+      {groups.map((group) => (
+        <View key={group.dayMs} style={styles.group}>
+          <View style={styles.dayHead}>
+            <Text style={styles.dayLabel} role="heading">
+              {group.label}
+            </Text>
+            <Text style={styles.daySummary} numberOfLines={1}>
+              {daySummary(group.entries, pet?.species)}
+            </Text>
+          </View>
 
-      {groups.length === 0 ? (
-        <View style={styles.empty}>
-          <Icon name="clock" size={40} color={ink.faint} />
-          <Text style={styles.emptyTitle}>No logs yet</Text>
-          <Text style={styles.emptyBody}>Logged potty breaks, meals and meds will appear here, grouped by day.</Text>
-        </View>
-      ) : (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-          {groups.map((group) => (
-            <View key={group.dayMs} style={styles.group}>
-              <Text style={styles.dayHeader}>{group.label}</Text>
-              {group.entries.map((entry) => {
-                const { icon, label } = describeLog(entry, feedTimes, now);
-                return (
-                  <View key={entry.id} style={styles.row}>
-                    <Text style={styles.rowIcon}>{icon}</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.rowLabel}>{label}</Text>
-                      {!!entry.note && <Text style={styles.rowNote}>{entry.note}</Text>}
-                    </View>
-                    <Text style={styles.rowTime}>{formatClock(new Date(entry.occurredAt))}</Text>
+          <View style={styles.dayCard}>
+            {group.entries.map((entry, i) => {
+              const { label } = describeLog(entry, feedTimes, now);
+              const v = logVisual(entry.type);
+              const time = formatClock(new Date(entry.occurredAt));
+              const last = i === group.entries.length - 1;
+              return (
+                <View
+                  key={entry.id}
+                  style={styles.row}
+                  aria-label={`${label} at ${time}${entry.note ? `. Note: ${entry.note}` : ''}`}
+                >
+                  {/* Rail: the icon sits on a thin line that threads the day together. */}
+                  <View style={styles.rail}>
+                    <IconTile icon={v.icon} tone={v.tone} size={40} />
+                    {!last && <View style={styles.railLine} />}
                   </View>
-                );
-              })}
-            </View>
-          ))}
-        </ScrollView>
-      )}
-    </SafeAreaView>
+                  <View style={[styles.rowBody, !last && styles.rowBodyGap]}>
+                    <View style={styles.rowTop}>
+                      <Text style={styles.rowLabel} numberOfLines={2}>
+                        {label}
+                      </Text>
+                      <Text style={styles.rowTime}>{time}</Text>
+                    </View>
+                    {!!entry.note && (
+                      <View style={styles.note}>
+                        <Text style={styles.noteText}>{entry.note}</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      ))}
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: surface.app },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 6,
-    paddingBottom: 10,
-  },
-  title: { fontSize: 18, fontFamily: fonts.extraBold, color: ink.primary, textAlign: 'center', flex: 1, letterSpacing: -0.4 },
-  backBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: surface.chip,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
+  group: { marginTop: space.lg },
+  dayHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: space.sm, marginBottom: space.sm },
+  dayLabel: { ...type.heading, color: ink.primary },
+  daySummary: { ...type.caption, color: ink.muted, flexShrink: 1, textAlign: 'right' },
 
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 24 },
-  group: { marginBottom: 18 },
-  dayHeader: {
-    fontSize: 10.5,
-    fontFamily: fonts.bold,
-    color: ink.faint,
-    textTransform: 'uppercase',
-    letterSpacing: 1.5,
-    marginBottom: 9,
-    marginTop: 4,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  dayCard: {
     backgroundColor: surface.card,
     borderRadius: radius.card,
-    paddingVertical: 13,
-    paddingHorizontal: 16,
-    marginBottom: 8,
+    paddingHorizontal: space.lg,
+    paddingTop: space.md,
+    paddingBottom: space.md,
     ...shadow.card,
   },
-  rowIcon: { fontSize: 20 },
-  rowLabel: { fontSize: 14, fontFamily: fonts.bold, color: ink.primary },
-  rowNote: { fontSize: 12, fontFamily: fonts.medium, color: ink.muted, marginTop: 2 },
-  rowTime: { fontSize: 12, fontFamily: fonts.semiBold, color: ink.faint2 },
-
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 10 },
-  emptyTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: ink.primary },
-  emptyBody: { fontSize: 13, color: ink.muted, textAlign: 'center', lineHeight: 19 },
+  row: { flexDirection: 'row', gap: space.sm, minHeight: 48 },
+  rail: { width: 40, alignItems: 'center' },
+  railLine: { flex: 1, width: 2, borderRadius: 1, backgroundColor: line.border, marginVertical: 4, minHeight: 12 },
+  rowBody: { flex: 1, minWidth: 0, paddingTop: 9 },
+  rowBodyGap: { paddingBottom: space.sm },
+  rowTop: { flexDirection: 'row', alignItems: 'flex-start', gap: space.xs },
+  rowLabel: { ...type.subhead, color: ink.primary, flex: 1 },
+  rowTime: { ...type.caption, fontFamily: fonts.bold, color: ink.muted, marginTop: 2 },
+  note: {
+    marginTop: 6,
+    backgroundColor: surface.field,
+    borderRadius: radius.sm,
+    paddingVertical: space.xs,
+    paddingHorizontal: space.sm,
+  },
+  noteText: { ...type.bodySm, color: ink.primary },
 });

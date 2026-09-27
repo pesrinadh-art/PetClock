@@ -1,74 +1,72 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { amber, category, green, ink, logTint, radius, shadow, surface, terracotta } from '../theme/colors';
-import { fonts } from '../theme/fonts';
-import { Card, SectionLabel } from './ui';
-import { Icon, type IconName } from './Icon';
+import { ink, space, type Tone } from '../theme/colors';
+import { type } from '../theme/fonts';
+import { Banner, Card, ListRow, Pill, SectionLabel } from './ui';
+import type { IconName } from './Icon';
 import type { Pet } from '../data/mockData';
 import {
   formatTimeRange,
-  formatTimeUntil,
-  formatTimeUntilCompact,
   getPetStatus,
   getUpcomingForPet,
   getUpcomingMedications,
   type UpcomingItem,
 } from '../lib/petSchedule';
+import { friendlyAgo, friendlyIn, gentleLate } from '../lib/petVoice';
 import { useLogs } from '../context/LogsContext';
 import { usePets } from '../context/PetsContext';
+import { useNow } from '../hooks/useNow';
 
-/** Drawn-icon + tint per upcoming-item type (mirrors Timeline's TYPE_STYLE). */
-const ITEM_STYLE: Record<UpcomingItem['type'], { icon: IconName; bg: string; fg: string }> = {
-  pee: { icon: 'drop', bg: logTint.peeBg, fg: logTint.peeInk },
-  poo: { icon: 'poo', bg: logTint.pooBg, fg: logTint.pooInk },
-  food: { icon: 'bowl', bg: terracotta.tint, fg: terracotta.primary },
-  medication: { icon: 'pill', bg: category.medBg, fg: category.medInk },
+/** Icon + role tone per upcoming-item type. */
+const ITEM_STYLE: Record<UpcomingItem['type'], { icon: IconName; tone: Tone }> = {
+  pee: { icon: 'drop', tone: 'pee' },
+  poo: { icon: 'poo', tone: 'poo' },
+  food: { icon: 'bowl', tone: 'food' },
+  medication: { icon: 'pill', tone: 'med' },
 };
 
 /**
- * One upcoming reminder as its own card: tinted drawn-icon tile, label, time
- * range, and a relative "when" / "overdue" sub. Overdue items pick up a
- * terracotta accent bar + terracotta time/sub text. (Restores the pre-redesign
- * per-item card look, restyled in the new design system.)
+ * One upcoming reminder as a row: tinted icon tile, label, time window, and a
+ * status pill on the right — "in 40 min", "Now", or a gentle amber "A little
+ * late" (never red). Late state pairs colour with the pill text + clock icon.
  */
-function UpcomingCard({ item, now }: { item: UpcomingItem; now: Date }) {
+function UpcomingRow({ item, now, divider }: { item: UpcomingItem; now: Date; divider: boolean }) {
   const s = ITEM_STYLE[item.type];
-  const overdue = item.kind === 'overdue';
-  const sub = overdue
-    ? `Overdue ${formatTimeUntilCompact(new Date(now.getTime() + item.overdueBy), now)}`
-    : formatTimeUntil(item.timeStart, now);
+  const late = item.kind === 'overdue';
+  const due = item.kind === 'due';
+  const lateText = gentleLate(Math.round(item.overdueBy / 60000));
+  const pill = late ? (
+    <Pill tone="attention" icon="clock" label={lateText.charAt(0).toUpperCase() + lateText.slice(1)} />
+  ) : due ? (
+    <Pill tone="pet" icon="bell" label="Now" />
+  ) : (
+    <Text style={styles.when}>{friendlyIn(item.timeStart, now)}</Text>
+  );
   return (
-    <View style={[styles.card, overdue && styles.cardOverdue]}>
-      <View style={[styles.typeTile, { backgroundColor: overdue ? terracotta.tint : s.bg }]}>
-        <Icon name={s.icon} size={16} color={overdue ? terracotta.primary : s.fg} strokeWidth={2} />
-      </View>
-      <Text numberOfLines={1} style={styles.cardLabel}>
-        {item.label}
-      </Text>
-      <Text numberOfLines={1} style={[styles.time, overdue && styles.timeOverdue]}>
-        {formatTimeRange(item.timeStart, item.timeEnd)}
-      </Text>
-      <Text numberOfLines={1} style={[styles.cardSub, overdue && styles.timeOverdue]}>
-        {sub}
-      </Text>
-    </View>
+    <ListRow
+      icon={s.icon}
+      tone={late ? 'attention' : s.tone}
+      title={item.label}
+      subtitle={
+        late
+          ? `${formatTimeRange(item.timeStart, item.timeEnd)} · due ${friendlyAgo(now.getTime() - item.overdueBy, now)}`
+          : formatTimeRange(item.timeStart, item.timeEnd)
+      }
+      right={pill}
+      divider={divider}
+    />
   );
 }
 
-/** A horizontal strip of upcoming-reminder cards. Renders nothing when there are none. */
+/** A card of upcoming-reminder rows. Renders nothing when there are none. */
 function UpcomingList({ items, now }: { items: UpcomingItem[]; now: Date }) {
   if (items.length === 0) return null;
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={styles.strip}
-      contentContainerStyle={styles.stripContent}
-    >
-      {items.map((item) => (
-        <UpcomingCard key={item.id} item={item} now={now} />
+    <Card>
+      {items.map((item, i) => (
+        <UpcomingRow key={item.id} item={item} now={now} divider={i < items.length - 1} />
       ))}
-    </ScrollView>
+    </Card>
   );
 }
 
@@ -78,70 +76,51 @@ export function UpcomingSection({ pet }: { pet: Pet }) {
   const feedTimes = getFeedTimesForPet(pet.id);
   const medications = getMedicationsForPet(pet.id);
   const status = getPetStatus(pet, feedTimes);
-  const now = new Date();
+  const now = useNow();
 
   // Medications are user-specified fixed times, not something we're learning — so they
   // show up regardless of whether the pee/poop calibration below is done.
   const medicationItems = getUpcomingMedications(medications, now);
+  const openSchedule = () => router.push({ pathname: '/add-pet', params: { petId: pet.id } });
 
   if (status.kind === 'calibrating') {
     return (
-      <View style={styles.sectionStack}>
-        <Card padded style={styles.notice}>
-          <View style={[styles.iconTile, { backgroundColor: amber.warnBg }]}>
-            <Icon name="clock" size={16} color={amber.warnInk} strokeWidth={2} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.noticeTitle}>Calibrating {pet.name}'s schedule</Text>
-            <Text style={styles.noticeBody}>
-              Day {status.day} of 3 — log a few pees, poos, and meals and we'll start predicting {pet.name}'s next break.
-            </Text>
-            <Pressable
-              style={({ pressed }) => [styles.noticeLink, pressed && styles.noticePressed]}
-              onPress={() => router.push({ pathname: '/add-pet', params: { petId: pet.id } })}
-              role="button"
-              aria-label={`Add ${pet.name}'s schedule now`}
-              hitSlop={4}
-            >
-              <Text style={styles.noticeLinkText}>Add schedule now instead ›</Text>
-            </Pressable>
-          </View>
-        </Card>
-        <UpcomingList items={medicationItems} now={now} />
+      <View style={styles.section}>
+        <SectionLabel>Coming up for {pet.name}</SectionLabel>
+        <View style={styles.stack}>
+          <Banner
+            tone="pet"
+            icon="sparkle"
+            title={`Learning ${pet.name}'s rhythm`}
+            body={`Day ${status.day} of 3. Log a few pees, poos and meals and we'll start predicting the next break.`}
+            secondaryAction={{ label: 'Add schedule now instead', onPress: openSchedule }}
+          />
+          <UpcomingList items={medicationItems} now={now} />
+        </View>
       </View>
     );
   }
 
   if (status.kind === 'needsInfo') {
     return (
-      <View style={styles.sectionStack}>
-        <Pressable
-          onPress={() => router.push({ pathname: '/add-pet', params: { petId: pet.id } })}
-          role="button"
-          aria-label={`Set up ${pet.name}'s schedule`}
-        >
-          {({ pressed }) => (
-            <Card padded style={[styles.notice, pressed && styles.noticePressed]}>
-              <View style={[styles.iconTile, { backgroundColor: green.tint }]}>
-                <Icon name="calendar" size={16} color={green.primary} strokeWidth={2} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.noticeTitle}>Set up {pet.name}'s schedule</Text>
-                <Text style={styles.noticeBody}>
-                  We still don't have feeding & potty info. Fill it in to get real upcoming reminders.
-                </Text>
-              </View>
-              <Icon name="chevronRight" size={16} color={green.primary} strokeWidth={2.2} />
-            </Card>
-          )}
-        </Pressable>
-        <UpcomingList items={medicationItems} now={now} />
+      <View style={styles.section}>
+        <SectionLabel>Coming up for {pet.name}</SectionLabel>
+        <View style={styles.stack}>
+          <Banner
+            tone="pet"
+            icon="calendar"
+            title={`Set up ${pet.name}'s routine`}
+            body="Add feeding and potty times and we'll remind you when each one is coming up."
+            action={{ label: `Set up ${pet.name}'s routine`, icon: 'arrowRight', onPress: openSchedule }}
+          />
+          <UpcomingList items={medicationItems} now={now} />
+        </View>
       </View>
     );
   }
 
   // Ready: the predicted pee/poo breaks + next meal (getUpcomingForPet) merged with any
-  // medication reminders, soonest first, capped at 5 — rendered as cards on Home.
+  // medication reminders, soonest first, capped at 5.
   const holdItems = getUpcomingForPet(pet, feedTimes, getLogsForPet(pet.id), now);
   const items = [...holdItems, ...medicationItems]
     .sort((a, b) => a.timeStart.getTime() - b.timeStart.getTime())
@@ -152,60 +131,14 @@ export function UpcomingSection({ pet }: { pet: Pet }) {
 
   return (
     <View style={styles.section}>
-      <SectionLabel>Upcoming</SectionLabel>
+      <SectionLabel hint="Our best guess from recent logs">Coming up for {pet.name}</SectionLabel>
       <UpcomingList items={items} now={now} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  section: { marginTop: 18 },
-  sectionStack: { marginTop: 18, gap: 10 },
-
-  // Horizontal strip of individual upcoming cards.
-  strip: { flexGrow: 0, flexShrink: 0, marginHorizontal: -2 },
-  stripContent: { gap: 10, paddingVertical: 4, paddingHorizontal: 2 },
-  card: {
-    minWidth: 150,
-    maxWidth: 220,
-    backgroundColor: surface.card,
-    borderRadius: radius.card,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderTopWidth: 3,
-    borderTopColor: 'transparent',
-    ...shadow.card,
-  },
-  cardOverdue: { borderTopColor: terracotta.primary },
-  typeTile: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.iconTileSm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  cardLabel: { fontSize: 13.5, fontFamily: fonts.bold, color: ink.primary, marginBottom: 3 },
-  cardSub: { fontSize: 11.5, fontFamily: fonts.medium, color: ink.muted, marginTop: 2 },
-
-  time: { fontSize: 13, fontFamily: fonts.extraBold, color: ink.primary },
-  timeOverdue: { color: terracotta.primary },
-  notice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  noticePressed: { opacity: 0.8 },
-  iconTile: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.iconTileSm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  noticeTitle: { fontSize: 14, fontFamily: fonts.bold, color: ink.primary, marginBottom: 3 },
-  noticeBody: { fontSize: 12, fontFamily: fonts.medium, color: ink.muted, lineHeight: 17 },
-  noticeLink: { marginTop: 8, alignSelf: 'flex-start' },
-  noticeLinkText: { fontSize: 12, fontFamily: fonts.bold, color: green.primary },
+  section: { marginTop: space.section },
+  stack: { gap: space.sm },
+  when: { ...type.caption, fontSize: 13.5, color: ink.muted },
 });

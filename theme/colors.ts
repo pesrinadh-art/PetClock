@@ -34,12 +34,17 @@ export const line = {
 } as const;
 
 // ── Ink (text) ────────────────────────────────────────────────────────────────
+// Pet-owner redesign: muted/faint were darkened so every text role clears WCAG
+// AA (4.5:1) on both `surface.app` and white. `placeholder` is for input
+// placeholders / disabled glyphs only (not body copy).
 export const ink = {
-  primary: '#2a2724',
-  muted: '#8a8276',
-  faint: '#9a9184',
-  faint2: '#a39b8c',
+  primary: '#2a2724', // ~14:1
+  muted: '#6f685d', // ~5.1:1 — secondary copy, subtitles
+  faint: '#776f63', // ~4.6:1 — labels, timestamps
+  faint2: '#7a7266', // ~4.4:1 app bg / 4.7:1 white — inset field labels
+  placeholder: '#a39b8c', // placeholders + chevrons ONLY
   onDark: '#ffffff',
+  onDarkMuted: 'rgba(255,255,255,0.82)',
 } as const;
 
 // ── Green — pet & state (primary brand) ───────────────────────────────────────
@@ -51,20 +56,26 @@ export const green = {
   tint: '#e8efe6', // green pill background
   tintBorder: '#cfe0cd',
   ink: '#2f6b45',
+  /** Pale wash behind a "win" / celebratory card. */
+  wash: '#f1f6ef',
 } as const;
 
 // ── Terracotta — food ─────────────────────────────────────────────────────────
 export const terracotta = {
-  primary: '#c9532f',
+  primary: '#c9532f', // fills, icons
   tint: '#fbe9e1',
-  ink: '#c9532f',
+  ink: '#a8432a', // text on white/tint (AA)
+  tintBorder: '#f3d3c5',
 } as const;
 
 // ── Amber — attention (bell dot, warnings) ────────────────────────────────────
 export const amber = {
   primary: '#e8a33d',
   warnBg: '#fdf3e3', // "Not secured" / pending pill bg
-  warnInk: '#a8741f',
+  warnInk: '#8a5d14', // AA on warnBg (was #a8741f)
+  warnBorder: '#f5dfb8',
+  /** Warm gold used for the hero progress ring + "win" sparkles. */
+  gold: '#f3d27a',
 } as const;
 
 // ── Incidental log tints (pee / poo) ──────────────────────────────────────────
@@ -78,21 +89,21 @@ export const logTint = {
 // ── Appointment / category roles (from sheet + appt screens) ──────────────────
 export const category = {
   vetBg: '#eaf1f7',
-  vetInk: '#3f7fa6',
+  vetInk: '#2f6a8f',
   vaccineBg: '#e9f4f1',
-  vaccineInk: '#3d8577',
+  vaccineInk: '#2d6e62',
   groomBg: '#f1ecf6',
-  groomInk: '#7a5f9b',
+  groomInk: '#6c528c',
   otherBg: '#f2efe6',
-  otherInk: '#7b7365',
+  otherInk: '#6b6457',
   // meal slots
   breakfastBg: '#fdf0e2',
-  breakfastInk: '#c98a2f',
+  breakfastInk: '#8f5e12',
   dinnerBg: '#eceaf6',
   dinnerInk: '#5f5b96',
   // medication
   medBg: '#eaf1f7',
-  medInk: '#3f7fa6',
+  medInk: '#2f6a8f',
 } as const;
 
 // ── Radii ─────────────────────────────────────────────────────────────────────
@@ -104,6 +115,7 @@ export const radius = {
   iconTile: 12, // 34px rounded icon tiles
   iconTileSm: 10, // 28-30px icon tiles
   pill: 999,
+  button: 16, // primary / secondary buttons
   // back-compat with existing screens
   lg: 20,
   sm: 12,
@@ -145,6 +157,72 @@ export const shadow = {
   },
 } as const;
 
+// ── Spacing scale (4pt) ─────────────────────────────────────────────────────
+/**
+ * Pet-owner redesign spacing. Screens use `space.gutter` (20) for side padding,
+ * `space.section` (24) between sections, `space.lg` (16) inside cards.
+ */
+export const space = {
+  xxs: 4,
+  xs: 8,
+  sm: 12,
+  md: 14,
+  lg: 16,
+  xl: 20,
+  xxl: 28,
+  gutter: 20, // screen side padding
+  section: 24, // gap between stacked sections
+  /** Bottom padding for a tab screen's scroll content so the last card clears the tab bar + FAB. */
+  tabScrollBottom: 120,
+} as const;
+
+// ── Tap targets ───────────────────────────────────────────────────────────────
+/** Minimum sizes. Every tappable thing is >= `min` (48); primary CTAs use `primary`. */
+export const tap = {
+  min: 48,
+  primary: 56,
+  icon: 44, // round icon chips (plus hitSlop to reach 48+)
+  hitSlop: { top: 8, bottom: 8, left: 8, right: 8 },
+} as const;
+
+// ── Tones (colour-by-role presets) ────────────────────────────────────────────
+/**
+ * One place to look up a role's bg / ink / border / solid colour. Primitives
+ * that take `tone` (Pill, Banner, Button, QuickActionTile, IconTile) read this.
+ *   pet      = green (state, primary actions, wins)
+ *   food     = terracotta (meals)
+ *   attention= amber (due / overdue — gentle, never red)
+ *   pee/poo  = incidental log tints
+ *   vet/vaccine/groom/med/other = appointment + medication categories
+ *   neutral  = warm chip grey
+ */
+export type Tone =
+  | 'pet'
+  | 'food'
+  | 'attention'
+  | 'pee'
+  | 'poo'
+  | 'vet'
+  | 'vaccine'
+  | 'groom'
+  | 'med'
+  | 'other'
+  | 'neutral';
+
+export const tones: Record<Tone, { bg: string; ink: string; border: string; solid: string }> = {
+  pet: { bg: green.tint, ink: green.primary, border: green.tintBorder, solid: green.mid },
+  food: { bg: terracotta.tint, ink: terracotta.ink, border: terracotta.tintBorder, solid: terracotta.primary },
+  attention: { bg: amber.warnBg, ink: amber.warnInk, border: amber.warnBorder, solid: amber.primary },
+  pee: { bg: logTint.peeBg, ink: logTint.peeInk, border: '#cfe0eb', solid: logTint.peeInk },
+  poo: { bg: logTint.pooBg, ink: logTint.pooInk, border: '#e6d9c8', solid: logTint.pooInk },
+  vet: { bg: category.vetBg, ink: category.vetInk, border: '#d3e2ee', solid: category.vetInk },
+  vaccine: { bg: category.vaccineBg, ink: category.vaccineInk, border: '#cfe6df', solid: category.vaccineInk },
+  groom: { bg: category.groomBg, ink: category.groomInk, border: '#e0d6ec', solid: category.groomInk },
+  med: { bg: category.medBg, ink: category.medInk, border: '#d3e2ee', solid: category.medInk },
+  other: { bg: category.otherBg, ink: category.otherInk, border: line.border, solid: category.otherInk },
+  neutral: { bg: surface.chip, ink: ink.muted, border: line.border, solid: ink.primary },
+};
+
 /**
  * `colors` — the flat map the whole app imports today. New role tokens live at
  * the top; the block below preserves every legacy key (now re-pointed at the
@@ -165,6 +243,7 @@ export const colors = {
   inkMuted: ink.muted,
   inkFaint: ink.faint,
   inkFaint2: ink.faint2,
+  inkPlaceholder: ink.placeholder,
 
   green: green.primary,
   greenMid: green.mid,
@@ -174,6 +253,7 @@ export const colors = {
 
   terracotta: terracotta.primary,
   terracottaTint: terracotta.tint,
+  terracottaInk: terracotta.ink,
 
   amber: amber.primary,
   amberWarnBg: amber.warnBg,

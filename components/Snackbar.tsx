@@ -10,8 +10,9 @@ import {
 } from 'react';
 import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, radius, shadow } from '../theme/colors';
+import { amber, green, ink, radius, shadow } from '../theme/colors';
 import { fonts } from '../theme/fonts';
+import { Icon } from './Icon';
 
 /** How long an undo snackbar stays on screen before auto-dismissing. */
 const DISMISS_MS = 5000;
@@ -98,7 +99,8 @@ function SnackbarToast({ state, onUndo }: { state: SnackbarState; onUndo: () => 
   }, [anim]);
 
   return (
-    <View pointerEvents="box-none" style={[styles.overlay, { paddingBottom: insets.bottom + 16 }]}>
+    // Lifted to clear the tab bar + centre FAB so the toast never covers the thumb zone.
+    <View pointerEvents="box-none" style={[styles.overlay, { paddingBottom: insets.bottom + 96 }]}>
       <Animated.View
         pointerEvents="box-none"
         style={{
@@ -109,6 +111,9 @@ function SnackbarToast({ state, onUndo }: { state: SnackbarState; onUndo: () => 
         }}
       >
         <View style={styles.bar} role="alert">
+          <View style={styles.check}>
+            <Icon name="check" size={14} color={ink.onDark} strokeWidth={3} />
+          </View>
           <Text style={styles.message} numberOfLines={2}>
             {state.message}
           </Text>
@@ -117,6 +122,7 @@ function SnackbarToast({ state, onUndo }: { state: SnackbarState; onUndo: () => 
               onPress={onUndo}
               role="button"
               aria-label={`Undo: ${state.message}`}
+              hitSlop={6}
               style={({ pressed }) => [styles.undoBtn, pressed && styles.undoPressed]}
             >
               <Text style={styles.undoText}>Undo</Text>
@@ -151,20 +157,37 @@ const styles = StyleSheet.create({
     gap: 12,
     width: '100%',
     maxWidth: 420,
-    backgroundColor: colors.stone,
-    borderRadius: radius.sm,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    minHeight: 56,
+    backgroundColor: ink.primary,
+    borderRadius: radius.button,
+    paddingVertical: 10,
+    paddingLeft: 14,
+    paddingRight: 8,
     ...shadow.card,
   },
-  message: { flex: 1, fontSize: 13, fontFamily: fonts.semiBold, color: colors.white },
-  undoBtn: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8 },
+  check: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: green.mid,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  message: { flex: 1, fontSize: 14.5, lineHeight: 19, fontFamily: fonts.semiBold, color: ink.onDark },
+  // >= 44px target; gold on charcoal is ~9:1 contrast (the old blue was ~2:1).
+  undoBtn: {
+    minHeight: 44,
+    minWidth: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
   undoPressed: { opacity: 0.6 },
   undoText: {
-    fontSize: 13,
+    fontSize: 15,
     fontFamily: fonts.extraBold,
-    color: colors.pee,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    color: amber.gold,
   },
 });

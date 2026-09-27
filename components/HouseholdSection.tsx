@@ -1,17 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Platform,
-  Pressable,
-  Share,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import { AppModal } from './AppModal';
-import { Card, GlassSurface, Pill, SectionLabel } from './ui';
-import { Icon } from './Icon';
+import { ActivityIndicator, Platform, Pressable, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Banner, Button, Card, IconTile, PetEmptyState, Pill, SectionLabel } from './ui';
+import { Icon, type IconName } from './Icon';
+import { ConfirmDialog } from './settings/ConfirmDialog';
 import { useSession } from '../context/SessionContext';
 import { getSupabaseClient } from '../lib/db/client';
 import {
@@ -25,8 +16,9 @@ import {
   type InviteRole,
   type Member,
 } from '../lib/household/invites';
-import { amber, green, ink, line, radius, surface } from '../theme/colors';
-import { fonts } from '../theme/fonts';
+import { possessive } from '../lib/petVoice';
+import { green, ink, line, radius, space, surface, tap, terracotta, type Tone } from '../theme/colors';
+import { fonts, type } from '../theme/fonts';
 
 /** The `member_role` enum in caregiver terms — the DB never stores presentation strings. */
 const ROLE_LABEL: Record<InviteRole, string> = {
@@ -35,18 +27,26 @@ const ROLE_LABEL: Record<InviteRole, string> = {
   walker: 'Walker',
 };
 
-/** Role → pill palette. Owner reads as brand-green; a time-boxed walker as amber attention. */
-const ROLE_PILL: Record<InviteRole, { bg: string; color: string }> = {
-  owner: { bg: green.tint, color: green.primary },
-  member: { bg: surface.chip, color: ink.muted },
-  walker: { bg: amber.warnBg, color: amber.warnInk },
+/** What each role can do, in plain words (shown on each row and in "Who can do what"). */
+const ROLE_PLAIN: Record<InviteRole, string> = {
+  owner: 'Runs the family: invites people and manages pets.',
+  member: 'Logs care and gets every reminder.',
+  walker: 'Short-term help. Access ends on a set date.',
 };
 
-/** A settled message shown under the section: success reads calm, error reads alarming. */
+/** Role → tone + icon. Owner reads as pet-green; a time-boxed walker as amber attention. */
+const ROLE_STYLE: Record<InviteRole, { tone: Tone; icon: IconName }> = {
+  owner: { tone: 'pet', icon: 'key' },
+  member: { tone: 'neutral', icon: 'heart' },
+  walker: { tone: 'attention', icon: 'leash' },
+};
+
+/** A settled message shown under the team list: success reads calm, errors read gentle. */
 type Notice = { text: string; error?: boolean };
 
-/** Destructive accent for remove/leave/revoke — a role token; theme/colors.ts is off-limits here. */
-const DANGER = '#c0392b';
+function shortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
 
 /**
  * Copy to the OS clipboard where we can without a native dependency. react-native-web maps
@@ -79,11 +79,20 @@ async function webShare(text: string): Promise<boolean> {
   }
 }
 
+/**
+ * The pet's care team: invite a helper with a code, see who helps (with roles in plain
+ * words), join someone else's family, and — clearly separated at the bottom — leave.
+ *
+ * Presentation-only redesign: every handler, RPC and state transition is unchanged.
+ */
 export function HouseholdSection({
   onMembersLoaded,
+  petName,
 }: {
-  /** Lets a host screen (the Shared tab hero) reflect the live member count. */
+  /** Lets a host screen (the Family tab hero) reflect the live member count. */
   onMembersLoaded?: (members: Member[]) => void;
+  /** Pet name(s) for warmer copy ("Mochi", "Mochi & Luna"). Optional; falls back to generic. */
+  petName?: string | null;
 }) {
   // Current user id comes from the session, NOT a prop. Whether *this* user is an owner is
   // derived from their own row in the fetched member list, never assumed.
@@ -139,6 +148,10 @@ export function HouseholdSection({
 
   const myRole = members.find((m) => m.userId === currentUserId)?.role ?? null;
   const isOwner = myRole === 'owner';
+  const amMember = members.some((m) => m.userId === currentUserId);
+
+  const petWord = petName && petName.trim() ? petName : 'your pets';
+  const familyWord = petName && petName.trim() ? `${possessive(petName)} family` : 'this family';
 
   const mint = async () => {
     setMinting(true);
@@ -159,7 +172,7 @@ export function HouseholdSection({
     try {
       await revokeInvite(getSupabaseClient(), householdId, invite.code);
       setInvite(null);
-      setMessage({ text: 'Invite revoked. That code no longer works.' });
+      setMessage({ text: "Code turned off. It won't work any more." });
     } catch (e) {
       setMessage({ text: householdErrorMessage(e), error: true });
     } finally {
@@ -169,7 +182,7 @@ export function HouseholdSection({
 
   const shareInvite = async () => {
     if (!invite) return;
-    const text = `Join our PawClock household with code ${invite.code}`;
+    const text = `Help look after ${petName?.trim() ? petName : "our pets"} on PawClock. Join with code ${invite.code}`;
     // Native gets the OS share sheet (fastest way into a text message); web tries the browser
     // Share sheet, falling back to clipboard where it isn't offered.
     if (Platform.OS !== 'web') {
@@ -197,7 +210,7 @@ export function HouseholdSection({
       return;
     }
     try {
-      await Share.share({ message: `Join our PawClock household with code ${invite.code}` });
+      await Share.share({ message: `Help look after ${petName?.trim() ? petName : "our pets"} on PawClock. Join with code ${invite.code}` });
     } catch {
       /* dismissed */
     }
@@ -209,7 +222,7 @@ export function HouseholdSection({
     try {
       await removeMember(getSupabaseClient(), householdId, removeTarget.userId);
       setRemoveTarget(null);
-      setMessage({ text: 'Removed. They no longer have access to this household.' });
+      setMessage({ text: `Done. They won't see ${possessive(petWord)} reminders any more.` });
       await loadMembers();
     } catch (e) {
       setRemoveTarget(null);
@@ -227,7 +240,7 @@ export function HouseholdSection({
       setMembers([]);
       onLoadedRef.current?.([]);
       setInvite(null);
-      setMessage({ text: "You've left the household. This device will move to a fresh one." });
+      setMessage({ text: "You've left the family. This phone will move to a fresh one of its own." });
     } catch (e) {
       setLeaveOpen(false);
       setMessage({ text: householdErrorMessage(e), error: true });
@@ -245,8 +258,8 @@ export function HouseholdSection({
       setInvite(null);
       setMessage({
         text: result.leftPrevious
-          ? 'Joined. You and your partner now share one household.'
-          : 'Joined. Your previous household still has pets, so it was kept.',
+          ? `You're in! You now share ${possessive(petWord)} care with your partner.`
+          : "You're in! Your old family still has pets, so we kept it too.",
       });
       await loadMembers();
     } catch (e) {
@@ -256,171 +269,171 @@ export function HouseholdSection({
     }
   };
 
+  const openJoin = () => {
+    setMessage(null);
+    setJoinOpen(true);
+  };
+
+  const usesLeft = invite ? invite.maxUses - invite.useCount : 0;
+
   return (
     <>
-      {/* ── Invite code ─────────────────────────────────────────────── */}
-      <SectionLabel>Invite code</SectionLabel>
+      {/* ── Invite a helper ─────────────────────────────────────────── */}
+      <SectionLabel hint={`A partner, sitter or walker can help with ${petWord}.`}>
+        Invite a helper
+      </SectionLabel>
       {invite ? (
-        <Card padded style={styles.inviteCard}>
-          <View style={styles.inviteHead}>
-            <View style={styles.keyTile}>
-              <Icon name="key" size={16} color={amber.warnInk} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.inviteLabel}>Invite code</Text>
-              <Text
-                style={styles.code}
-                selectable
-                accessibilityLabel={`Invite code ${invite.code}`}
-              >
-                {invite.code}
-              </Text>
-            </View>
+        <Card padded>
+          <Text style={styles.codeLabel}>Your invite code</Text>
+          <View style={styles.codeWell}>
+            <Text
+              style={styles.code}
+              selectable
+              accessibilityLabel={`Invite code ${invite.code}`}
+            >
+              {invite.code}
+            </Text>
+          </View>
+          <View style={styles.codeMeta}>
+            <Icon name="clock" size={15} color={ink.muted} strokeWidth={2.2} />
+            <Text style={styles.codeMetaText}>
+              {usesLeft} use{usesLeft === 1 ? '' : 's'} left · works until {shortDate(invite.expiresAt)}
+            </Text>
           </View>
 
           <View style={styles.inviteBtns}>
-            <Pressable
-              style={({ pressed }) => [styles.btn, styles.btnPrimary, pressed && styles.pressed]}
+            <Button
+              label={shared ? 'Shared!' : 'Share invite'}
+              accessibilityLabel="Share invite"
+              icon={shared ? 'check' : 'share'}
               onPress={() => void shareInvite()}
-              role="button"
-              aria-label="Share invite"
-            >
-              <Icon name="share" size={14} color={ink.onDark} strokeWidth={2.2} />
-              <Text style={styles.btnPrimaryText}>{shared ? 'Shared!' : 'Share invite'}</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.btn, styles.btnGhost, pressed && styles.pressed]}
+              fullWidth
+            />
+            <Button
+              label={copied ? 'Copied!' : 'Copy code'}
+              accessibilityLabel="Copy code"
+              icon={copied ? 'check' : 'copy'}
+              variant="secondary"
+              size="md"
               onPress={() => void copyInvite()}
-              role="button"
-              aria-label="Copy code"
-            >
-              <Icon name={copied ? 'check' : 'copy'} size={14} color={ink.muted} strokeWidth={2.2} />
-              <Text style={styles.btnGhostText}>{copied ? 'Copied!' : 'Copy code'}</Text>
-            </Pressable>
+              fullWidth
+            />
           </View>
 
-          <View style={styles.inviteFootRow}>
-            <Text style={styles.inviteFoot}>
-              {invite.maxUses - invite.useCount} use
-              {invite.maxUses - invite.useCount === 1 ? '' : 's'} left · expires{' '}
-              {new Date(invite.expiresAt).toLocaleDateString()}
-            </Text>
-            <Pressable
-              onPress={() => void revoke()}
-              disabled={revoking}
-              hitSlop={8}
-              role="button"
-              aria-label="Revoke invite code"
-            >
-              {revoking ? (
-                <ActivityIndicator color={DANGER} size="small" />
-              ) : (
-                <Text style={styles.revokeText}>Revoke</Text>
-              )}
-            </Pressable>
-          </View>
+          <Pressable
+            onPress={() => void revoke()}
+            disabled={revoking}
+            role="button"
+            aria-label="Revoke invite code"
+            style={({ pressed }) => [styles.revoke, pressed && styles.pressed]}
+          >
+            {revoking ? (
+              <ActivityIndicator color={terracotta.ink} size="small" />
+            ) : (
+              <>
+                <Icon name="close" size={16} color={terracotta.ink} strokeWidth={2.3} />
+                <Text style={styles.revokeText}>Turn off this code</Text>
+              </>
+            )}
+          </Pressable>
         </Card>
       ) : (
-        <Pressable
-          style={({ pressed }) => [styles.mintCta, pressed && styles.pressed]}
-          onPress={() => void mint()}
-          disabled={minting}
-          role="button"
-          aria-label="Create an invite code"
-        >
-          {minting ? (
-            <ActivityIndicator color={green.mid} />
-          ) : (
-            <>
-              <Icon name="userPlus" size={16} color={green.mid} strokeWidth={2.2} />
-              <Text style={styles.mintCtaText}>Invite a caregiver</Text>
-            </>
-          )}
-        </Pressable>
+        <Card padded>
+          <View style={styles.inviteIntro}>
+            <IconTile icon="userPlus" tone="pet" size={44} />
+            <Text style={styles.inviteIntroText}>
+              We&apos;ll make a short code you can text to them. They type it in and they&apos;re in.
+            </Text>
+          </View>
+          <Button
+            label="Get an invite code"
+            accessibilityLabel="Create an invite code"
+            icon="userPlus"
+            onPress={() => void mint()}
+            loading={minting}
+            fullWidth
+            style={styles.inviteCta}
+          />
+        </Card>
       )}
 
-      <Pressable
-        style={styles.joinLink}
-        onPress={() => {
-          setMessage(null);
-          setJoinOpen(true);
-        }}
-        role="button"
-        aria-label="Join a household with a code"
-        hitSlop={6}
-      >
-        <Text style={styles.joinLinkText}>
-          Have a code? <Text style={styles.joinLinkStrong}>Join a household</Text>
-        </Text>
-      </Pressable>
+      <Button
+        label="I have a code to join"
+        accessibilityLabel="Join a household with a code"
+        icon="key"
+        variant="ghost"
+        size="md"
+        onPress={openJoin}
+        fullWidth
+        style={styles.joinBtn}
+      />
 
-      {/* ── Members ─────────────────────────────────────────────────── */}
-      <View style={{ height: 18 }} />
-      <SectionLabel>Members</SectionLabel>
+      {/* ── The team ────────────────────────────────────────────────── */}
+      <View style={styles.gap} />
+      <SectionLabel>{`Who's helping`}</SectionLabel>
       {membersLoading && members.length === 0 ? (
         <Card padded style={styles.stateCard}>
           <ActivityIndicator color={green.mid} />
+          <Text style={styles.loadingText}>Finding everyone…</Text>
         </Card>
       ) : membersError ? (
-        <Card padded>
-          <Text style={styles.errorText}>{membersError}</Text>
-        </Card>
+        <Banner
+          tone="attention"
+          icon="alert"
+          title="We couldn't load the team just now"
+          body={membersError}
+          action={{ label: 'Try again', onPress: () => void loadMembers() }}
+        />
       ) : members.length === 0 ? (
-        <Card padded>
-          <Text style={styles.emptyText}>No one else has joined yet. Share your code above.</Text>
-        </Card>
+        <PetEmptyState
+          variant="card"
+          icon="users"
+          title="No helpers yet"
+          body={`Invite someone and they'll show up here, ready to help with ${petWord}.`}
+          action={invite ? undefined : { label: 'Get an invite code', icon: 'userPlus', onPress: () => void mint() }}
+        />
       ) : (
         <Card>
           {members.map((m, i) => {
             const isYou = m.userId === currentUserId;
-            const pill = ROLE_PILL[m.role];
-            const expires = m.memberExpiresAt
-              ? ` · access until ${new Date(m.memberExpiresAt).toLocaleDateString()}`
-              : '';
+            const rs = ROLE_STYLE[m.role];
+            const sub = m.memberExpiresAt
+              ? `Joined ${shortDate(m.joinedAt)} · access until ${shortDate(m.memberExpiresAt)}`
+              : `Joined ${shortDate(m.joinedAt)}`;
             return (
               <View key={m.userId}>
                 <View style={styles.memberRow}>
                   <View style={[styles.avatar, isYou && styles.avatarYou]}>
-                    <Icon name="user" size={16} color={isYou ? ink.onDark : ink.faint2} />
+                    <Icon name="user" size={20} color={isYou ? ink.onDark : ink.muted} strokeWidth={2.2} />
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.memberName} numberOfLines={1}>
-                      {ROLE_LABEL[m.role]}
-                      {isYou ? <Text style={styles.youTag}> · you</Text> : null}
+                  <View style={styles.memberText}>
+                    <View style={styles.memberTitleRow}>
+                      <Text style={styles.memberName} numberOfLines={1}>
+                        {isYou ? 'You' : ROLE_LABEL[m.role]}
+                      </Text>
+                      <Pill tone={rs.tone} icon={rs.icon} label={ROLE_LABEL[m.role]} size="sm" />
+                    </View>
+                    <Text style={styles.memberSub} numberOfLines={2}>
+                      {ROLE_PLAIN[m.role]}
                     </Text>
-                    <Text style={styles.memberSub} numberOfLines={1}>
-                      Joined {new Date(m.joinedAt).toLocaleDateString()}
-                      {expires}
+                    <Text style={styles.memberMeta} numberOfLines={1}>
+                      {sub}
                     </Text>
                   </View>
-                  <View style={styles.memberRight}>
-                    <Pill label={ROLE_LABEL[m.role]} bg={pill.bg} color={pill.color} size="sm" />
-                    {isYou ? (
-                      <Pressable
-                        onPress={() => {
-                          setMessage(null);
-                          setLeaveOpen(true);
-                        }}
-                        hitSlop={6}
-                        role="button"
-                        aria-label="Leave household"
-                      >
-                        <Text style={styles.rowAction}>Leave</Text>
-                      </Pressable>
-                    ) : isOwner ? (
-                      <Pressable
-                        onPress={() => {
-                          setMessage(null);
-                          setRemoveTarget(m);
-                        }}
-                        hitSlop={6}
-                        role="button"
-                        aria-label={`Remove ${ROLE_LABEL[m.role]}`}
-                      >
-                        <Text style={styles.rowAction}>Remove</Text>
-                      </Pressable>
-                    ) : null}
-                  </View>
+                  {!isYou && isOwner ? (
+                    <Pressable
+                      onPress={() => {
+                        setMessage(null);
+                        setRemoveTarget(m);
+                      }}
+                      hitSlop={tap.hitSlop}
+                      role="button"
+                      aria-label={`Remove ${ROLE_LABEL[m.role]}`}
+                      style={({ pressed }) => [styles.removeBtn, pressed && styles.pressed]}
+                    >
+                      <Text style={styles.removeText}>Remove</Text>
+                    </Pressable>
+                  ) : null}
                 </View>
                 {i < members.length - 1 && <View style={styles.divider} />}
               </View>
@@ -430,298 +443,226 @@ export function HouseholdSection({
       )}
 
       {message ? (
-        <Text style={[styles.message, message.error && styles.messageError]}>{message.text}</Text>
+        <Banner
+          compact
+          tone={message.error ? 'attention' : 'pet'}
+          icon={message.error ? 'alert' : 'check'}
+          title={message.text}
+          style={styles.message}
+        />
+      ) : null}
+
+      {/* ── Roles, in plain words ───────────────────────────────────── */}
+      <View style={styles.gap} />
+      <SectionLabel>Who can do what</SectionLabel>
+      <Card padded>
+        {(Object.keys(ROLE_LABEL) as InviteRole[]).map((r, i) => (
+          <View key={r} style={[styles.roleRow, i > 0 && styles.roleRowGap]}>
+            <IconTile icon={ROLE_STYLE[r].icon} tone={ROLE_STYLE[r].tone} size={40} />
+            <View style={styles.memberText}>
+              <Text style={styles.roleName}>{ROLE_LABEL[r]}</Text>
+              <Text style={styles.memberSub}>{ROLE_PLAIN[r]}</Text>
+            </View>
+          </View>
+        ))}
+        <Text style={styles.roleFoot}>New invites join as caregivers.</Text>
+      </Card>
+
+      {/* ── Leave (separated, confirmed) ────────────────────────────── */}
+      {amMember ? (
+        <>
+          <View style={styles.gap} />
+          <SectionLabel>Leaving</SectionLabel>
+          <Card>
+            <Pressable
+              onPress={() => {
+                setMessage(null);
+                setLeaveOpen(true);
+              }}
+              role="button"
+              aria-label="Leave household"
+              style={({ pressed }) => [styles.leaveRow, pressed && styles.rowPressed]}
+            >
+              <IconTile icon="login" tone="food" size={40} />
+              <View style={styles.memberText}>
+                <Text style={styles.leaveTitle}>Leave {familyWord}</Text>
+                <Text style={styles.memberSub}>
+                  This phone stops getting {possessive(petWord)} reminders. We&apos;ll ask first.
+                </Text>
+              </View>
+              <Icon name="chevronRight" size={18} color={ink.placeholder} strokeWidth={2.3} />
+            </Pressable>
+          </Card>
+        </>
       ) : null}
 
       {/* ── Confirm: remove ─────────────────────────────────────────── */}
-      <AppModal
+      <ConfirmDialog
         visible={removeTarget != null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setRemoveTarget(null)}
-      >
-        <Pressable style={styles.overlay} onPress={() => setRemoveTarget(null)}>
-          <Pressable onPress={(e) => e.stopPropagation()} style={styles.dialogWrap}>
-            <GlassSurface fallbackColor={surface.card} fallbackOpacity={1} style={styles.dialog}>
-              <Text style={styles.dialogTitle}>
-                Remove this {removeTarget ? ROLE_LABEL[removeTarget.role].toLowerCase() : 'member'}?
-              </Text>
-              <Text style={styles.dialogBody}>
-                They&apos;ll immediately lose access to this household&apos;s pets, reminders and
-                shared logs. You can always invite them again with a new code.
-              </Text>
-              <View style={styles.dialogActions}>
-                <Pressable
-                  style={({ pressed }) => [styles.dlgBtn, styles.dlgCancel, pressed && styles.pressed]}
-                  onPress={() => setRemoveTarget(null)}
-                  role="button"
-                  aria-label="Cancel"
-                >
-                  <Text style={styles.dlgCancelText}>Cancel</Text>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.dlgBtn,
-                    styles.dlgDanger,
-                    removing && styles.disabled,
-                    pressed && styles.pressed,
-                  ]}
-                  onPress={() => void confirmRemove()}
-                  disabled={removing}
-                  role="button"
-                  aria-label="Remove"
-                >
-                  {removing ? (
-                    <ActivityIndicator color={ink.onDark} />
-                  ) : (
-                    <Text style={styles.dlgDangerText}>Remove</Text>
-                  )}
-                </Pressable>
-              </View>
-            </GlassSurface>
-          </Pressable>
-        </Pressable>
-      </AppModal>
+        onClose={() => setRemoveTarget(null)}
+        destructive
+        icon="user"
+        title={`Remove this ${removeTarget ? ROLE_LABEL[removeTarget.role].toLowerCase() : 'member'}?`}
+        body={`They'll stop seeing ${possessive(petWord)} reminders and logs right away. You can invite them again any time with a new code.`}
+        confirmLabel={`Remove ${removeTarget ? ROLE_LABEL[removeTarget.role].toLowerCase() : 'helper'}`}
+        confirmAccessibilityLabel="Remove"
+        onConfirm={() => void confirmRemove()}
+        loading={removing}
+        cancelLabel="Keep them"
+      />
 
       {/* ── Confirm: leave ──────────────────────────────────────────── */}
-      <AppModal
+      <ConfirmDialog
         visible={leaveOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setLeaveOpen(false)}
-      >
-        <Pressable style={styles.overlay} onPress={() => setLeaveOpen(false)}>
-          <Pressable onPress={(e) => e.stopPropagation()} style={styles.dialogWrap}>
-            <GlassSurface fallbackColor={surface.card} fallbackOpacity={1} style={styles.dialog}>
-              <Text style={styles.dialogTitle}>Leave this household?</Text>
-              <Text style={styles.dialogBody}>
-                This device will lose access to the shared pets and reminders and move to a fresh
-                household of its own. If you&apos;re the only owner, move or hand off the pets first.
-              </Text>
-              <View style={styles.dialogActions}>
-                <Pressable
-                  style={({ pressed }) => [styles.dlgBtn, styles.dlgCancel, pressed && styles.pressed]}
-                  onPress={() => setLeaveOpen(false)}
-                  role="button"
-                  aria-label="Cancel"
-                >
-                  <Text style={styles.dlgCancelText}>Cancel</Text>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.dlgBtn,
-                    styles.dlgDanger,
-                    leaving && styles.disabled,
-                    pressed && styles.pressed,
-                  ]}
-                  onPress={() => void confirmLeave()}
-                  disabled={leaving}
-                  role="button"
-                  aria-label="Leave household"
-                >
-                  {leaving ? (
-                    <ActivityIndicator color={ink.onDark} />
-                  ) : (
-                    <Text style={styles.dlgDangerText}>Leave</Text>
-                  )}
-                </Pressable>
-              </View>
-            </GlassSurface>
-          </Pressable>
-        </Pressable>
-      </AppModal>
+        onClose={() => setLeaveOpen(false)}
+        destructive
+        icon="login"
+        title={`Leave ${familyWord}?`}
+        body={`This phone will stop seeing ${possessive(petWord)} reminders and logs, and move to a fresh family of its own. If you're the only owner, hand the pets to someone first.`}
+        confirmLabel="Leave family"
+        confirmAccessibilityLabel="Leave household"
+        onConfirm={() => void confirmLeave()}
+        loading={leaving}
+        cancelLabel="Stay"
+      />
 
       {/* ── Join with a code ────────────────────────────────────────── */}
-      <AppModal
+      <ConfirmDialog
         visible={joinOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setJoinOpen(false)}
+        onClose={() => setJoinOpen(false)}
+        icon="key"
+        title="Join a family"
+        body="Type the code you were sent. This phone will switch to their pets and reminders. Anything you added here stays safe in your own family."
+        confirmLabel="Join family"
+        confirmAccessibilityLabel="Join"
+        onConfirm={() => void submitJoin()}
+        confirmDisabled={!code.trim()}
+        loading={joining}
+        cancelLabel="Cancel"
       >
-        <Pressable style={styles.overlay} onPress={() => setJoinOpen(false)}>
-          <Pressable onPress={(e) => e.stopPropagation()} style={styles.dialogWrap}>
-            <GlassSurface fallbackColor={surface.card} fallbackOpacity={1} style={styles.dialog}>
-              <Text style={styles.dialogTitle}>Join a household</Text>
-              <Text style={styles.dialogBody}>
-                This device will switch to their pets and reminders. Anything you added here first
-                stays behind on your own household.
-              </Text>
-              <TextInput
-                style={styles.input}
-                value={code}
-                onChangeText={(t) => setCode(t.toUpperCase())}
-                placeholder="ABC123"
-                placeholderTextColor={ink.faint}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                maxLength={12}
-                accessibilityLabel="Invite code"
-              />
-              <View style={styles.dialogActions}>
-                <Pressable
-                  style={({ pressed }) => [styles.dlgBtn, styles.dlgCancel, pressed && styles.pressed]}
-                  onPress={() => setJoinOpen(false)}
-                  role="button"
-                  aria-label="Cancel"
-                >
-                  <Text style={styles.dlgCancelText}>Cancel</Text>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.dlgBtn,
-                    styles.dlgConfirm,
-                    (!code.trim() || joining) && styles.disabled,
-                    pressed && styles.pressed,
-                  ]}
-                  onPress={() => void submitJoin()}
-                  disabled={!code.trim() || joining}
-                  role="button"
-                  aria-label="Join"
-                >
-                  {joining ? (
-                    <ActivityIndicator color={ink.onDark} />
-                  ) : (
-                    <Text style={styles.dlgConfirmText}>Join</Text>
-                  )}
-                </Pressable>
-              </View>
-            </GlassSurface>
-          </Pressable>
-        </Pressable>
-      </AppModal>
+        <TextInput
+          style={styles.input}
+          value={code}
+          onChangeText={(t) => setCode(t.toUpperCase())}
+          placeholder="ABC123"
+          placeholderTextColor={ink.placeholder}
+          autoCapitalize="characters"
+          autoCorrect={false}
+          maxLength={12}
+          accessibilityLabel="Invite code"
+        />
+      </ConfirmDialog>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  // Invite code card
-  inviteCard: {},
-  inviteHead: { flexDirection: 'row', alignItems: 'center', gap: 11 },
-  keyTile: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.iconTileSm,
-    backgroundColor: amber.warnBg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  inviteLabel: {
-    fontFamily: fonts.bold,
-    fontSize: 10,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    color: ink.faint2,
-  },
-  code: {
-    fontFamily: fonts.extraBold,
-    fontSize: 20,
-    letterSpacing: 3,
-    color: ink.primary,
-    marginTop: 1,
-  },
-  inviteBtns: { flexDirection: 'row', gap: 8, marginTop: 14 },
-  btn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 7,
-    paddingVertical: 11,
-    borderRadius: radius.tile,
-  },
-  btnPrimary: { backgroundColor: green.mid },
-  btnPrimaryText: { fontFamily: fonts.bold, fontSize: 13, color: ink.onDark },
-  btnGhost: { backgroundColor: surface.field },
-  btnGhostText: { fontFamily: fonts.semiBold, fontSize: 13, color: ink.muted },
-  inviteFootRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 11,
-    gap: 12,
-  },
-  inviteFoot: { flex: 1, fontFamily: fonts.medium, fontSize: 11.5, color: ink.faint2, lineHeight: 16 },
-  revokeText: { fontFamily: fonts.bold, fontSize: 12, color: DANGER },
+  gap: { height: space.section },
+  pressed: { opacity: 0.7 },
+  rowPressed: { backgroundColor: surface.field },
 
-  // Create-invite CTA
-  mintCta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 15,
-    borderRadius: radius.tile,
+  // Invite
+  inviteIntro: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  inviteIntroText: { ...type.body, color: ink.muted, flex: 1, minWidth: 0 },
+  inviteCta: { marginTop: space.lg },
+  codeLabel: { ...type.subhead, color: ink.primary },
+  codeWell: {
+    marginTop: space.xs,
+    backgroundColor: green.wash,
     borderWidth: 1.5,
     borderStyle: 'dashed',
     borderColor: green.tintBorder,
-    backgroundColor: green.tint,
+    borderRadius: radius.tile,
+    paddingVertical: space.lg,
+    alignItems: 'center',
   },
-  mintCtaText: { fontFamily: fonts.bold, fontSize: 13.5, color: green.primary },
+  code: { fontFamily: fonts.mono, fontSize: 30, letterSpacing: 6, color: green.primary },
+  codeMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: space.xs },
+  codeMetaText: { ...type.bodySm, color: ink.muted, flex: 1 },
+  inviteBtns: { gap: space.xs, marginTop: space.lg },
+  revoke: {
+    minHeight: tap.min,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: space.xxs,
+  },
+  revokeText: { ...type.bodySm, fontFamily: fonts.bold, color: terracotta.ink },
+  joinBtn: { marginTop: space.xs },
 
-  joinLink: { alignSelf: 'center', paddingVertical: 12 },
-  joinLinkText: { fontFamily: fonts.medium, fontSize: 12.5, color: ink.muted },
-  joinLinkStrong: { fontFamily: fonts.bold, color: green.primary },
-
-  // Members
-  stateCard: { alignItems: 'center' },
-  errorText: { fontFamily: fonts.medium, fontSize: 12.5, color: DANGER, lineHeight: 18 },
-  emptyText: { fontFamily: fonts.medium, fontSize: 12.5, color: ink.muted, lineHeight: 18 },
-  memberRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 16 },
+  // Team
+  stateCard: { alignItems: 'center', gap: space.xs },
+  loadingText: { ...type.bodySm, color: ink.muted },
+  memberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    paddingVertical: space.md,
+    paddingHorizontal: space.lg,
+    minHeight: 72,
+  },
   avatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: surface.chip,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   avatarYou: { backgroundColor: green.mid },
-  memberName: { fontFamily: fonts.bold, fontSize: 14, color: ink.primary },
-  youTag: { fontFamily: fonts.medium, color: ink.faint2 },
-  memberSub: { fontFamily: fonts.medium, fontSize: 12, color: ink.muted, marginTop: 2 },
-  memberRight: { alignItems: 'flex-end', gap: 6 },
-  rowAction: { fontFamily: fonts.bold, fontSize: 11.5, color: DANGER },
-  divider: { height: 1, backgroundColor: line.hairline, marginHorizontal: 16 },
-
-  message: { fontFamily: fonts.medium, fontSize: 12.5, color: green.primary, lineHeight: 18, marginTop: 12, paddingHorizontal: 2 },
-  messageError: { color: DANGER },
-
-  // Dialogs
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(42,39,36,0.45)',
+  memberText: { flex: 1, minWidth: 0 },
+  memberTitleRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs, flexWrap: 'wrap' },
+  memberName: { ...type.subhead, color: ink.primary },
+  memberSub: { ...type.bodySm, color: ink.muted, marginTop: 2 },
+  memberMeta: { ...type.caption, color: ink.faint, marginTop: 2 },
+  removeBtn: {
+    minHeight: tap.min,
+    minWidth: tap.min,
+    paddingHorizontal: space.sm,
+    borderRadius: radius.tile,
+    borderWidth: 1.5,
+    borderColor: terracotta.tintBorder,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
   },
-  dialogWrap: { width: '100%', maxWidth: 340 },
-  dialog: { borderRadius: radius.sheet, padding: 22 },
-  dialogTitle: { fontFamily: fonts.extraBold, fontSize: 17, color: ink.primary, letterSpacing: -0.3, marginBottom: 8 },
-  dialogBody: { fontFamily: fonts.medium, fontSize: 13, color: ink.muted, lineHeight: 19, marginBottom: 16 },
+  removeText: { ...type.bodySm, fontFamily: fonts.bold, color: terracotta.ink },
+  divider: { height: 1, backgroundColor: line.hairline, marginLeft: space.lg + 44 + space.sm, marginRight: space.lg },
+  message: { marginTop: space.sm },
+
+  // Roles
+  roleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm },
+  roleRowGap: { marginTop: space.md },
+  roleName: { ...type.subhead, color: ink.primary },
+  roleFoot: { ...type.caption, color: ink.faint, marginTop: space.lg },
+
+  // Leave
+  leaveRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    minHeight: 72,
+    paddingVertical: space.md,
+    paddingHorizontal: space.lg,
+  },
+  leaveTitle: { ...type.subhead, color: terracotta.ink },
+
+  // Join input
   input: {
-    borderWidth: 1,
+    minHeight: 60,
+    borderWidth: 1.5,
     borderColor: line.border,
     backgroundColor: surface.field,
     borderRadius: radius.tile,
-    paddingVertical: 13,
-    paddingHorizontal: 14,
-    fontFamily: fonts.extraBold,
-    fontSize: 20,
-    letterSpacing: 3,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.md,
+    fontFamily: fonts.mono,
+    fontSize: 24,
+    letterSpacing: 5,
     textAlign: 'center',
     color: ink.primary,
-    marginBottom: 18,
   },
-  dialogActions: { flexDirection: 'row', gap: 10 },
-  dlgBtn: { flex: 1, borderRadius: radius.tile, paddingVertical: 13, alignItems: 'center', justifyContent: 'center' },
-  dlgCancel: { backgroundColor: surface.field },
-  dlgCancelText: { fontFamily: fonts.bold, fontSize: 13, color: ink.muted },
-  dlgConfirm: { backgroundColor: green.mid },
-  dlgConfirmText: { fontFamily: fonts.bold, fontSize: 13, color: ink.onDark },
-  dlgDanger: { backgroundColor: DANGER },
-  dlgDangerText: { fontFamily: fonts.bold, fontSize: 13, color: ink.onDark },
-  disabled: { opacity: 0.5 },
-  pressed: { opacity: 0.75 },
 });
 
 export default HouseholdSection;

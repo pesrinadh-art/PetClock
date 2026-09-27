@@ -1,22 +1,13 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { category, green, ink, line, logTint, radius, terracotta } from '../theme/colors';
-import { fonts } from '../theme/fonts';
-import type { FeedTime, LogEntry, LogType } from '../data/mockData';
+import { ink, line, space, surface, tap } from '../theme/colors';
+import { fonts, type } from '../theme/fonts';
+import type { FeedTime, LogEntry } from '../data/mockData';
 import { useLogs } from '../context/LogsContext';
 import { describeLog, formatClock } from '../lib/petSchedule';
-import { Card } from './ui';
-import { Icon, type IconName } from './Icon';
-
-/** Drawn-icon + tint per log type (replaces the emoji dots). */
-const TYPE_STYLE: Record<LogType, { icon: IconName; bg: string; fg: string }> = {
-  pee: { icon: 'drop', bg: logTint.peeBg, fg: logTint.peeInk },
-  poo: { icon: 'poo', bg: logTint.pooBg, fg: logTint.pooInk },
-  food: { icon: 'bowl', bg: terracotta.tint, fg: terracotta.primary },
-  medication: { icon: 'pill', bg: category.medBg, fg: category.medInk },
-  vet: { icon: 'vet', bg: category.vetBg, fg: category.vetInk },
-  other: { icon: 'paw', bg: green.tint, fg: green.primary },
-};
+import { Button, Card, IconTile } from './ui';
+import { Icon } from './Icon';
+import { logVisual } from './pets/logVisual';
 
 /** "by you" / "by a caregiver" — attribution derived from the log's author id. */
 function caregiverLabel(createdBy: string | null, currentUserId?: string | null): string {
@@ -53,55 +44,71 @@ export function Timeline({
       {entries.map((e, i) => {
         const expanded = expandedId === e.id;
         const { label } = describeLog(e, feedTimes, now);
-        const ts = TYPE_STYLE[e.type] ?? TYPE_STYLE.other;
+        const v = logVisual(e.type);
         const occurredMs = new Date(e.occurredAt).getTime();
+        const time = formatClock(new Date(occurredMs));
+        const who = caregiverLabel(e.createdBy, currentUserId);
         const last = i === entries.length - 1;
         return (
-          <View key={e.id}>
+          <View key={e.id} style={expanded ? styles.expandedWrap : undefined}>
             <Pressable
               role="button"
-              aria-label={`${label}, by ${caregiverLabel(e.createdBy, currentUserId)}, ${formatClock(new Date(occurredMs))}. Tap to edit or delete.`}
-              style={styles.item}
+              aria-label={`${label}, by ${who}, ${time}. ${expanded ? 'Close options' : 'Tap to adjust or delete.'}`}
+              aria-expanded={expanded}
+              style={({ pressed }) => [styles.item, pressed && styles.pressed]}
               onPress={() => setExpandedId(expanded ? null : e.id)}
             >
-              <View style={[styles.tile, { backgroundColor: ts.bg }]}>
-                <Icon name={ts.icon} size={14} color={ts.fg} strokeWidth={2} />
-              </View>
+              <IconTile icon={v.icon} tone={v.tone} size={38} />
               <View style={styles.text}>
-                <Text style={styles.label} numberOfLines={1}>{label}</Text>
-                <Text style={styles.sub} numberOfLines={1}>by {caregiverLabel(e.createdBy, currentUserId)}</Text>
+                <Text style={styles.label} numberOfLines={1}>
+                  {label}
+                </Text>
+                <Text style={styles.sub} numberOfLines={1}>
+                  Logged by {who}
+                </Text>
               </View>
-              <Text style={styles.time}>{formatClock(new Date(occurredMs))}</Text>
+              <Text style={styles.time}>{time}</Text>
+              <Icon
+                name={expanded ? 'close' : 'dots'}
+                size={16}
+                color={ink.placeholder}
+                strokeWidth={2.2}
+              />
             </Pressable>
             {expanded && (
               <View style={styles.actions}>
-                <Pressable
-                  role="button"
-                  aria-label="Move this log 15 minutes earlier"
-                  style={styles.actionBtn}
-                  onPress={() => adjustTime(e, -15)}
-                >
-                  <Text style={styles.actionText}>−15 min</Text>
-                </Pressable>
-                <Pressable
-                  role="button"
-                  aria-label="Move this log 15 minutes later"
-                  style={styles.actionBtn}
-                  onPress={() => adjustTime(e, 15)}
-                >
-                  <Text style={styles.actionText}>+15 min</Text>
-                </Pressable>
-                <Pressable
-                  role="button"
-                  aria-label={`Delete ${label} log`}
-                  style={[styles.actionBtn, styles.deleteBtn]}
+                <Text style={styles.actionsHint}>Adjust the time, or remove this entry.</Text>
+                <View style={styles.actionRow}>
+                  <Button
+                    label="15 min earlier"
+                    variant="soft"
+                    size="md"
+                    accessibilityLabel="Move this log 15 minutes earlier"
+                    onPress={() => adjustTime(e, -15)}
+                    style={styles.actionBtn}
+                  />
+                  <Button
+                    label="15 min later"
+                    variant="soft"
+                    size="md"
+                    accessibilityLabel="Move this log 15 minutes later"
+                    onPress={() => adjustTime(e, 15)}
+                    style={styles.actionBtn}
+                  />
+                </View>
+                <Button
+                  label="Delete entry"
+                  icon="trash"
+                  variant="secondary"
+                  tone="neutral"
+                  size="md"
+                  fullWidth
+                  accessibilityLabel={`Delete ${label} log`}
                   onPress={() => {
                     setExpandedId(null);
                     removeLog(e.id);
                   }}
-                >
-                  <Text style={[styles.actionText, styles.deleteText]}>Delete</Text>
-                </Pressable>
+                />
               </View>
             )}
             {!last && !expanded && <View style={styles.divider} />}
@@ -113,34 +120,24 @@ export function Timeline({
 }
 
 const styles = StyleSheet.create({
-  card: { marginBottom: 12 },
+  card: { marginBottom: space.sm },
+  expandedWrap: { backgroundColor: surface.field },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 11,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    gap: space.sm,
+    minHeight: 60,
+    paddingVertical: space.xs,
+    paddingHorizontal: space.lg,
   },
-  tile: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  text: { flex: 1 },
-  label: { fontSize: 13.5, fontFamily: fonts.bold, color: ink.primary },
-  sub: { fontSize: 11.5, fontFamily: fonts.medium, color: ink.faint2, marginTop: 1 },
-  time: { fontSize: 12, fontFamily: fonts.bold, color: ink.muted },
-  divider: { height: 1, backgroundColor: line.hairline, marginHorizontal: 16 },
-  actions: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-  },
-  actionBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: radius.iconTile,
-    backgroundColor: green.tint,
-    alignItems: 'center',
-  },
-  actionText: { fontSize: 12, fontFamily: fonts.bold, color: green.primary },
-  deleteBtn: { backgroundColor: terracotta.tint },
-  deleteText: { color: terracotta.primary },
+  pressed: { opacity: 0.7 },
+  text: { flex: 1, minWidth: 0 },
+  label: { ...type.subhead, color: ink.primary },
+  sub: { ...type.caption, color: ink.muted, marginTop: 1 },
+  time: { ...type.caption, fontFamily: fonts.bold, color: ink.muted },
+  divider: { height: 1, backgroundColor: line.hairline, marginHorizontal: space.lg },
+  actions: { paddingHorizontal: space.lg, paddingBottom: space.md, gap: space.xs },
+  actionsHint: { ...type.caption, color: ink.muted },
+  actionRow: { flexDirection: 'row', gap: space.xs, minHeight: tap.min },
+  actionBtn: { flex: 1, paddingHorizontal: 10 },
 });
