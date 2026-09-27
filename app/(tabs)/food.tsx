@@ -3,48 +3,65 @@
 // and its meal logic/helpers are kept so nothing breaks until a Phase-2 agent
 // rebuilds meal logging inside the pet profile.
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, radius, shadow } from '../../theme/colors';
-import { fonts } from '../../theme/fonts';
+import { ink, radius, shadow, space, surface } from '../../theme/colors';
+import { type } from '../../theme/fonts';
 import { TopNavBar } from '../../components/TopNavBar';
 import { PetSwitcher } from '../../components/PetSwitcher';
-import { HeroCard } from '../../components/HeroCard';
-import { SectionTitle } from '../../components/SectionTitle';
+import { PetAvatar } from '../../components/PetAvatar';
 import { ScheduleRow } from '../../components/ScheduleRow';
-import { EmptyState } from '../../components/EmptyState';
 import { AppModal } from '../../components/AppModal';
+import {
+  Banner,
+  Button,
+  Card,
+  HeroCard,
+  PetEmptyState,
+  ProgressBar,
+  Screen,
+  SectionLabel,
+} from '../../components/ui';
 import { usePets } from '../../context/PetsContext';
 import { useLogs } from '../../context/LogsContext';
+import { useNow } from '../../hooks/useNow';
 import { getTodaysMeals, getTodaysMedications, type ScheduleRowItem } from '../../lib/petSchedule';
+import { greeting, petMeta, possessive, progressLine, speciesCheer } from '../../lib/petVoice';
 
 const HOUR_MS = 60 * 60 * 1000;
 
 export default function FoodScreen() {
   const { pets, activePet, activePetId, setActivePetId, getFeedTimesForPet, getMedicationsForPet } = usePets();
   const { getLogsForPet, addLog } = useLogs();
+  const clock = useNow();
   // A meal tapped well before its scheduled time waits here for confirmation before logging.
   const [pendingMeal, setPendingMeal] = useState<ScheduleRowItem | null>(null);
 
   if (!activePet) {
     return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
-        <TopNavBar />
-        <EmptyState icon="🍽️" title="No pets yet" body="Add a pet to plan their meals and medications." />
-      </SafeAreaView>
+      <Screen header={<TopNavBar />} scroll={false} tabBar>
+        <PetEmptyState
+          icon="bowl"
+          tone="food"
+          title="Let's meet your pet"
+          body="Add a pet and we'll help you plan their meals and medications."
+          action={{ label: 'Add your first pet', icon: 'plus', onPress: () => router.push('/add-pet') }}
+        />
+      </Screen>
     );
   }
 
-  const now = new Date();
+  const now = clock;
   const meals = getTodaysMeals(getFeedTimesForPet(activePet.id), now, getLogsForPet(activePet.id));
   const medications = getTodaysMedications(getMedicationsForPet(activePet.id), now);
   const mealsDone = meals.filter((m) => m.status === 'done').length;
+  const allFed = meals.length > 0 && mealsDone === meals.length;
+  const name = activePet.name;
 
   const editPet = () => router.push({ pathname: '/add-pet', params: { petId: activePet.id } });
 
-  // Logs a food entry for the meal — mirrors MealTimeBanner's "Done Feeding" call so the row
-  // flips to "✓ Done" (getTodaysMeals matches the log to this slot by feedTimeId, Δ1).
+  // Logs a food entry for the meal — mirrors MealTimeBanner's call so the row flips to "Done"
+  // (getTodaysMeals matches the log to this slot by feedTimeId, Δ1).
   const logMeal = (meal: ScheduleRowItem) => {
     addLog(activePet.id, { type: 'food', feedTimeId: meal.feedTimeId ?? null });
   };
@@ -63,159 +80,173 @@ export default function FoodScreen() {
     setPendingMeal(null);
   };
 
-  return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopNavBar />
-      <PetSwitcher pets={pets} activeId={activePetId} onSelect={setActivePetId} />
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <HeroCard
-          colorsGradient={[colors.food, '#D45F35']}
-          watermark="🍽️"
-          title={`${activePet.name}'s Food`}
-          sub={
-            meals.length > 0
-              ? `${meals.length} meal${meals.length === 1 ? '' : 's'}/day · ${mealsDone} done · ${meals.length - mealsDone} remaining`
-              : 'No feed times set yet'
-          }
-          stats={[
-            { value: meals.length > 0 ? `${meals.length}x` : '—', label: 'Per Day' },
-            { value: meals.length > 0 ? `${mealsDone}/${meals.length}` : '—', label: 'Meals Today' },
-            { value: medications.length > 0 ? String(medications.length) : '—', label: 'Medications' },
-          ]}
-        />
+  const heroSubtitle =
+    meals.length > 0
+      ? `${meals.length} meal${meals.length === 1 ? '' : 's'} a day · ${petMeta(activePet, now)}`
+      : `No meal times yet · ${petMeta(activePet, now)}`;
 
-        <SectionTitle>Today's Meals</SectionTitle>
-        {meals.length === 0 ? (
-          <Pressable
-            style={({ pressed }) => [styles.notice, pressed && styles.noticePressed]}
-            onPress={editPet}
-            role="button"
-            aria-label={`Set up ${activePet.name}'s meal times`}
-          >
-            <Text style={styles.noticeIcon}>🍽️</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.noticeTitle}>No meal times set</Text>
-              <Text style={styles.noticeBody}>Add {activePet.name}'s feeding schedule to see it here.</Text>
-            </View>
-            <Text style={styles.noticeChevron}>›</Text>
-          </Pressable>
-        ) : (
-          meals.map((meal) => (
+  return (
+    <Screen
+      tabBar
+      header={
+        <>
+          <TopNavBar pet={activePet} eyebrow={greeting(now)} title={`${possessive(name)} meals`} />
+          <PetSwitcher pets={pets} activeId={activePetId} onSelect={setActivePetId} />
+        </>
+      }
+    >
+      <HeroCard
+        title={`${possessive(name)} meal plan`}
+        subtitle={heroSubtitle}
+        leading={<PetAvatar pet={activePet} size={60} emojiSize={32} ring="onDark" />}
+        stats={[
+          { value: meals.length > 0 ? `${meals.length}x` : '—', label: 'Meals a day' },
+          { value: medications.length > 0 ? String(medications.length) : '—', label: 'Meds today' },
+        ]}
+        style={styles.hero}
+      >
+        {meals.length > 0 ? (
+          <ProgressBar
+            variant="onDark"
+            value={mealsDone}
+            total={meals.length}
+            label="Meals today"
+            caption={progressLine(mealsDone, meals.length)}
+          />
+        ) : null}
+      </HeroCard>
+
+      {allFed ? (
+        <Banner
+          tone="pet"
+          icon="sparkle"
+          title={`${speciesCheer(activePet.species)} ${name} is all fed today`}
+          body="Every meal is logged. Nice work."
+          compact
+          style={styles.win}
+        />
+      ) : null}
+
+      <SectionLabel hint="Tap a meal once it's in the bowl.">Today's meals</SectionLabel>
+      {meals.length === 0 ? (
+        <PetEmptyState
+          variant="card"
+          icon="bowl"
+          tone="food"
+          title={`No meal times for ${name} yet`}
+          body="Add feeding times and we'll remind you when it's time to eat."
+          action={{ label: 'Set meal times', icon: 'plus', onPress: editPet }}
+        />
+      ) : (
+        <Card>
+          {meals.map((meal, i) => (
             <ScheduleRow
               key={meal.id}
               item={meal}
-              accent={colors.food}
-              accentLight={colors.foodLight}
+              tone="food"
+              fallbackIcon="bowl"
               onLogNow={() => handleMarkDone(meal)}
-              logAccessibilityLabel={`Mark ${meal.name} as fed for ${activePet.name}`}
+              logAccessibilityLabel={`Mark ${meal.name} as fed for ${name}`}
+              divider={i < meals.length - 1}
             />
-          ))
-        )}
+          ))}
+        </Card>
+      )}
 
-        <Pressable
-          style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
-          onPress={editPet}
-          role="button"
-          aria-label="Edit meal times"
-        >
-          <Text style={styles.addBtnText}>➕ Edit Meal Times</Text>
-        </Pressable>
-
-        <View style={{ height: 20 }} />
-
-        <SectionTitle>Medications</SectionTitle>
+      <View style={styles.section}>
+        <SectionLabel>{`${possessive(name)} meds`}</SectionLabel>
         {medications.length === 0 ? (
-          <Pressable
-            style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
-            onPress={editPet}
-            role="button"
-            aria-label="Add medication"
-          >
-            <Text style={styles.addBtnText}>➕ Add Medication</Text>
-          </Pressable>
+          <PetEmptyState
+            variant="card"
+            icon="pill"
+            tone="med"
+            title={`No meds for ${name}`}
+            body="Add one and we'll nudge you when it's due."
+            action={{ label: 'Add medication', icon: 'plus', onPress: editPet }}
+          />
         ) : (
-          <>
-            {medications.map((med) => (
-              <ScheduleRow key={med.id} item={med} accent={colors.medicine} accentLight={colors.medicineLight} />
+          <Card>
+            {medications.map((med, i) => (
+              <ScheduleRow
+                key={med.id}
+                item={med}
+                tone="med"
+                fallbackIcon="pill"
+                divider={i < medications.length - 1}
+              />
             ))}
-            <Pressable
-              style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
-              onPress={editPet}
-              role="button"
-              aria-label="Edit medications"
-            >
-              <Text style={styles.addBtnText}>➕ Edit Medications</Text>
-            </Pressable>
-          </>
+          </Card>
         )}
-      </ScrollView>
+      </View>
+
+      {meals.length > 0 || medications.length > 0 ? (
+        <View style={styles.footerActions}>
+          <Button
+            label={meals.length > 0 ? 'Edit meal times' : 'Set meal times'}
+            icon="pencil"
+            variant="secondary"
+            tone="food"
+            fullWidth
+            onPress={editPet}
+            accessibilityLabel="Edit meal times"
+          />
+          {medications.length > 0 ? (
+            <Button
+              label="Edit medications"
+              icon="pill"
+              variant="ghost"
+              tone="med"
+              fullWidth
+              onPress={editPet}
+              accessibilityLabel="Edit medications"
+            />
+          ) : null}
+        </View>
+      ) : null}
 
       <AppModal visible={!!pendingMeal} transparent animationType="fade" onRequestClose={() => setPendingMeal(null)}>
         <Pressable style={styles.overlay} onPress={() => setPendingMeal(null)}>
           <Pressable style={styles.dialog} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.dialogAvatar}>
+              <PetAvatar pet={activePet} size={56} emojiSize={30} ring />
+            </View>
             <Text style={styles.dialogTitle}>
-              Aw, is it my {pendingMeal?.name.toLowerCase()} already? 🐶
+              {`A little early for ${pendingMeal?.name.toLowerCase() ?? 'this meal'}?`}
             </Text>
             <Text style={styles.dialogBody}>
-              It's a little early — mark {pendingMeal?.name.toLowerCase()} as fed now?
+              {`It's more than an hour before ${possessive(name)} usual ${pendingMeal?.name.toLowerCase() ?? 'meal'} time. Log it as fed now?`}
             </Text>
             <View style={styles.dialogActions}>
-              <Pressable
-                style={({ pressed }) => [styles.dialogBtn, styles.cancelBtn, pressed && styles.pressed]}
-                onPress={() => setPendingMeal(null)}
-                role="button"
-                aria-label="Not yet"
-              >
-                <Text style={styles.cancelBtnText}>Not yet</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [styles.dialogBtn, styles.confirmBtn, pressed && styles.pressed]}
+              <Button
+                label={pendingMeal ? `Log ${pendingMeal.name.toLowerCase()} now` : 'Log it now'}
+                tone="food"
+                icon="check"
+                fullWidth
                 onPress={confirmPendingMeal}
-                role="button"
-                aria-label={pendingMeal ? `Feed ${pendingMeal.name} now for ${activePet.name}` : 'Feed now'}
-              >
-                <Text style={styles.confirmBtnText}>Yes, feed now</Text>
-              </Pressable>
+                accessibilityLabel={pendingMeal ? `Feed ${pendingMeal.name} now for ${name}` : 'Feed now'}
+              />
+              <Button
+                label="Not yet"
+                variant="ghost"
+                tone="neutral"
+                size="md"
+                fullWidth
+                onPress={() => setPendingMeal(null)}
+                accessibilityLabel="Not yet"
+              />
             </View>
           </Pressable>
         </Pressable>
       </AppModal>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.cream },
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingBottom: 24 },
-  addBtn: {
-    borderWidth: 2,
-    borderColor: colors.stoneLight,
-    borderStyle: 'dashed',
-    borderRadius: radius.sm,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  addBtnPressed: { backgroundColor: colors.sagePale, borderColor: colors.sage },
-  addBtnText: { fontSize: 14, fontFamily: fonts.bold, color: colors.stoneMid },
-  notice: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    borderWidth: 1.5,
-    borderColor: colors.food,
-    backgroundColor: colors.foodLight,
-    borderRadius: radius.sm,
-    padding: 14,
-    marginBottom: 4,
-    ...shadow.sm,
-  },
-  noticePressed: { opacity: 0.8 },
-  noticeIcon: { fontSize: 20 },
-  noticeTitle: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.stone, marginBottom: 3 },
-  noticeBody: { fontSize: 12, color: colors.stoneMid, lineHeight: 17 },
-  noticeChevron: { fontSize: 20, color: colors.food, fontFamily: fonts.bold, alignSelf: 'center' },
+  hero: { marginBottom: space.lg },
+  win: { marginBottom: space.lg },
+  section: { marginTop: space.section },
+  footerActions: { marginTop: space.section, gap: space.xs },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -225,19 +256,14 @@ const styles = StyleSheet.create({
   },
   dialog: {
     width: '100%',
-    maxWidth: 320,
-    backgroundColor: colors.white,
-    borderRadius: radius.lg,
-    padding: 20,
+    maxWidth: 340,
+    backgroundColor: surface.card,
+    borderRadius: radius.sheet,
+    padding: space.xl,
     ...shadow.card,
   },
-  dialogTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: colors.stone, marginBottom: 8 },
-  dialogBody: { fontSize: 13, color: colors.stoneMid, lineHeight: 19, marginBottom: 18 },
-  dialogActions: { flexDirection: 'row', gap: 10 },
-  dialogBtn: { flex: 1, borderRadius: radius.sm, paddingVertical: 12, alignItems: 'center' },
-  pressed: { opacity: 0.8 },
-  cancelBtn: { backgroundColor: colors.sagePale },
-  cancelBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.sage },
-  confirmBtn: { backgroundColor: colors.food },
-  confirmBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.white },
+  dialogAvatar: { alignItems: 'center', marginBottom: space.sm },
+  dialogTitle: { ...type.title, fontSize: 20, color: ink.primary, textAlign: 'center', marginBottom: space.xs },
+  dialogBody: { ...type.body, color: ink.muted, textAlign: 'center', marginBottom: space.xl },
+  dialogActions: { gap: space.xs },
 });

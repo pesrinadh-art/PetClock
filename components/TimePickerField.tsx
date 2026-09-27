@@ -5,7 +5,7 @@ import { fonts } from '../theme/fonts';
 import { Icon } from './Icon';
 import { AppModal } from './AppModal';
 
-const ITEM_HEIGHT = 46;
+const ITEM_HEIGHT = 50;
 
 function generateTimeSlots(): string[] {
   const slots: string[] = [];
@@ -76,7 +76,7 @@ export function TimePickerField({ label, value, onChange, placeholder = 'Select 
             aria-label={`${label ? `${label}: ` : ''}${value || placeholder}`}
           >
             <Text style={[styles.valueText, !value && styles.placeholderText]}>{value || placeholder}</Text>
-            <Icon name="clock" size={16} color={ink.faint} strokeWidth={2} />
+            <Icon name="clock" size={18} color={ink.muted} strokeWidth={2} />
           </Pressable>
         </>
       )}
@@ -141,13 +141,15 @@ export function TimePickerField({ label, value, onChange, placeholder = 'Select 
 
 const styles = StyleSheet.create({
   formGroup: { gap: 6 },
-  formLabel: { fontSize: 11, fontFamily: fonts.extraBold, textTransform: 'uppercase', letterSpacing: 1, color: ink.muted },
+  // Sentence-case label above the field (matches ui/TextField).
+  formLabel: { fontSize: 14.5, fontFamily: fonts.bold, color: ink.primary },
   field: {
     backgroundColor: surface.card,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: line.border,
     borderRadius: radius.tile,
-    paddingVertical: 13,
+    minHeight: 52,
+    paddingVertical: 12,
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
@@ -156,28 +158,28 @@ const styles = StyleSheet.create({
   fieldFilled: { borderColor: green.tintBorder },
   // inset (card cell) variant
   insetGroup: {},
-  insetField: { paddingVertical: 13, paddingHorizontal: 16 },
-  insetLabel: { fontSize: 10, fontFamily: fonts.bold, textTransform: 'uppercase', letterSpacing: 1.2, color: ink.faint2 },
-  insetValue: { fontFamily: fonts.bold, fontSize: 14.5, color: ink.primary, marginTop: 3 },
-  insetPlaceholder: { fontFamily: fonts.semiBold, color: '#c0b8a8' },
+  insetField: { minHeight: 60, justifyContent: 'center', paddingVertical: 12, paddingHorizontal: 16 },
+  insetLabel: { fontSize: 12.5, fontFamily: fonts.semiBold, color: ink.muted },
+  insetValue: { fontFamily: fonts.bold, fontSize: 16, color: ink.primary, marginTop: 2 },
+  insetPlaceholder: { fontFamily: fonts.semiBold, color: ink.placeholder },
   pressed: { opacity: 0.7 },
-  valueText: { fontFamily: fonts.semiBold, fontSize: 14, color: ink.primary },
-  placeholderText: { color: '#c0b8a8' },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  valueText: { fontFamily: fonts.semiBold, fontSize: 16, color: ink.primary },
+  placeholderText: { color: ink.placeholder },
+  overlay: { flex: 1, backgroundColor: 'rgba(42,39,36,0.45)', alignItems: 'center', justifyContent: 'center', padding: 24 },
   sheet: {
     width: '100%',
-    maxWidth: 320,
+    maxWidth: 340,
     maxHeight: '80%',
     backgroundColor: surface.card,
-    borderRadius: radius.card,
-    padding: 16,
+    borderRadius: radius.sheet,
+    padding: 18,
     shadowColor: '#2a2724',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.18,
     shadowRadius: 20,
     elevation: 8,
   },
-  sheetTitle: { fontSize: 15, fontFamily: fonts.extraBold, color: ink.primary, marginBottom: 10, textAlign: 'center' },
+  sheetTitle: { fontSize: 18, fontFamily: fonts.extraBold, color: ink.primary, marginBottom: 12, textAlign: 'center' },
   option: {
     height: ITEM_HEIGHT,
     flexDirection: 'row',
@@ -187,8 +189,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.tile,
   },
   optionSelected: { backgroundColor: green.tint },
-  optionText: { fontSize: 14, fontFamily: fonts.semiBold, color: ink.primary },
+  optionText: { fontSize: 16, fontFamily: fonts.semiBold, color: ink.primary },
   optionTextSelected: { fontFamily: fonts.extraBold, color: green.primary },
   clearRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  clearText: { fontSize: 14, fontFamily: fonts.bold, color: ink.muted },
+  clearText: { fontSize: 15, fontFamily: fonts.bold, color: ink.muted },
 });

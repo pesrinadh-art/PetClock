@@ -1,53 +1,83 @@
 import * as React from 'react';
-import { StyleSheet, Text, View, type TextProps } from 'react-native';
-import { ink } from '../../theme/colors';
-import { fonts } from '../../theme/fonts';
+import { Pressable, StyleSheet, Text, View, type TextProps } from 'react-native';
+import { green, ink, space } from '../../theme/colors';
+import { type } from '../../theme/fonts';
 
 /**
- * The uppercase tracked section label seen above every card group
- * ("QUICK LOG", "MEAL TIMES", "MEMBERS"). Design spec: 10.5px, weight 700,
- * letter-spacing .14em (~1.5px), colour #9a9184.
+ * Section heading above a card group.
  *
- * Optional `right` renders a trailing action ("See all") on the same baseline.
+ * Pet-owner redesign: the default is now a friendly SENTENCE-CASE heading
+ * (17px extra-bold, ink) - easier to read than tiny tracked caps. Write the
+ * text the way you'd say it: "Quick log", "Coming up for Mochi", "Meal times".
+ * `variant="eyebrow"` restores the old small uppercase label for dense spots.
+ *
+ * Optional `hint` renders a muted one-liner under the heading.
+ * Optional `right` renders a trailing node; or pass `action={{label,onPress}}`
+ * for the standard green "See all" link (48px tap area via hitSlop).
  */
 export function SectionLabel({
   children,
   right,
+  action,
+  hint,
+  variant = 'heading',
   style,
   ...rest
-}: TextProps & { right?: React.ReactNode }) {
-  if (right) {
-    return (
-      <View style={styles.row}>
-        <Text style={[styles.label, style]} {...rest}>
-          {children}
-        </Text>
-        {right}
-      </View>
-    );
-  }
-  return (
-    <Text style={[styles.label, styles.solo, style]} {...rest}>
+}: TextProps & {
+  right?: React.ReactNode;
+  action?: { label: string; onPress: () => void; accessibilityLabel?: string };
+  hint?: string;
+  variant?: 'heading' | 'eyebrow';
+}) {
+  const labelStyle = variant === 'eyebrow' ? styles.eyebrow : styles.heading;
+  const trailing =
+    right ??
+    (action ? (
+      <Pressable
+        onPress={action.onPress}
+        role="button"
+        aria-label={action.accessibilityLabel ?? action.label}
+        hitSlop={{ top: 14, bottom: 14, left: 12, right: 12 }}
+        style={({ pressed }) => pressed && styles.pressed}
+      >
+        <Text style={styles.action}>{action.label}</Text>
+      </Pressable>
+    ) : null);
+
+  const text = (
+    <Text style={[labelStyle, !trailing && !hint && styles.solo, style]} role="heading" {...rest}>
       {children}
     </Text>
+  );
+
+  if (!trailing && !hint) return text;
+
+  return (
+    <View style={styles.wrap}>
+      <View style={styles.row}>
+        <View style={styles.flex}>{text}</View>
+        {trailing}
+      </View>
+      {!!hint && <Text style={styles.hint}>{hint}</Text>}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  label: {
-    fontFamily: fonts.bold,
-    fontSize: 10.5,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-    color: ink.faint,
-  },
-  solo: { marginBottom: 9 },
+  heading: { ...type.heading, color: ink.primary },
+  eyebrow: { ...type.eyebrow, color: ink.faint },
+  solo: { marginBottom: space.sm - 2 },
+  wrap: { marginBottom: space.sm - 2 },
   row: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    gap: space.xs,
   },
+  flex: { flex: 1, minWidth: 0 },
+  hint: { ...type.bodySm, color: ink.muted, marginTop: 2 },
+  action: { ...type.bodySm, fontFamily: type.subhead.fontFamily, color: green.primary },
+  pressed: { opacity: 0.6 },
 });
 
 export default SectionLabel;

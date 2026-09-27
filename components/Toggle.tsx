@@ -2,8 +2,13 @@ import { useEffect, useRef } from 'react';
 import { Animated, Pressable } from 'react-native';
 import { green, line, ink } from '../theme/colors';
 
-// Redesign pill toggle (screen_2f): green.mid track when on, warm hairline track
-// when off, white thumb. Sizing mirrors the mockup (44×26, 22px thumb).
+// Redesign pill toggle: green.mid track when on, warm hairline track when off,
+// white thumb. Pet-owner redesign: slightly larger (50x30, 26px thumb) and the
+// press area is padded to >= 48px tall so it's an easy one-thumb tap.
+const TRACK_W = 50;
+const TRACK_H = 30;
+const THUMB = 26;
+
 export function Toggle({
   on,
   onToggle,
@@ -18,6 +23,7 @@ export function Toggle({
   useEffect(() => {
     Animated.spring(anim, {
       toValue: on ? 1 : 0,
+      // Colour interpolation can't use the native driver.
       useNativeDriver: false,
       speed: 24,
       bounciness: 6,
@@ -26,22 +32,22 @@ export function Toggle({
 
   const trackColor = anim.interpolate({
     inputRange: [0, 1],
-    outputRange: [line.border, green.mid],
+    outputRange: [line.dashed, green.mid],
   });
-  const translateX = anim.interpolate({ inputRange: [0, 1], outputRange: [2, 20] });
+  const translateX = anim.interpolate({ inputRange: [0, 1], outputRange: [2, TRACK_W - THUMB - 2] });
 
   return (
     <Pressable
       onPress={onToggle}
-      hitSlop={8}
+      hitSlop={{ top: 9, bottom: 9, left: 8, right: 8 }}
       role="switch"
       aria-label={ariaLabel}
       aria-checked={on}
     >
       <Animated.View
         style={{
-          width: 44,
-          height: 26,
+          width: TRACK_W,
+          height: TRACK_H,
           borderRadius: 999,
           backgroundColor: trackColor,
           justifyContent: 'center',
@@ -49,9 +55,9 @@ export function Toggle({
       >
         <Animated.View
           style={{
-            width: 22,
-            height: 22,
-            borderRadius: 11,
+            width: THUMB,
+            height: THUMB,
+            borderRadius: THUMB / 2,
             backgroundColor: ink.onDark,
             transform: [{ translateX }],
             shadowColor: '#000',

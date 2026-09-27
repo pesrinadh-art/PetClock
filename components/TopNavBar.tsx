@@ -1,41 +1,71 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { amber, green, ink, radius, surface, terracotta } from '../theme/colors';
-import { fonts } from '../theme/fonts';
-import { Icon } from './Icon';
+import { green, ink, space, terracotta } from '../theme/colors';
+import { fonts, type } from '../theme/fonts';
+import { IconButton } from './ui/IconButton';
+import { PetAvatar } from './PetAvatar';
 
 /**
- * Home header (screen 2a): the PawClock wordmark (green "Paw" + terracotta
- * "Clock") on the left, and two round chip buttons on the right — a bell with an
- * amber unread dot and the settings gear. Both glyphs are drawn <Icon>s.
+ * Top bar for the tab screens. Bell (with amber dot) + settings chips on the
+ * right - both 44px with hitSlop, so >= 48px targets.
+ *
+ * With no props it shows the PawClock wordmark (back-compat). Pet-owner
+ * redesign: pass `title` (and optionally `eyebrow` + `pet`) to turn it into a
+ * warm, personal header:
+ *
+ *   <TopNavBar />                                               // wordmark
+ *   <TopNavBar eyebrow="Good morning" title="Mochi's day" pet={activePet} />
+ *   <TopNavBar title="Your pets" eyebrow="3 in your care" />
+ *
+ * Navigation targets are unchanged (/notifications, /settings).
  */
-export function TopNavBar() {
+export function TopNavBar({
+  title,
+  eyebrow,
+  pet,
+  showBell = true,
+  showSettings = true,
+}: {
+  title?: string;
+  eyebrow?: string;
+  pet?: { id: string; avatarEmoji: string; name?: string } | null;
+  showBell?: boolean;
+  showSettings?: boolean;
+} = {}) {
   return (
     <View style={styles.container}>
-      <Text style={styles.logo}>
-        <Text style={{ color: green.primary }}>Paw</Text>
-        <Text style={{ color: terracotta.primary }}>Clock</Text>
-      </Text>
+      <View style={styles.left}>
+        {pet ? <PetAvatar pet={pet} size={44} ring /> : null}
+        {title ? (
+          <View style={styles.titleWrap}>
+            {!!eyebrow && (
+              <Text style={styles.eyebrow} numberOfLines={1}>
+                {eyebrow}
+              </Text>
+            )}
+            <Text style={styles.title} numberOfLines={1} role="heading">
+              {title}
+            </Text>
+          </View>
+        ) : (
+          <Text style={styles.logo} aria-label="PawClock">
+            <Text style={{ color: green.primary }}>Paw</Text>
+            <Text style={{ color: terracotta.primary }}>Clock</Text>
+          </Text>
+        )}
+      </View>
       <View style={styles.actions}>
-        <Pressable
-          style={({ pressed }) => [styles.chip, pressed && styles.pressed]}
-          onPress={() => router.push('/notifications')}
-          role="button"
-          aria-label="Notifications"
-          hitSlop={8}
-        >
-          <Icon name="bell" size={17} color={ink.muted} strokeWidth={1.9} />
-          <View style={styles.dot} />
-        </Pressable>
-        <Pressable
-          style={({ pressed }) => [styles.chip, pressed && styles.pressed]}
-          onPress={() => router.push('/settings')}
-          role="button"
-          aria-label="Settings"
-          hitSlop={8}
-        >
-          <Icon name="gear" size={17} color={ink.muted} strokeWidth={1.9} />
-        </Pressable>
+        {showBell && (
+          <IconButton
+            icon="bell"
+            dot
+            accessibilityLabel="Notifications"
+            onPress={() => router.push('/notifications')}
+          />
+        )}
+        {showSettings && (
+          <IconButton icon="gear" accessibilityLabel="Settings" onPress={() => router.push('/settings')} />
+        )}
       </View>
     </View>
   );
@@ -46,30 +76,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 12,
+    gap: space.sm,
+    paddingHorizontal: space.gutter,
+    paddingTop: space.xs + 2,
+    paddingBottom: space.sm,
+    minHeight: 64,
   },
-  logo: { fontSize: 20, fontFamily: fonts.extraBold, letterSpacing: -0.4 },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  chip: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.pill,
-    backgroundColor: surface.chip,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pressed: { opacity: 0.7, transform: [{ scale: 0.92 }] },
-  dot: {
-    position: 'absolute',
-    top: 5,
-    right: 6,
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: amber.primary,
-    borderWidth: 1.5,
-    borderColor: surface.app,
-  },
+  left: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  titleWrap: { flex: 1, minWidth: 0 },
+  eyebrow: { ...type.bodySm, fontFamily: fonts.semiBold, color: ink.muted },
+  title: { ...type.title, color: ink.primary },
+  logo: { fontSize: 22, fontFamily: fonts.extraBold, letterSpacing: -0.4 },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
 });

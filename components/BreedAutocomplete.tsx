@@ -77,7 +77,7 @@ export function BreedAutocomplete({ label, value, onChange, placeholder, species
               blurTimer.current = setTimeout(() => setFocused(false), 120);
             }}
             placeholder={placeholder}
-            placeholderTextColor={ink.faint2}
+            placeholderTextColor={ink.placeholder}
             style={styles.input}
             autoCorrect={false}
             autoCapitalize="words"
@@ -129,21 +129,21 @@ const styles = StyleSheet.create({
   cell: {
     backgroundColor: surface.card,
     borderRadius: radius.card,
-    paddingVertical: 12,
+    minHeight: 60,
+    justifyContent: 'center',
+    paddingVertical: 10,
     paddingHorizontal: 16,
     ...shadow.card,
   },
   cellLabel: {
-    fontSize: 10,
-    fontFamily: fonts.bold,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    color: ink.faint2,
-    marginBottom: 3,
+    fontSize: 12.5,
+    fontFamily: fonts.semiBold,
+    color: ink.muted,
+    marginBottom: 2,
   },
   input: {
     fontFamily: fonts.semiBold,
-    fontSize: 14.5,
+    fontSize: 16,
     color: ink.primary,
     padding: 0,
   },
@@ -167,6 +167,8 @@ const styles = StyleSheet.create({
   },
   dropdownScroll: { maxHeight: 240 },
   option: {
+    minHeight: 48,
+    justifyContent: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
@@ -174,5 +176,5 @@ const styles = StyleSheet.create({
   },
   optionLast: { borderBottomWidth: 0 },
   optionPressed: { backgroundColor: surface.field },
-  optionText: { fontFamily: fonts.semiBold, fontSize: 14, color: ink.primary },
+  optionText: { fontFamily: fonts.semiBold, fontSize: 15.5, color: ink.primary },
 });

@@ -1,19 +1,23 @@
 import { StyleSheet, Text } from 'react-native';
-import { colors } from '../theme/colors';
-import { fonts } from '../theme/fonts';
+import { ink, space } from '../theme/colors';
+import { type } from '../theme/fonts';
 
+/**
+ * Legacy section title (food.tsx). Now matches the redesign's sentence-case
+ * `SectionLabel` heading. Prefer `SectionLabel` from components/ui in new code.
+ */
 export function SectionTitle({ children }: { children: string }) {
-  return <Text style={styles.title}>{children}</Text>;
+  return (
+    <Text style={styles.title} role="heading">
+      {children}
+    </Text>
+  );
 }
 
 const styles = StyleSheet.create({
   title: {
-    fontSize: 12,
-    fontFamily: fonts.extraBold,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    color: colors.stoneMid,
-    marginBottom: 10,
-    paddingLeft: 2,
+    ...type.heading,
+    color: ink.primary,
+    marginBottom: space.sm - 2,
   },
 });

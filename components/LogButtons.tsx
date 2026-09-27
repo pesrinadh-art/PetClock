@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import { FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import * as Haptics from 'expo-haptics';
-import { category, ink, line, logTint, radius, shadow, surface, terracotta } from '../theme/colors';
-import { fonts } from '../theme/fonts';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ink, line, radius, shadow, space, surface, tap, tones, type Tone } from '../theme/colors';
+import { fonts, type } from '../theme/fonts';
 import type { Pet } from '../data/mockData';
 import { useLogs } from '../context/LogsContext';
 import { repos } from '../lib/repo/types';
+import { friendlyAgo, loggedLine } from '../lib/petVoice';
 import { AppModal } from './AppModal';
 import { Icon, type IconName } from './Icon';
 import { useSnackbar } from './Snackbar';
+import { Button, successFeedback } from './ui';
 
 /** Which quick-log a tap/long-press targets. 'both' writes a pee AND a poo; 'fed' writes a meal. */
 type LogTarget = 'pee' | 'poo' | 'both' | 'fed';
@@ -17,13 +18,15 @@ type LogButtonSpec = {
   key: LogTarget;
   icon: IconName;
   label: string;
-  bg: string;
-  fg: string;
+  tone: Tone;
 };
+
+/** When each type was last logged (ISO string), for the "2h ago" sublabels. */
+export type LastLogged = { pee?: string | null; poo?: string | null; food?: string | null };
 
 /** Backdate presets offered by the long-press chooser (minutes before now). */
 const PRESETS: { label: string; minutesAgo: number }[] = [
-  { label: 'Now', minutesAgo: 0 },
+  { label: 'Just now', minutesAgo: 0 },
   { label: '15 min ago', minutesAgo: 15 },
   { label: '30 min ago', minutesAgo: 30 },
   { label: '1 hour ago', minutesAgo: 60 },
@@ -45,7 +48,7 @@ function generateTimeSlots(): { label: string; hours: number; minutes: number }[
 }
 
 const TIME_SLOTS = generateTimeSlots();
-const SLOT_HEIGHT = 46;
+const SLOT_HEIGHT = 50;
 
 function targetLabel(target: LogTarget): string {
   if (target === 'pee') return 'Pee';
@@ -54,34 +57,33 @@ function targetLabel(target: LogTarget): string {
   return 'Pee + poo';
 }
 
-/** Fire-and-forget success haptic; no-op on web and never throws. */
-function successHaptic(): void {
-  if (Platform.OS === 'web') return;
-  void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-}
-
 const BUTTONS: LogButtonSpec[] = [
-  { key: 'pee', icon: 'drop', label: 'Pee', bg: logTint.peeBg, fg: logTint.peeInk },
-  { key: 'poo', icon: 'poo', label: 'Poo', bg: logTint.pooBg, fg: logTint.pooInk },
-  // "Both" = pee + poo. Lavender/indigo tile carrying BOTH type icons (drop + poo)
-  // so it reads as "pee + poo", not a green "done" confirmation. Uses the palette's
-  // groom lavender so it stays clearly distinct from Poo's warm-beige tile (they
-  // were nearly identical when Both used the neutral chip). `icon`/`fg` are
-  // placeholders; the render special-cases `key === 'both'` (see below).
-  { key: 'both', icon: 'drop', label: 'Both', bg: category.groomBg, fg: ink.primary },
-  { key: 'fed', icon: 'bowl', label: 'Fed', bg: terracotta.tint, fg: terracotta.primary },
+  { key: 'pee', icon: 'drop', label: 'Pee', tone: 'pee' },
+  { key: 'poo', icon: 'poo', label: 'Poo', tone: 'poo' },
+  // "Both" = pee + poo; the render shows BOTH type icons so it reads as one trip.
+  { key: 'both', icon: 'drop', label: 'Both', tone: 'groom' },
+  { key: 'fed', icon: 'bowl', label: 'Fed', tone: 'food' },
 ];
 
+function sublabelFor(key: LogTarget, last: LastLogged | undefined, now: Date): string {
+  if (key === 'both') return 'One trip';
+  const iso = key === 'fed' ? last?.food : last?.[key];
+  if (!last) return key === 'fed' ? 'Log a meal' : 'Tap to log';
+  return iso ? friendlyAgo(iso, now) : 'Not yet';
+}
+
 /**
- * The quick-log tile row (screen 2a): Pee / Poo / Both / Fed, each a tinted tile
- * with a drawn <Icon> and label. Tapping writes the log(s) immediately with a
- * single Undo; long-pressing opens the "when?" backdate chooser. "Both" writes a
- * pee and a poo at the same instant; "Fed" writes a generic meal log. All writes
- * go through the same `repos.logs.add` path as before.
+ * The quick-log grid on Home: Pee / Poo / Both / Fed as four big (2x2) one-thumb
+ * tiles with a tinted icon bubble and a "2h ago" line. Tapping writes the log(s)
+ * immediately and shows a warm snackbar with a single Undo; long-pressing opens
+ * the "when?" backdate chooser. "Both" writes a pee and a poo at the same
+ * instant; "Fed" writes a generic meal log. All writes go through the same
+ * `repos.logs.add` path as before.
  */
-export function LogButtons({ pet }: { pet: Pet }) {
+export function LogButtons({ pet, lastLogged, now }: { pet: Pet; lastLogged?: LastLogged; now?: Date }) {
   const { removeLog } = useLogs();
   const { show } = useSnackbar();
+  const at = now ?? new Date();
 
   // Long-press "when?" chooser and its deeper "Custom" time picker.
   const [chooser, setChooser] = useState<LogTarget | null>(null);
@@ -105,9 +107,9 @@ export function LogButtons({ pet }: { pet: Pet }) {
       const entry = await repos.logs.add(pet.id, { type: target, occurredAt });
       ids.push(entry.id);
     }
-    successHaptic();
+    successFeedback();
     // One Undo removes every log this action wrote (both, for the "Both" button).
-    show(`${targetLabel(target)} logged for ${pet.name}`, () => ids.forEach((id) => removeLog(id)));
+    show(loggedLine(pet, target === 'fed' ? 'food' : target), () => ids.forEach((id) => removeLog(id)));
   };
 
   const handlePreset = (minutesAgo: number) => {
@@ -136,32 +138,43 @@ export function LogButtons({ pet }: { pet: Pet }) {
   };
 
   return (
-    <View style={styles.row}>
-      {BUTTONS.map((b) => (
-        <Pressable
-          key={b.key}
-          onPress={() => void commit(b.key)}
-          onLongPress={() => setChooser(b.key)}
-          delayLongPress={300}
-          role="button"
-          aria-label={`Log ${targetLabel(b.key).toLowerCase()} for ${pet.name}. Long press to backdate.`}
-          style={({ pressed }) => [styles.tile, { backgroundColor: b.bg }, pressed && styles.tilePressed]}
-        >
-          {b.key === 'both' ? (
-            // Two icons so "Both" literally reads as pee + poo: drop in pee-blue,
-            // poo in poo-brown, on the neutral chip tile.
-            <View style={styles.bothIcons}>
-              <Icon name="drop" size={17} color={logTint.peeInk} strokeWidth={2.2} />
-              <Icon name="poo" size={17} color={logTint.pooInk} strokeWidth={2.2} />
-            </View>
-          ) : (
-            <Icon name={b.icon} size={19} color={b.fg} strokeWidth={2.2} />
-          )}
-          <Text numberOfLines={1} style={[styles.tileLabel, { color: b.fg }]}>
-            {b.label}
-          </Text>
-        </Pressable>
-      ))}
+    <View>
+      <View style={styles.grid}>
+        {BUTTONS.map((b) => {
+          const t = tones[b.tone];
+          const sub = sublabelFor(b.key, lastLogged, at);
+          return (
+            <Pressable
+              key={b.key}
+              onPress={() => void commit(b.key)}
+              onLongPress={() => setChooser(b.key)}
+              delayLongPress={300}
+              role="button"
+              aria-label={`Log ${targetLabel(b.key).toLowerCase()} for ${pet.name}. Long press to pick a time.`}
+              style={({ pressed }) => [styles.tile, pressed && styles.tilePressed]}
+            >
+              <View style={[styles.bubble, { backgroundColor: t.bg }]}>
+                {b.key === 'both' ? (
+                  <View style={styles.bothIcons}>
+                    <Icon name="drop" size={18} color={tones.pee.ink} strokeWidth={2.2} />
+                    <Icon name="poo" size={18} color={tones.poo.ink} strokeWidth={2.2} />
+                  </View>
+                ) : (
+                  <Icon name={b.icon} size={24} color={t.ink} strokeWidth={2.1} />
+                )}
+              </View>
+              <View style={styles.tileText}>
+                <Text numberOfLines={1} style={styles.tileLabel}>
+                  {b.label}
+                </Text>
+                <Text numberOfLines={1} style={styles.tileSub}>
+                  {sub}
+                </Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
 
       {/* Long-press "when?" chooser. */}
       <AppModal
@@ -173,27 +186,37 @@ export function LogButtons({ pet }: { pet: Pet }) {
         <Pressable style={styles.overlay} onPress={() => setChooser(null)}>
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.sheetTitle}>
-              {chooser ? `Log ${targetLabel(chooser).toLowerCase()} — when?` : ''}
+              {chooser === 'fed' ? `When did ${pet.name} eat?` : `When did ${pet.name} go?`}
             </Text>
-            {PRESETS.map((p) => (
+            {chooser ? (
+              <Text style={styles.sheetSub}>
+                {chooser === 'fed' ? 'Logging a meal' : `Logging ${targetLabel(chooser).toLowerCase()}`}
+              </Text>
+            ) : null}
+            <View style={styles.options}>
+              {PRESETS.map((p) => (
+                <Pressable
+                  key={p.label}
+                  style={({ pressed }) => [styles.option, pressed && styles.pressed]}
+                  onPress={() => handlePreset(p.minutesAgo)}
+                  role="button"
+                  aria-label={p.label}
+                >
+                  <Icon name="clock" size={18} color={ink.muted} strokeWidth={2} />
+                  <Text style={styles.optionText}>{p.label}</Text>
+                </Pressable>
+              ))}
               <Pressable
-                key={p.label}
                 style={({ pressed }) => [styles.option, pressed && styles.pressed]}
-                onPress={() => handlePreset(p.minutesAgo)}
+                onPress={openCustom}
                 role="button"
-                aria-label={p.label}
+                aria-label="Pick another time"
               >
-                <Text style={styles.optionText}>{p.label}</Text>
+                <Icon name="calendar" size={18} color={ink.muted} strokeWidth={2} />
+                <Text style={styles.optionText}>Pick another time…</Text>
               </Pressable>
-            ))}
-            <Pressable
-              style={({ pressed }) => [styles.option, pressed && styles.pressed]}
-              onPress={openCustom}
-              role="button"
-              aria-label="Custom time"
-            >
-              <Text style={styles.optionText}>Custom time…</Text>
-            </Pressable>
+            </View>
+            <Button label="Cancel" variant="ghost" size="md" fullWidth onPress={() => setChooser(null)} />
           </Pressable>
         </Pressable>
       </AppModal>
@@ -208,6 +231,7 @@ export function LogButtons({ pet }: { pet: Pet }) {
         <Pressable style={styles.overlay} onPress={() => setCustomFor(null)}>
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.sheetTitle}>Pick a time</Text>
+            <Text style={styles.sheetSub}>Later times count as yesterday.</Text>
             <FlatList
               data={TIME_SLOTS}
               keyExtractor={(t) => t.label}
@@ -215,7 +239,7 @@ export function LogButtons({ pet }: { pet: Pet }) {
               getItemLayout={(_, index) => ({ length: SLOT_HEIGHT, offset: SLOT_HEIGHT * index, index })}
               renderItem={({ item }) => (
                 <Pressable
-                  style={({ pressed }) => [styles.option, pressed && styles.pressed]}
+                  style={({ pressed }) => [styles.slot, pressed && styles.pressed]}
                   onPress={() => handleCustom(item.hours, item.minutes)}
                   role="button"
                   aria-label={item.label}
@@ -224,6 +248,7 @@ export function LogButtons({ pet }: { pet: Pet }) {
                 </Pressable>
               )}
             />
+            <Button label="Cancel" variant="ghost" size="md" fullWidth onPress={() => setCustomFor(null)} />
           </Pressable>
         </Pressable>
       </AppModal>
@@ -232,38 +257,68 @@ export function LogButtons({ pet }: { pet: Pet }) {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', gap: 7 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   tile: {
-    flex: 1,
-    borderRadius: radius.tile,
-    paddingVertical: 11,
-    paddingHorizontal: 4,
-    alignItems: 'center',
-    gap: 5,
-  },
-  tilePressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
-  bothIcons: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  tileLabel: { fontSize: 11.5, fontFamily: fonts.bold },
-
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  sheet: {
-    width: '100%',
-    maxWidth: 320,
-    maxHeight: '80%',
-    backgroundColor: surface.card,
-    borderRadius: radius.card,
-    padding: 16,
-    ...shadow.card,
-  },
-  sheetTitle: { fontSize: 15, fontFamily: fonts.extraBold, color: ink.primary, marginBottom: 10, textAlign: 'center' },
-  option: {
-    height: SLOT_HEIGHT,
+    flexBasis: '46%',
+    flexGrow: 1,
+    minHeight: 80,
     flexDirection: 'row',
     alignItems: 'center',
+    gap: space.sm,
+    borderRadius: radius.card,
+    backgroundColor: surface.card,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.sm,
+    ...shadow.card,
+  },
+  tilePressed: { opacity: 0.9, transform: [{ scale: 0.97 }] },
+  bubble: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 12,
+    flexShrink: 0,
+  },
+  bothIcons: { flexDirection: 'row', alignItems: 'center', gap: 1 },
+  tileText: { flex: 1, minWidth: 0 },
+  tileLabel: { ...type.subhead, fontSize: 17, color: ink.primary },
+  tileSub: { ...type.caption, color: ink.muted, marginTop: 1 },
+
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  sheet: {
+    width: '100%',
+    maxWidth: 340,
+    maxHeight: '80%',
+    backgroundColor: surface.card,
+    borderRadius: radius.sheet,
+    padding: space.xl,
+    ...shadow.card,
+  },
+  sheetTitle: { ...type.title, fontSize: 20, color: ink.primary, textAlign: 'center' },
+  sheetSub: { ...type.bodySm, color: ink.muted, textAlign: 'center', marginTop: 4, marginBottom: space.sm },
+  options: { gap: 6, marginBottom: space.xs },
+  option: {
+    minHeight: tap.min + 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    paddingHorizontal: space.lg,
+    borderRadius: radius.tile,
+    backgroundColor: surface.chip,
+  },
+  slot: {
+    height: SLOT_HEIGHT,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: radius.tile,
   },
-  optionText: { fontSize: 14, fontFamily: fonts.semiBold, color: ink.primary },
-  pressed: { opacity: 0.6, backgroundColor: line.hairline },
+  optionText: { fontSize: 16, fontFamily: fonts.semiBold, color: ink.primary },
+  pressed: { opacity: 0.7, backgroundColor: line.hairline },
 });

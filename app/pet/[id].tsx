@@ -1,34 +1,55 @@
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { surface, green, ink, line, category, radius } from '../../theme/colors';
-import { fonts } from '../../theme/fonts';
-import { Icon, type IconName } from '../../components/Icon';
-import { Card, HeroCard, ListRow, SectionLabel, Pill, type Stat } from '../../components/ui';
+import { space, type Tone } from '../../theme/colors';
+import { type IconName } from '../../components/Icon';
+import {
+  Banner,
+  Button,
+  Card,
+  IconButton,
+  ListRow,
+  PetEmptyState,
+  Pill,
+  Screen,
+  ScreenHeader,
+  SectionLabel,
+  type Stat,
+} from '../../components/ui';
 import { PetAvatar } from '../../components/PetAvatar';
-import { AppModal } from '../../components/AppModal';
+import { PetProfileHero } from '../../components/pets/PetProfileHero';
+import { ConfirmDialog } from '../../components/pets/ConfirmDialog';
 import { usePets } from '../../context/PetsContext';
 import { useLogs } from '../../context/LogsContext';
 import { useAppointments } from '../../context/AppointmentsContext';
 import { getTodaysMeals, formatClock, parseClockTime, type ScheduleRowItem } from '../../lib/petSchedule';
 import { useNow } from '../../hooks/useNow';
+import {
+  friendlyIn,
+  isBirthday,
+  petMeta,
+  possessive,
+  progressLine,
+  speciesLabel,
+} from '../../lib/petVoice';
 
 const HOUR_MS = 60 * 60 * 1000;
 
-/** Maps a derived meal-slot name to a drawn icon + its role tint (design: sun=breakfast, moon=dinner). */
-function mealVisual(name: string): { icon: IconName; bg: string; color: string } {
+/** Maps a derived meal-slot name to a drawn icon + role tone (sun = breakfast, moon = dinner). */
+function mealVisual(name: string): { icon: IconName; tone: Tone } {
   switch (name) {
     case 'Dinner':
-      return { icon: 'moon', bg: category.dinnerBg, color: category.dinnerInk };
+      return { icon: 'moon', tone: 'food' };
     case 'Breakfast':
     case 'Brunch':
     case 'Lunch':
-      return { icon: 'sun', bg: category.breakfastBg, color: category.breakfastInk };
+      return { icon: 'sun', tone: 'food' };
     default:
-      return { icon: 'bowl', bg: category.otherBg, color: category.otherInk };
+      return { icon: 'bowl', tone: 'food' };
   }
 }
+
+const goBack = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)/pets'));
 
 export default function PetDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -39,19 +60,23 @@ export default function PetDetailScreen() {
 
   // A meal tapped well before its scheduled time waits here for confirmation before logging.
   const [pendingMeal, setPendingMeal] = useState<ScheduleRowItem | null>(null);
+  // Keeps the dialog copy stable while it fades out after pendingMeal is cleared.
+  const lastMealName = useRef('meal');
+  if (pendingMeal) lastMealName.current = pendingMeal.name;
+  const dialogMeal = lastMealName.current;
 
   const pet = pets.find((p) => p.id === id) ?? null;
 
   if (!pet) {
     return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
-        <Header title="Pet" />
-        <View style={styles.empty}>
-          <Icon name="paw" size={40} color={ink.faint} />
-          <Text style={styles.emptyTitle}>Pet not found</Text>
-          <Text style={styles.emptyBody}>This pet may have been removed.</Text>
-        </View>
-      </SafeAreaView>
+      <Screen header={<ScreenHeader title="Pet" onBack={goBack} backLabel="Back" />} scroll={false}>
+        <PetEmptyState
+          icon="paw"
+          title="We can't find this pet"
+          body="They may have been removed. Head back to see your pets."
+          action={{ label: 'Back to your pets', icon: 'chevronLeft', onPress: goBack }}
+        />
+      </Screen>
     );
   }
 
@@ -61,31 +86,41 @@ export default function PetDetailScreen() {
   const activeLogs = logs.filter((l) => !l.deletedAt);
   const meals = getTodaysMeals(feedTimes, now, logs);
 
-  // Hero stats — Meals/day · Hold time · Medication (screen 2b).
+  const name = pet.name;
+  const their = possessive(name);
+  const birthday = isBirthday(pet.birthdate, now);
+
+  // Hero stats — meals a day · hold time · meds.
   const feedCount = meals.length;
   const tightestHold = Math.min(pet.peeHoldHours ?? Infinity, pet.poopHoldHours ?? Infinity);
   const holdDisplay = Number.isFinite(tightestHold) ? `${tightestHold}h` : '—';
   const stats: Stat[] = [
-    { value: feedCount > 0 ? `${feedCount}×` : '—', label: 'Meals/day' },
-    { value: holdDisplay, label: 'Hold time' },
-    { value: meds.length > 0 ? String(meds.length) : '—', label: 'Medication' },
+    { value: feedCount > 0 ? `${feedCount}×` : '—', label: 'Meals a day' },
+    { value: holdDisplay, label: 'Holds up to' },
+    { value: meds.length > 0 ? String(meds.length) : '—', label: 'Daily meds' },
   ];
+  // petMeta already leads with the breed; when there is one, show the species as a small tag.
+  const tags = pet.breed?.trim() && pet.species !== 'other' ? [speciesLabel(pet.species)] : [];
+
+  const mealsDone = meals.filter((m) => m.status === 'done').length;
+  const nextMeal = meals.find((m) => m.status !== 'done') ?? null;
 
   // Vaccinations record — derived honestly from this pet's vaccine appointments.
   const vaccineAppts = appointments.filter(
     (a) => !a.deletedAt && a.type === 'vaccine' && a.petIds.includes(pet.id),
   );
   const upcomingVaccine = vaccineAppts.some((a) => new Date(a.startsAt).getTime() > now.getTime());
-  const vaccine = upcomingVaccine
-    ? { label: 'Scheduled', color: green.primary }
+  const vaccine: { label: string; tone: Tone; icon?: IconName } = upcomingVaccine
+    ? { label: 'Scheduled', tone: 'pet', icon: 'check' }
     : vaccineAppts.length > 0
-      ? { label: 'On file', color: ink.muted }
-      : { label: 'None yet', color: ink.faint };
+      ? { label: 'On file', tone: 'vaccine' }
+      : { label: 'None yet', tone: 'neutral' };
 
   const editPet = () => router.push({ pathname: '/add-pet', params: { petId: pet.id } });
+  const openHistory = () => router.push({ pathname: '/pet/[id]/history', params: { id: pet.id } });
 
   // Logs a food entry for the meal — mirrors the old Food tab / MealTimeBanner call so the row
-  // flips to "✓ Done" (getTodaysMeals matches the log to this slot by feedTimeId, Δ1).
+  // flips to "Fed" (getTodaysMeals matches the log to this slot by feedTimeId, Δ1).
   const logMeal = (meal: ScheduleRowItem) => {
     addLog(pet.id, { type: 'food', feedTimeId: meal.feedTimeId ?? null });
   };
@@ -104,284 +139,209 @@ export default function PetDetailScreen() {
     setPendingMeal(null);
   };
 
-  return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <Header title={pet.name} onEdit={editPet} editLabel={`Edit ${pet.name}`} />
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <HeroCard
-          title={pet.name}
-          subtitle={pet.breed || 'No details yet'}
-          stats={stats}
-          leading={
-            <PetAvatar pet={pet} size={52} emojiSize={24} style={styles.heroAvatar} />
-          }
-        />
+  const footer = nextMeal ? (
+    <Button
+      label={`Log ${nextMeal.name.toLowerCase()} for ${name}`}
+      tone="food"
+      icon="bowl"
+      fullWidth
+      onPress={() => handleMarkDone(nextMeal)}
+      accessibilityLabel={`Mark ${nextMeal.name} as fed for ${name}`}
+    />
+  ) : (
+    <Button label={`Edit ${their} routine`} icon="pencil" variant="secondary" fullWidth onPress={editPet} />
+  );
 
-        {/* ── Meal times (the meal logging that used to be the Food tab) ── */}
-        <View style={styles.section}>
-          <SectionLabel>Meal times</SectionLabel>
-          {meals.length > 0 && (
+  return (
+    <Screen
+      header={
+        <ScreenHeader
+          title={name}
+          subtitle={`${their} profile`}
+          onBack={goBack}
+          backLabel="Back"
+          right={<IconButton icon="pencil" tone="pet" accessibilityLabel={`Edit ${name}`} onPress={editPet} />}
+        />
+      }
+      footer={footer}
+    >
+      <PetProfileHero pet={pet} meta={petMeta(pet, now)} stats={stats} birthday={birthday} tags={tags} />
+
+      {birthday ? (
+        <Banner
+          tone="pet"
+          icon="cake"
+          title={`Happy birthday, ${name}!`}
+          body="A perfect day for an extra treat and a long cuddle."
+          style={styles.banner}
+        />
+      ) : null}
+
+      {/* ── Meal times (the meal logging that used to be the Food tab) ── */}
+      <View style={styles.section}>
+        <SectionLabel hint={meals.length > 0 ? progressLine(mealsDone, meals.length) : undefined}>
+          {`${their} meals`}
+        </SectionLabel>
+        {meals.length > 0 ? (
+          <>
             <Card>
               {meals.map((meal, i) => {
                 const v = mealVisual(meal.name);
                 const done = meal.status === 'done';
+                const due = meal.status === 'due';
+                const when = formatClock(meal.time);
+                const subtitle = done
+                  ? `${when} · fed`
+                  : due
+                    ? `${when} · ready when ${name} is`
+                    : `${when} · ${friendlyIn(meal.time, now)}`;
                 return (
                   <ListRow
                     key={meal.id}
                     icon={v.icon}
-                    iconBg={v.bg}
-                    iconColor={v.color}
+                    tone={v.tone}
                     iconLarge
                     title={meal.name}
-                    subtitle={formatClock(meal.time)}
+                    subtitle={subtitle}
                     divider={i < meals.length - 1}
                     right={
                       done ? (
-                        <Pill
-                          label="Done"
-                          bg={green.tint}
-                          color={green.primary}
-                          icon={<Icon name="check" size={12} color={green.primary} strokeWidth={3.2} />}
-                        />
+                        <Pill tone="pet" icon="check" label="Fed" />
                       ) : (
-                        <Pressable
+                        <Button
+                          label="Log"
+                          tone="food"
+                          variant={due ? 'primary' : 'soft'}
+                          size="md"
                           onPress={() => handleMarkDone(meal)}
-                          hitSlop={6}
-                          role="button"
-                          aria-label={`Mark ${meal.name} as fed for ${pet.name}`}
-                        >
-                          {({ pressed }) => (
-                            <Pill
-                              label="Log"
-                              bg={green.mid}
-                              color={ink.onDark}
-                              style={pressed ? { opacity: 0.8 } : undefined}
-                            />
-                          )}
-                        </Pressable>
+                          accessibilityLabel={`Mark ${meal.name} as fed for ${name}`}
+                        />
                       )
                     }
                   />
                 );
               })}
             </Card>
-          )}
-          <DashedAction
-            icon="clock"
-            label={meals.length > 0 ? 'Edit meal times' : 'Add meal times'}
-            onPress={editPet}
+            <Button
+              label="Edit meal times"
+              icon="clock"
+              variant="ghost"
+              size="md"
+              onPress={editPet}
+              style={styles.inlineAction}
+            />
+          </>
+        ) : (
+          <PetEmptyState
+            variant="card"
+            icon="bowl"
+            tone="food"
+            title={`No meal times for ${name} yet`}
+            body="Add them and we'll remind you when it's time to eat."
+            action={{ label: 'Add meal times', icon: 'clock', onPress: editPet }}
           />
-        </View>
+        )}
+      </View>
 
-        {/* ── Medications ── */}
-        <View style={styles.section}>
-          <SectionLabel>Medications</SectionLabel>
-          {meds.length > 0 && (
+      {/* ── Medications ── */}
+      <View style={styles.section}>
+        <SectionLabel>{`${their} meds`}</SectionLabel>
+        {meds.length > 0 ? (
+          <>
             <Card>
               {meds.map((med, i) => {
                 const t = parseClockTime(med.localTime, now);
-                const time = t ? formatClock(t) : med.localTime;
+                const time = t ? `Every day at ${formatClock(t)}` : med.localTime;
                 const subtitle = med.dosage ? `${med.dosage} · ${time}` : time;
                 return (
                   <ListRow
                     key={med.id}
                     icon="pill"
-                    iconBg={category.medBg}
-                    iconColor={category.medInk}
+                    tone="med"
                     iconLarge
                     title={med.name}
                     subtitle={subtitle}
                     onPress={editPet}
+                    accessibilityLabel={`${med.name}, ${subtitle}. Edit`}
                     divider={i < meds.length - 1}
                   />
                 );
               })}
             </Card>
-          )}
-          <DashedAction icon="plus" label="Add medication" onPress={editPet} />
-        </View>
+            <Button
+              label="Add medication"
+              icon="plus"
+              variant="ghost"
+              size="md"
+              onPress={editPet}
+              style={styles.inlineAction}
+            />
+          </>
+        ) : (
+          <PetEmptyState
+            variant="card"
+            icon="pill"
+            tone="med"
+            title={`No meds for ${name}`}
+            body="If they take regular medicine, add it and we'll nudge you when it's due."
+            action={{ label: 'Add medication', icon: 'plus', onPress: editPet }}
+          />
+        )}
+      </View>
 
-        {/* ── Records ── */}
-        <View style={styles.section}>
-          <SectionLabel>Records</SectionLabel>
-          <Card>
-            <ListRow
-              title="Care history"
-              right={<Text style={styles.recordValue}>{activeLogs.length} logs</Text>}
-              showChevron
-              divider
-              onPress={() => router.push({ pathname: '/pet/[id]/history', params: { id: pet.id } })}
-            />
-            <ListRow
-              title="Vaccinations"
-              right={<Text style={[styles.recordValue, { color: vaccine.color }]}>{vaccine.label}</Text>}
-              showChevron
-              onPress={() => router.push('/(tabs)/appointments')}
-            />
-          </Card>
-        </View>
-      </ScrollView>
+      {/* ── Records ── */}
+      <View style={styles.section}>
+        <SectionLabel>Care records</SectionLabel>
+        <Card>
+          <ListRow
+            icon="history"
+            tone="pet"
+            iconLarge
+            title={`${their} diary`}
+            subtitle={
+              activeLogs.length > 0
+                ? `${activeLogs.length} ${activeLogs.length === 1 ? 'moment' : 'moments'} logged`
+                : 'Nothing logged yet'
+            }
+            showChevron
+            divider
+            onPress={openHistory}
+          />
+          <ListRow
+            icon="vaccine"
+            tone="vaccine"
+            iconLarge
+            title="Vaccinations"
+            subtitle="From your planned visits"
+            right={<Pill tone={vaccine.tone} icon={vaccine.icon} label={vaccine.label} size="sm" />}
+            showChevron
+            onPress={() => router.push('/(tabs)/appointments')}
+          />
+        </Card>
+      </View>
 
       {/* Early-feeding confirm — preserved from the old Food tab. */}
-      <AppModal visible={!!pendingMeal} transparent animationType="fade" onRequestClose={() => setPendingMeal(null)}>
-        <Pressable style={styles.overlay} onPress={() => setPendingMeal(null)}>
-          <Pressable style={styles.dialog} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.dialogTitle}>
-              Aw, is it my {pendingMeal?.name.toLowerCase()} already? 🐶
-            </Text>
-            <Text style={styles.dialogBody}>
-              It's a little early — mark {pendingMeal?.name.toLowerCase()} as fed now?
-            </Text>
-            <View style={styles.dialogActions}>
-              <Pressable
-                style={({ pressed }) => [styles.dialogBtn, styles.cancelBtn, pressed && styles.pressed]}
-                onPress={() => setPendingMeal(null)}
-                role="button"
-                aria-label="Not yet"
-              >
-                <Text style={styles.cancelBtnText}>Not yet</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [styles.dialogBtn, styles.confirmBtn, pressed && styles.pressed]}
-                onPress={confirmPendingMeal}
-                role="button"
-                aria-label={pendingMeal ? `Feed ${pendingMeal.name} now for ${pet.name}` : 'Feed now'}
-              >
-                <Text style={styles.confirmBtnText}>Yes, feed now</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </AppModal>
-    </SafeAreaView>
-  );
-}
-
-function Header({ title, onEdit, editLabel }: { title: string; onEdit?: () => void; editLabel?: string }) {
-  return (
-    <View style={styles.titleRow}>
-      <Pressable
-        style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}
-        onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/pets'))}
-        role="button"
-        aria-label="Back"
-        hitSlop={8}
-      >
-        <Icon name="chevronLeft" size={18} color={ink.muted} strokeWidth={2.4} />
-      </Pressable>
-      <Text style={styles.title} numberOfLines={1}>{title}</Text>
-      {onEdit ? (
-        <Pressable
-          style={({ pressed }) => [styles.editBtn, pressed && styles.pressed]}
-          onPress={onEdit}
-          role="button"
-          aria-label={editLabel ?? 'Edit'}
-          hitSlop={8}
-        >
-          <Icon name="pencil" size={17} color={green.primary} strokeWidth={2.2} />
-        </Pressable>
-      ) : (
-        <View style={{ width: 34 }} />
-      )}
-    </View>
-  );
-}
-
-/** The dashed "Edit meal times" / "Add medication" affordance from the mockup. */
-function DashedAction({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
-  return (
-    <Pressable
-      style={({ pressed }) => [styles.dashed, pressed && styles.dashedPressed]}
-      onPress={onPress}
-      role="button"
-      aria-label={label}
-    >
-      <Icon name={icon} size={15} color={ink.muted} strokeWidth={2} />
-      <Text style={styles.dashedText}>{label}</Text>
-    </Pressable>
+      <ConfirmDialog
+        visible={!!pendingMeal}
+        onClose={() => setPendingMeal(null)}
+        leading={<PetAvatar pet={pet} size={64} ring />}
+        title={`${dialogMeal.charAt(0).toUpperCase()}${dialogMeal.slice(1)} already?`}
+        body={`It's a little early for ${their} ${dialogMeal.toLowerCase()}. Mark it as fed now?`}
+        confirm={{
+          label: 'Yes, feed now',
+          tone: 'food',
+          icon: 'bowl',
+          accessibilityLabel: pendingMeal ? `Feed ${pendingMeal.name} now for ${name}` : 'Feed now',
+          onPress: confirmPendingMeal,
+        }}
+        cancel={{ label: 'Not yet', accessibilityLabel: 'Not yet' }}
+      />
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: surface.app },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 6,
-    paddingBottom: 10,
-  },
-  title: { fontSize: 18, fontFamily: fonts.extraBold, color: ink.primary, textAlign: 'center', flex: 1, letterSpacing: -0.4 },
-  backBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: surface.chip,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  editBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: green.tint,
-    borderWidth: 1,
-    borderColor: green.tintBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
-
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 32 },
-
-  heroAvatar: { backgroundColor: 'rgba(255,255,255,0.16)' },
-
-  section: { marginTop: 18 },
-
-  recordValue: { fontSize: 12, fontFamily: fonts.semiBold, color: ink.faint2 },
-
-  dashed: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 7,
-    marginTop: 10,
-    paddingVertical: 11,
-    borderRadius: 15,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: line.dashed,
-  },
-  dashedPressed: { opacity: 0.6 },
-  dashedText: { fontSize: 12.5, fontFamily: fonts.semiBold, color: ink.muted },
-
-  // Early-feeding confirm dialog.
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  dialog: {
-    width: '100%',
-    maxWidth: 320,
-    backgroundColor: surface.card,
-    borderRadius: radius.lg,
-    padding: 20,
-  },
-  dialogTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: ink.primary, marginBottom: 8 },
-  dialogBody: { fontSize: 13, color: ink.muted, lineHeight: 19, marginBottom: 18 },
-  dialogActions: { flexDirection: 'row', gap: 10 },
-  dialogBtn: { flex: 1, borderRadius: radius.sm, paddingVertical: 12, alignItems: 'center' },
-  cancelBtn: { backgroundColor: green.tint },
-  cancelBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: green.primary },
-  confirmBtn: { backgroundColor: green.mid },
-  confirmBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: ink.onDark },
-
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 8 },
-  emptyTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: ink.primary },
-  emptyBody: { fontSize: 13, color: ink.muted, textAlign: 'center', lineHeight: 19 },
+  banner: { marginTop: space.lg },
+  section: { marginTop: space.section },
+  inlineAction: { alignSelf: 'center', marginTop: space.xxs },
 });
