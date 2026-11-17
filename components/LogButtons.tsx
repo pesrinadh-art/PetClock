@@ -9,6 +9,8 @@ import { repos } from '../lib/repo/types';
 import { AppModal } from './AppModal';
 import { Icon, type IconName } from './Icon';
 import { useSnackbar } from './Snackbar';
+import { useNow } from '../hooks/useNow';
+import { formatAgo } from '../lib/formatAgo';
 
 /** Which quick-log a tap/long-press targets. 'both' writes a pee AND a poo; 'fed' writes a meal. */
 type LogTarget = 'pee' | 'poo' | 'both' | 'fed';
@@ -80,8 +82,9 @@ const BUTTONS: LogButtonSpec[] = [
  * go through the same `repos.logs.add` path as before.
  */
 export function LogButtons({ pet }: { pet: Pet }) {
-  const { removeLog } = useLogs();
+  const { removeLog, getLogsForPet } = useLogs();
   const { show } = useSnackbar();
+  const now = useNow();
 
   // Long-press "when?" chooser and its deeper "Custom" time picker.
   const [chooser, setChooser] = useState<LogTarget | null>(null);
@@ -135,8 +138,21 @@ export function LogButtons({ pet }: { pet: Pet }) {
     void commit(target, d.toISOString());
   };
 
+  // Last-logged time per tile ("1h ago"); "Both" always reads "One trip".
+  const sub = (key: LogTarget): string => {
+    if (key === 'both') return 'One trip';
+    const type = key === 'fed' ? 'food' : key;
+    const latest = getLogsForPet(pet.id)
+      .filter((l) => !l.deletedAt && l.type === type)
+      .reduce<number | null>((best, l) => {
+        const t = new Date(l.occurredAt).getTime();
+        return best == null || t > best ? t : best;
+      }, null);
+    return latest == null ? 'Not logged yet' : formatAgo(now.getTime() - latest);
+  };
+
   return (
-    <View style={styles.row}>
+    <View style={styles.grid}>
       {BUTTONS.map((b) => (
         <Pressable
           key={b.key}
@@ -145,21 +161,27 @@ export function LogButtons({ pet }: { pet: Pet }) {
           delayLongPress={300}
           role="button"
           aria-label={`Log ${targetLabel(b.key).toLowerCase()} for ${pet.name}. Long press to backdate.`}
-          style={({ pressed }) => [styles.tile, { backgroundColor: b.bg }, pressed && styles.tilePressed]}
+          style={({ pressed }) => [styles.tile, pressed && styles.tilePressed]}
         >
-          {b.key === 'both' ? (
-            // Two icons so "Both" literally reads as pee + poo: drop in pee-blue,
-            // poo in poo-brown, on the neutral chip tile.
-            <View style={styles.bothIcons}>
-              <Icon name="drop" size={17} color={logTint.peeInk} strokeWidth={2.2} />
-              <Icon name="poo" size={17} color={logTint.pooInk} strokeWidth={2.2} />
-            </View>
-          ) : (
-            <Icon name={b.icon} size={19} color={b.fg} strokeWidth={2.2} />
-          )}
-          <Text numberOfLines={1} style={[styles.tileLabel, { color: b.fg }]}>
-            {b.label}
-          </Text>
+          <View style={[styles.iconCircle, { backgroundColor: b.bg }]}>
+            {b.key === 'both' ? (
+              // Two icons so "Both" literally reads as pee + poo.
+              <View style={styles.bothIcons}>
+                <Icon name="drop" size={16} color={logTint.peeInk} strokeWidth={2.1} />
+                <Icon name="poo" size={16} color={logTint.pooInk} strokeWidth={2.1} />
+              </View>
+            ) : (
+              <Icon name={b.icon} size={20} color={b.fg} strokeWidth={2.1} />
+            )}
+          </View>
+          <View style={styles.tileText}>
+            <Text numberOfLines={1} style={styles.tileLabel}>
+              {b.label}
+            </Text>
+            <Text numberOfLines={1} style={styles.tileSub}>
+              {sub(b.key)}
+            </Text>
+          </View>
         </Pressable>
       ))}
 
@@ -232,18 +254,26 @@ export function LogButtons({ pet }: { pet: Pet }) {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', gap: 7 },
+  // 2×2 grid of white tiles: tinted icon circle + label + last-logged time.
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   tile: {
-    flex: 1,
-    borderRadius: radius.tile,
-    paddingVertical: 11,
-    paddingHorizontal: 4,
+    flexBasis: '47%',
+    flexGrow: 1,
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 11,
+    backgroundColor: surface.card,
+    borderRadius: radius.card,
+    paddingVertical: 13,
+    paddingHorizontal: 12,
+    ...shadow.sm,
   },
   tilePressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
-  bothIcons: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  tileLabel: { fontSize: 11.5, fontFamily: fonts.bold },
+  iconCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  bothIcons: { flexDirection: 'row', alignItems: 'center', gap: 1 },
+  tileText: { flex: 1 },
+  tileLabel: { fontSize: 15, fontFamily: fonts.bold, color: ink.primary },
+  tileSub: { fontSize: 12, fontFamily: fonts.medium, color: ink.muted, marginTop: 2 },
 
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', padding: 24 },
   sheet: {

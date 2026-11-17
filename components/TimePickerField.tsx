@@ -141,7 +141,7 @@ export function TimePickerField({ label, value, onChange, placeholder = 'Select 
 
 const styles = StyleSheet.create({
   formGroup: { gap: 6 },
-  formLabel: { fontSize: 11, fontFamily: fonts.extraBold, textTransform: 'uppercase', letterSpacing: 1, color: ink.muted },
+  formLabel: { fontSize: 13.5, fontFamily: fonts.bold, color: ink.primary },
   field: {
     backgroundColor: surface.card,
     borderWidth: 1,

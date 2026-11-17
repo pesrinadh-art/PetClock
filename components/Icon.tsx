@@ -55,7 +55,13 @@ export type IconName =
   | 'alert'
   | 'share'
   | 'copy'
-  | 'key';
+  | 'key'
+  // redesign v3
+  | 'sparkle' // "learning the rhythm"
+  | 'trash'
+  | 'arrowRight'
+  | 'camera'
+  | 'info';
 
 export type IconProps = {
   name: IconName;
@@ -239,6 +245,31 @@ const GLYPHS: Record<IconName, React.ReactNode> = {
     <>
       <Circle cx={8} cy={15} r={4} />
       <Path d="m10.8 12.2 8-8 2 2-2 2 1.5 1.5-2 2-1.5-1.5-2 2" />
+    </>
+  ),
+  sparkle: (
+    <>
+      <Path d="M10 3.5 11.6 8.4 16.5 10l-4.9 1.6L10 16.5l-1.6-4.9L3.5 10l4.9-1.6Z" />
+      <Path d="M18 14v6M15 17h6" />
+    </>
+  ),
+  trash: (
+    <>
+      <Path d="M4 7h16M10 11v6M14 11v6" />
+      <Path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3" />
+    </>
+  ),
+  arrowRight: <Path d="M5 12h14M13 6l6 6-6 6" />,
+  camera: (
+    <>
+      <Path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" />
+      <Circle cx={12} cy={13.5} r={3.5} />
+    </>
+  ),
+  info: (
+    <>
+      <Circle cx={12} cy={12} r={9} />
+      <Path d="M12 11v5M12 7.5h.01" />
     </>
   ),
 };

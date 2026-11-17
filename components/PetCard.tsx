@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import type { Pet } from '../data/mockData';
 import {
   countLogsToday,
@@ -9,8 +9,7 @@ import {
 } from '../lib/petSchedule';
 import { useLogs } from '../context/LogsContext';
 import { usePets } from '../context/PetsContext';
-import { HeroCard, type Stat } from './ui';
-import { PetAvatar } from './PetAvatar';
+import { HeroAvatar, HeroCard, type Stat } from './ui';
 
 /**
  * The green gradient hero at the top of Home (screen 2a): a progress ring with a
@@ -33,14 +32,17 @@ export function PetCard({ pet }: { pet: Pet }) {
   const mealsStat = mealsTotal > 0 ? `${mealsDone}/${mealsTotal}` : '—';
 
   const meta = pet.breed || 'Pet';
+  let title = pet.name;
   let subtitle = meta;
   let nextBreakDisplay = '—';
   let progress: number | undefined;
 
   if (status.kind === 'calibrating') {
-    subtitle = `${meta} · Day ${status.day} of calibration`;
+    title = `Getting to know ${pet.name}`;
+    subtitle = `Day ${status.day} of 3 · keep logging and we'll learn the routine`;
   } else if (status.kind === 'needsInfo') {
-    subtitle = `${meta} · Needs setup`;
+    title = `Let's set up ${pet.name}`;
+    subtitle = 'Add meal and potty times to get reminders';
   } else {
     const tightestHold = Math.min(pet.peeHoldHours ?? Infinity, pet.poopHoldHours ?? Infinity);
     if (Number.isFinite(tightestHold)) subtitle = `${meta} · ${tightestHold}h hold time`;
@@ -64,16 +66,11 @@ export function PetCard({ pet }: { pet: Pet }) {
 
   // Ready pets get the progress ring; calibrating / needs-info pets get the pet
   // avatar so the hero still reads as "this pet".
-  const leading =
-    progress == null ? (
-      <View style={styles.avatarWrap}>
-        <PetAvatar pet={pet} size={44} emojiSize={24} style={styles.avatar} />
-      </View>
-    ) : undefined;
+  const leading = progress == null ? <HeroAvatar pet={pet} size={60} /> : undefined;
 
   return (
     <HeroCard
-      title={pet.name}
+      title={title}
       subtitle={subtitle}
       progress={progress}
       leading={leading}
@@ -84,14 +81,5 @@ export function PetCard({ pet }: { pet: Pet }) {
 }
 
 const styles = StyleSheet.create({
-  hero: { marginBottom: 18 },
-  avatarWrap: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatar: { backgroundColor: 'rgba(255,255,255,0.18)' },
+  hero: { marginBottom: 22 },
 });

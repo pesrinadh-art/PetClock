@@ -1,6 +1,5 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
-import { green, ink, line, radius, surface } from '../theme/colors';
+import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { green, ink, line, radius, shadow, surface } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { Icon } from './Icon';
 import { PetAvatar } from './PetAvatar';
@@ -13,9 +12,9 @@ type Props = {
 };
 
 /**
- * Pet-switcher chips (screen 2a): the selected pet is a green pill — a white
- * avatar circle + name — and every other pet a muted pill. A trailing dashed
- * ＋ chip adds a new pet.
+ * Pet-switcher chips (redesign v3): the selected pet is a green-tint pill with a ringed
+ * avatar, green name and a check; every other pet is a white pill. Adding a pet lives on the
+ * Pets tab and the centre + button, so there is no trailing add chip here.
  */
 export function PetSwitcher({ pets, activeId, onSelect }: Props) {
   return (
@@ -42,61 +41,40 @@ export function PetSwitcher({ pets, activeId, onSelect }: Props) {
           >
             <PetAvatar
               pet={pet}
-              size={24}
-              emojiSize={15}
-              style={[styles.avatar, active ? styles.avatarActive : styles.avatarIdle]}
+              size={32}
+              emojiSize={18}
+              style={[styles.avatar, active && styles.avatarActive]}
             />
-            <Text
-              numberOfLines={1}
-              style={[styles.name, active ? styles.nameActive : styles.nameIdle]}
-            >
+            <Text numberOfLines={1} style={[styles.name, active ? styles.nameActive : styles.nameIdle]}>
               {pet.name}
             </Text>
+            {active && <Icon name="check" size={15} color={green.primary} strokeWidth={2.6} />}
           </Pressable>
         );
       })}
-      <Pressable
-        style={({ pressed }) => [styles.add, pressed && styles.pressed]}
-        onPress={() => router.push('/add-pet')}
-        role="button"
-        aria-label="Add pet"
-      >
-        <Icon name="plus" size={15} color={ink.faint2} strokeWidth={2.2} />
-      </Pressable>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   scroll: { flexGrow: 0, flexShrink: 0 },
-  row: { paddingHorizontal: 20, paddingBottom: 14, gap: 8, alignItems: 'center' },
+  row: { paddingHorizontal: 20, paddingTop: 2, paddingBottom: 14, gap: 8, alignItems: 'center' },
   pressed: { opacity: 0.7, transform: [{ scale: 0.96 }] },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingVertical: 5,
-    paddingLeft: 6,
-    paddingRight: 12,
+    paddingVertical: 4,
+    paddingLeft: 4,
+    paddingRight: 14,
     borderRadius: radius.pill,
     borderWidth: 1.5,
   },
   chipActive: { backgroundColor: green.tint, borderColor: green.tintBorder },
-  chipIdle: { backgroundColor: surface.chip, borderColor: 'transparent' },
-  avatar: { width: 24, height: 24, borderRadius: 12 },
-  avatarActive: { backgroundColor: '#ffffff' },
-  avatarIdle: { backgroundColor: '#ffffff' },
-  name: { fontSize: 13, fontFamily: fonts.bold, maxWidth: 160 },
-  nameActive: { color: ink.primary },
-  nameIdle: { color: ink.muted },
-  add: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.pill,
-    borderWidth: 1.5,
-    borderColor: line.dashed,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  chipIdle: { backgroundColor: surface.card, borderColor: line.border, ...shadow.sm },
+  avatar: { backgroundColor: green.tint, borderWidth: 2, borderColor: '#ffffff' },
+  avatarActive: { backgroundColor: '#ffffff', borderColor: green.primary },
+  name: { fontSize: 14, fontFamily: fonts.bold, maxWidth: 160 },
+  nameActive: { color: green.primary },
+  nameIdle: { color: ink.primary },
 });

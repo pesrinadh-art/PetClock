@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { green, ink, logTint, surface, terracotta } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
-import { TopNavBar } from '../../components/TopNavBar';
+import { TopNavBar, greeting } from '../../components/TopNavBar';
 import { PetSwitcher } from '../../components/PetSwitcher';
 import { PetCard } from '../../components/PetCard';
 import { MealTimeBanner } from '../../components/MealTimeBanner';
@@ -18,6 +18,7 @@ import { usePets } from '../../context/PetsContext';
 import { useLogs } from '../../context/LogsContext';
 import { useNow } from '../../hooks/useNow';
 import { formatClock } from '../../lib/petSchedule';
+import { formatAgo } from '../../lib/formatAgo';
 import type { LogEntry } from '../../data/mockData';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -28,22 +29,22 @@ function startOfDay(date: Date): number {
   return d.getTime();
 }
 
-/** "11:44 AM" today · "Yesterday 8:00 PM" · "Mon 8:00 AM" this week · "Jul 3 8:00 AM" older. */
+/** "Today at 11:44 AM" · "Yesterday at 8:00 PM" · "Mon at 8:00 AM" this week · "Jul 3 at 8:00 AM" older. */
 function formatRecent(occurredAt: string, now: Date): string {
   const d = new Date(occurredAt);
   const clock = formatClock(d);
   const dayDiff = Math.round((startOfDay(now) - startOfDay(d)) / DAY_MS);
-  if (dayDiff <= 0) return clock;
-  if (dayDiff === 1) return `Yesterday ${clock}`;
-  if (dayDiff < 7) return `${d.toLocaleDateString([], { weekday: 'short' })} ${clock}`;
-  return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${clock}`;
+  if (dayDiff <= 0) return `Today at ${clock}`;
+  if (dayDiff === 1) return `Yesterday at ${clock}`;
+  if (dayDiff < 7) return `${d.toLocaleDateString([], { weekday: 'short' })} at ${clock}`;
+  return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${clock}`;
 }
 
-/** The three log types the Home summary distils to, with their drawn icon + tint (per design). */
+/** The three log types the Home "Recent" summary distils to, with their drawn icon + tint. */
 const RECENT_ROWS: { type: LogEntry['type']; label: string; icon: IconName; bg: string; fg: string }[] = [
-  { type: 'pee', label: 'Pee', icon: 'drop', bg: logTint.peeBg, fg: logTint.peeInk },
-  { type: 'poo', label: 'Poo', icon: 'poo', bg: logTint.pooBg, fg: logTint.pooInk },
-  { type: 'food', label: 'Fed', icon: 'bowl', bg: terracotta.tint, fg: terracotta.primary },
+  { type: 'pee', label: 'Last pee', icon: 'drop', bg: logTint.peeBg, fg: logTint.peeInk },
+  { type: 'poo', label: 'Last poo', icon: 'poo', bg: logTint.pooBg, fg: logTint.pooInk },
+  { type: 'food', label: 'Last meal', icon: 'bowl', bg: terracotta.tint, fg: terracotta.primary },
 ];
 
 export default function HomeScreen() {
@@ -52,8 +53,7 @@ export default function HomeScreen() {
   const now = useNow();
 
   // Every hook must run on every render — compute BEFORE any early return, so the hook order
-  // stays stable when activePet flips to null (e.g. after "Reset all data" clears every pet).
-  // Calling useMemo after the early return crashed the app on reset.
+  // stays stable when activePet flips to null (e.g. after the last pet is removed).
   const petLogs = activePet ? getLogsForPet(activePet.id) : [];
 
   // The most-recent non-deleted log of each summarised type (Pee / Poo / Fed), across all
@@ -74,7 +74,7 @@ export default function HomeScreen() {
   if (!activePet) {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
-        <TopNavBar />
+        <TopNavBar eyebrow={greeting(now)} title="Today" />
         <EmptyState icon="🐾" title="No pets yet" body="Add your first pet to start tracking their day." />
       </SafeAreaView>
     );
@@ -82,29 +82,21 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopNavBar />
+      <TopNavBar pet={activePet} eyebrow={greeting(now)} title={`${activePet.name}'s day`} />
       <PetSwitcher pets={pets} activeId={activePetId} onSelect={setActivePetId} />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <PetCard pet={activePet} />
 
-        {/* Upcoming reminders — predicted pee/poo breaks, next meal and medications (or the
-            calibrating / needs-info notice). Manages its own top margin; renders nothing when
-            a ready pet has nothing upcoming. */}
-        <UpcomingSection pet={activePet} />
+        {/* Quick log: the prediction nudge line (renders only when a break is due) + the
+            Pee / Poo / Both / Fed tiles with their last-logged times. */}
+        <SectionLabel sub="Tap to log now. Press and hold to pick a time.">Did {activePet.name} go?</SectionLabel>
+        <NudgeBanner pet={activePet} />
+        <LogButtons pet={activePet} />
+        {/* Terracotta "meal is due" card — only while a meal is actually due. */}
+        <MealTimeBanner pet={activePet} />
 
-        {/* Quick log card: prediction nudge line (NudgeBanner) + the pee/poo/both/fed tiles. */}
-        <View style={styles.section}>
-          <SectionLabel>Quick log</SectionLabel>
-          <Card padded>
-            {/* Flagship in-app break/med nudge, computed from prediction (works even if the OS push
-                was suppressed/missed/denied). Renders null when nothing is due. */}
-            <NudgeBanner pet={activePet} />
-            <LogButtons pet={activePet} />
-          </Card>
-          {/* Meals stay with MealTimeBanner (no duplication); it renders the terracotta attention
-              card only while a meal is actually due. */}
-          <MealTimeBanner pet={activePet} />
-        </View>
+        {/* Predicted breaks, next meal and meds (or the "Learning Mochi's rhythm" card). */}
+        <UpcomingSection pet={activePet} />
 
         <View style={styles.section}>
           <SectionLabel
@@ -112,17 +104,16 @@ export default function HomeScreen() {
               <Pressable
                 onPress={() => router.push(`/pet/${activePet.id}/history`)}
                 role="button"
-                aria-label={`See all of ${activePet.name}'s logs`}
+                aria-label={`See ${activePet.name}'s diary`}
                 hitSlop={8}
               >
                 <Text style={styles.seeAll}>See all</Text>
               </Pressable>
             }
           >
-            Recent logs
+            Recent
           </SectionLabel>
-          {/* Compact summary: the last Pee, Poo and Fed with their times — not a full timeline.
-              Full history lives behind "See all". */}
+          {/* Compact summary: the last Pee, Poo and meal. The full diary lives behind "See all". */}
           <Card>
             {RECENT_ROWS.map((row, i) => {
               const log = recentByType[row.type as 'pee' | 'poo' | 'food'];
@@ -132,12 +123,17 @@ export default function HomeScreen() {
                   icon={row.icon}
                   iconBg={row.bg}
                   iconColor={row.fg}
+                  iconLarge
                   title={row.label}
+                  subtitle={log ? formatRecent(log.occurredAt, now) : 'No logs yet'}
                   right={
-                    <Text style={log ? styles.recentTime : styles.recentEmpty}>
-                      {log ? formatRecent(log.occurredAt, now) : 'No logs yet'}
-                    </Text>
+                    log ? (
+                      <Text style={styles.recentAgo}>
+                        {formatAgo(now.getTime() - new Date(log.occurredAt).getTime())}
+                      </Text>
+                    ) : undefined
                   }
+                  showChevron={false}
                   divider={i < RECENT_ROWS.length - 1}
                 />
               );
@@ -152,9 +148,8 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: surface.app },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 24 },
-  section: { marginTop: 18 },
-  seeAll: { fontSize: 11.5, fontFamily: fonts.semiBold, color: green.primary },
-  recentTime: { fontSize: 12.5, fontFamily: fonts.bold, color: ink.muted },
-  recentEmpty: { fontSize: 12.5, fontFamily: fonts.medium, color: ink.faint },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 80 },
+  section: { marginTop: 24 },
+  seeAll: { fontSize: 13, fontFamily: fonts.bold, color: green.primary },
+  recentAgo: { fontSize: 12.5, fontFamily: fonts.semiBold, color: ink.muted },
 });

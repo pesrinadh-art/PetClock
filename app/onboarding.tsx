@@ -1,89 +1,43 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, radius } from '../theme/colors';
+import { LinearGradient } from 'expo-linear-gradient';
+import { category, green, ink, line, logTint, radius, shadow, surface, terracotta } from '../theme/colors';
 import { fonts } from '../theme/fonts';
-import { TimePickerField } from '../components/TimePickerField';
-import { usePets } from '../context/PetsContext';
-import { BreedAutocomplete } from '../components/BreedAutocomplete';
+import { Icon, type IconName } from '../components/Icon';
+import { PetWizard } from '../components/PetWizard';
 import { completeOnboarding } from '../lib/onboarding';
 import { requestNotificationPermission } from '../lib/notifications/permissions';
-import { to24h } from '../lib/petFormTime';
-
-const AVATAR_OPTIONS = ['🐶', '🐱', '🐰', '🐹', '🐦', '🐢', '🐍', '🐠'];
-const AVATAR_LABELS: Record<string, string> = {
-  '🐶': 'Dog',
-  '🐱': 'Cat',
-  '🐰': 'Rabbit',
-  '🐹': 'Hamster',
-  '🐦': 'Bird',
-  '🐢': 'Turtle',
-  '🐍': 'Snake',
-  '🐠': 'Fish',
-};
 
 type Step = 'welcome' | 'pet' | 'notify';
 
-type FeedRow = { rowId: string; time: string };
-type MedRow = { rowId: string; name: string; time: string };
+const FEATURES: { icon: IconName; bg: string; fg: string; title: string; body: string }[] = [
+  { icon: 'drop', bg: logTint.peeBg, fg: logTint.peeInk, title: 'Potty breaks, predicted', body: 'A heads-up before they need to go.' },
+  { icon: 'bowl', bg: terracotta.tint, fg: terracotta.primary, title: 'Meals on time', body: 'Log breakfast and dinner in one tap.' },
+  { icon: 'pill', bg: category.medBg, fg: category.medInk, title: 'Meds and vet visits', body: 'Friendly reminders, so nothing slips.' },
+];
 
-const MAX_FEED_TIMES = 6;
-const MAX_MEDICATIONS = 5;
-
-function makeRowId() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+/** The green rounded-square app mark with a paw. */
+function AppMark({ size = 88 }: { size?: number }) {
+  return (
+    <LinearGradient
+      colors={[green.gradientFrom, green.gradientTo]}
+      start={{ x: 0.1, y: 0 }}
+      end={{ x: 0.9, y: 1 }}
+      style={[styles.mark, { width: size, height: size, borderRadius: size * 0.27 }]}
+    >
+      <Icon name="paw" size={size * 0.5} color="#ffffff" strokeWidth={1.9} />
+    </LinearGradient>
+  );
 }
 
+/**
+ * First run (redesign v3): welcome → "Welcome a new pet" wizard (About / Routine / Meds) →
+ * turn on reminders. Any outcome of the permission prompt finishes onboarding.
+ */
 export default function OnboardingScreen() {
-  const { addPet } = usePets();
   const [step, setStep] = useState<Step>('welcome');
-  const [avatar, setAvatar] = useState(AVATAR_OPTIONS[0]);
-  const [name, setName] = useState('');
-  const [breed, setBreed] = useState('');
-  const [nameError, setNameError] = useState<string | undefined>();
-  // Optional schedule capture — mirrors add-pet's feedRows/medications, kept compact for
-  // onboarding: both lists start empty and the user taps "Add" to reveal a row.
-  const [feedRows, setFeedRows] = useState<FeedRow[]>([]);
-  const [medications, setMedications] = useState<MedRow[]>([]);
-
-  const addFeedRow = () => {
-    setFeedRows((prev) => (prev.length >= MAX_FEED_TIMES ? prev : [...prev, { rowId: makeRowId(), time: '' }]));
-  };
-  const updateFeedRow = (rowId: string, time: string) => {
-    setFeedRows((prev) => prev.map((r) => (r.rowId === rowId ? { ...r, time } : r)));
-  };
-  const removeFeedRow = (rowId: string) => {
-    setFeedRows((prev) => prev.filter((r) => r.rowId !== rowId));
-  };
-
-  const addMedicationRow = () => {
-    setMedications((prev) =>
-      prev.length >= MAX_MEDICATIONS ? prev : [...prev, { rowId: makeRowId(), name: '', time: '' }],
-    );
-  };
-  const updateMedicationRow = (rowId: string, field: 'name' | 'time', value: string) => {
-    setMedications((prev) => prev.map((m) => (m.rowId === rowId ? { ...m, [field]: value } : m)));
-  };
-  const removeMedicationRow = (rowId: string) => {
-    setMedications((prev) => prev.filter((m) => m.rowId !== rowId));
-  };
-
-  const savePet = () => {
-    if (name.trim().length === 0) {
-      setNameError('Give your pet a name to continue');
-      return;
-    }
-    // Convert the picker's "h:mm AM/PM" to storage "HH:MM" and drop blank rows — a blank time
-    // would reach the feed/med RPCs as "" and Postgres rejects it (22007). Empty overall is fine.
-    const feedTimes = feedRows.map((r) => to24h(r.time.trim())).filter(Boolean);
-    const meds = medications
-      .map((m) => ({ name: m.name.trim(), localTime: to24h(m.time.trim()) }))
-      .filter((m) => m.name && m.localTime);
-    // Holds stay null — the pet starts "calibrating" and the user can tune them via Edit later.
-    addPet({ name: name.trim(), avatarEmoji: avatar, breed: breed.trim(), feedTimes, medications: meds });
-    setStep('notify');
-  };
 
   const finish = async () => {
     await completeOnboarding();
@@ -91,269 +45,151 @@ export default function OnboardingScreen() {
   };
 
   const enableNotifications = async () => {
-    // FE-3's primer: ensures channels, requests permission (at most once). Any outcome is fine —
-    // the app is fully usable without it — so we finish regardless.
+    // Ensures channels, requests permission (at most once). The app is fully usable without it.
     await requestNotificationPermission();
     await finish();
   };
 
+  if (step === 'pet') {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <PetWizard closeIcon="chevronLeft" onClose={() => setStep('welcome')} onSaved={() => setStep('notify')} />
+      </SafeAreaView>
+    );
+  }
+
+  if (step === 'notify') {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <ScrollView contentContainerStyle={styles.center}>
+          <View style={styles.bellCircle}>
+            <Icon name="bell" size={40} color={green.primary} strokeWidth={1.8} />
+          </View>
+          <Text style={styles.headline}>Turn on reminders</Text>
+          <Text style={styles.lede}>
+            PawClock's whole point is a tap-to-log nudge at the predicted break time — even with the app
+            closed. Allow notifications to get them.
+          </Text>
+        </ScrollView>
+        <View style={styles.footer}>
+          <Pressable
+            style={({ pressed }) => [styles.primaryBtn, pressed && styles.primaryPressed]}
+            onPress={() => void enableNotifications()}
+            role="button"
+            aria-label="Turn on reminders"
+          >
+            <Icon name="bell" size={18} color="#ffffff" strokeWidth={2.2} />
+            <Text style={styles.primaryText}>Turn on reminders</Text>
+          </Pressable>
+          <Pressable style={({ pressed }) => [styles.skipBtn, pressed && styles.pressed]} onPress={() => void finish()} role="button" aria-label="Not now">
+            <Text style={styles.skipText}>Not now</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          {step === 'welcome' && (
-            <View style={styles.stepWrap}>
-              <Text style={styles.hero}>🐾</Text>
-              <Text style={styles.logo}>
-                Paw<Text style={{ color: colors.pooLight }}>Clock</Text>
-              </Text>
-              <Text style={styles.welcomeBody}>
-                Never miss a potty break, meal or med again. PawClock learns your pet's rhythm and
-                nudges you at just the right time.
-              </Text>
-              <Pressable
-                style={({ pressed }) => [styles.primaryBtn, pressed && styles.primaryBtnPressed]}
-                onPress={() => setStep('pet')}
-                role="button"
-                aria-label="Get started"
-              >
-                <Text style={styles.primaryBtnText}>Get Started</Text>
-              </Pressable>
-            </View>
-          )}
+      <ScrollView contentContainerStyle={styles.center}>
+        <AppMark />
+        <Text style={styles.brand}>PawClock</Text>
+        <Text style={styles.headline}>Never miss a potty break again</Text>
+        <Text style={styles.lede}>PawClock learns your pet's rhythm and gives you a gentle nudge at just the right time.</Text>
 
-          {step === 'pet' && (
-            <View style={styles.stepWrap}>
-              <Text style={styles.stepKicker}>Step 1 of 2</Text>
-              <Text style={styles.stepTitle}>Add your first pet</Text>
-              <Text style={styles.stepBody}>You can add more — and fill in feeding times later.</Text>
-
-              <Text style={styles.label}>Species</Text>
-              <View style={styles.avatarGrid}>
-                {AVATAR_OPTIONS.map((emoji) => {
-                  const selected = avatar === emoji;
-                  return (
-                    <Pressable
-                      key={emoji}
-                      onPress={() => setAvatar(emoji)}
-                      role="button"
-                      aria-label={AVATAR_LABELS[emoji] ?? 'Pet type'}
-                      aria-selected={selected}
-                      style={({ pressed }) => [
-                        styles.avatarChip,
-                        selected && styles.avatarChipSelected,
-                        pressed && styles.pressed,
-                      ]}
-                    >
-                      <Text style={{ fontSize: 26 }}>{emoji}</Text>
-                    </Pressable>
-                  );
-                })}
+        <View style={styles.features}>
+          {FEATURES.map((f, i) => (
+            <View key={f.title} style={[styles.featureRow, i < FEATURES.length - 1 && styles.featureDivider]}>
+              <View style={[styles.featureIcon, { backgroundColor: f.bg }]}>
+                <Icon name={f.icon} size={20} color={f.fg} strokeWidth={2} />
               </View>
-
-              <Text style={styles.label}>Name</Text>
-              <TextInput
-                value={name}
-                onChangeText={(v) => {
-                  setName(v);
-                  if (nameError) setNameError(undefined);
-                }}
-                placeholder="e.g. Biscuit"
-                placeholderTextColor={colors.stoneLight}
-                style={[styles.input, name ? styles.inputFilled : null, nameError ? styles.inputError : null]}
-              />
-              {nameError ? <Text style={styles.errorText}>{nameError}</Text> : null}
-
-              <Text style={[styles.label, { marginTop: 14 }]}>Breed (optional)</Text>
-              <BreedAutocomplete
-                value={breed}
-                onChange={setBreed}
-                placeholder="e.g. Beagle"
-                species={AVATAR_LABELS[avatar]}
-              />
-
-              <Text style={[styles.label, { marginTop: 14 }]}>Feed times (optional)</Text>
-              {feedRows.map((row, i) => (
-                <View key={row.rowId} style={styles.scheduleRow}>
-                  <TimePickerField
-                    value={row.time}
-                    onChange={(v) => updateFeedRow(row.rowId, v)}
-                    placeholder={`Feed time ${i + 1}`}
-                    style={styles.rowFlex}
-                  />
-                  <Pressable
-                    style={({ pressed }) => [styles.removeBtn, pressed && styles.pressed]}
-                    onPress={() => removeFeedRow(row.rowId)}
-                    role="button"
-                    aria-label={`Remove feed time ${i + 1}`}
-                    hitSlop={8}
-                  >
-                    <Text style={styles.removeBtnText}>✕</Text>
-                  </Pressable>
-                </View>
-              ))}
-              {feedRows.length < MAX_FEED_TIMES && (
-                <Pressable
-                  style={({ pressed }) => [styles.addBtn, pressed && styles.pressed]}
-                  onPress={addFeedRow}
-                  role="button"
-                  aria-label="Add feed time"
-                >
-                  <Text style={styles.addBtnText}>➕ Add feed time</Text>
-                </Pressable>
-              )}
-
-              <Text style={[styles.label, { marginTop: 14 }]}>Medications (optional)</Text>
-              {medications.map((med) => (
-                <View key={med.rowId} style={styles.scheduleRow}>
-                  <TextInput
-                    value={med.name}
-                    onChangeText={(v) => updateMedicationRow(med.rowId, 'name', v)}
-                    placeholder="Medicine name"
-                    placeholderTextColor={colors.stoneLight}
-                    style={[styles.input, styles.medNameInput, med.name ? styles.inputFilled : null]}
-                  />
-                  <TimePickerField
-                    value={med.time}
-                    onChange={(v) => updateMedicationRow(med.rowId, 'time', v)}
-                    placeholder="Time"
-                    style={styles.medTimeInput}
-                  />
-                  <Pressable
-                    style={({ pressed }) => [styles.removeBtn, pressed && styles.pressed]}
-                    onPress={() => removeMedicationRow(med.rowId)}
-                    role="button"
-                    aria-label={med.name.trim() ? `Remove ${med.name.trim()}` : 'Remove medication'}
-                    hitSlop={8}
-                  >
-                    <Text style={styles.removeBtnText}>✕</Text>
-                  </Pressable>
-                </View>
-              ))}
-              {medications.length < MAX_MEDICATIONS && (
-                <Pressable
-                  style={({ pressed }) => [styles.addBtn, pressed && styles.pressed]}
-                  onPress={addMedicationRow}
-                  role="button"
-                  aria-label="Add medication"
-                >
-                  <Text style={styles.addBtnText}>➕ Add medication</Text>
-                </Pressable>
-              )}
-
-              <Pressable
-                style={({ pressed }) => [styles.primaryBtn, pressed && styles.primaryBtnPressed]}
-                onPress={savePet}
-                role="button"
-                aria-label="Continue"
-              >
-                <Text style={styles.primaryBtnText}>Continue</Text>
-              </Pressable>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.featureTitle}>{f.title}</Text>
+                <Text style={styles.featureBody}>{f.body}</Text>
+              </View>
             </View>
-          )}
+          ))}
+        </View>
+      </ScrollView>
 
-          {step === 'notify' && (
-            <View style={styles.stepWrap}>
-              <Text style={styles.hero}>🔔</Text>
-              <Text style={styles.stepKicker}>Step 2 of 2</Text>
-              <Text style={styles.stepTitle}>Turn on reminders</Text>
-              <Text style={styles.stepBody}>
-                PawClock's whole point is a tap-to-log nudge at the predicted break time — even with
-                the app closed. Allow notifications to get them.
-              </Text>
-              <Pressable
-                style={({ pressed }) => [styles.primaryBtn, pressed && styles.primaryBtnPressed]}
-                onPress={() => void enableNotifications()}
-                role="button"
-                aria-label="Enable reminders"
-              >
-                <Text style={styles.primaryBtnText}>Enable Reminders</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [styles.skipBtn, pressed && styles.pressed]}
-                onPress={() => void finish()}
-                role="button"
-                aria-label="Not now"
-              >
-                <Text style={styles.skipBtnText}>Not now</Text>
-              </Pressable>
-            </View>
-          )}
-        </ScrollView>
-      </KeyboardAvoidingView>
+      <View style={styles.footer}>
+        <Pressable
+          style={({ pressed }) => [styles.primaryBtn, pressed && styles.primaryPressed]}
+          onPress={() => setStep('pet')}
+          role="button"
+          aria-label="Let's meet your pet"
+        >
+          <Text style={styles.primaryText}>Let's meet your pet</Text>
+          <Icon name="arrowRight" size={18} color="#ffffff" strokeWidth={2.4} />
+        </Pressable>
+        <Text style={styles.caption}>Takes less than a minute</Text>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.cream },
-  content: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 32 },
-  stepWrap: { gap: 12 },
+  safe: { flex: 1, backgroundColor: surface.app },
+  center: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 32 },
+  pressed: { opacity: 0.7 },
 
-  hero: { fontSize: 64, textAlign: 'center', marginBottom: 4 },
-  logo: { fontSize: 34, fontFamily: fonts.black, color: colors.sage, textAlign: 'center', letterSpacing: -0.5 },
-  welcomeBody: { fontSize: 15, color: colors.stoneMid, textAlign: 'center', lineHeight: 22, marginTop: 8, marginBottom: 16 },
+  mark: { alignItems: 'center', justifyContent: 'center', ...shadow.hero },
+  brand: { fontSize: 17, fontFamily: fonts.extraBold, color: green.primary, marginTop: 12 },
+  headline: {
+    fontSize: 30,
+    fontFamily: fonts.extraBold,
+    color: ink.primary,
+    letterSpacing: -0.9,
+    textAlign: 'center',
+    lineHeight: 34,
+    marginTop: 26,
+  },
+  lede: { fontSize: 15, fontFamily: fonts.medium, color: ink.muted, textAlign: 'center', lineHeight: 22, marginTop: 10 },
 
-  stepKicker: { fontSize: 12, fontFamily: fonts.extraBold, color: colors.sage, textTransform: 'uppercase', letterSpacing: 1, textAlign: 'center' },
-  stepTitle: { fontSize: 24, fontFamily: fonts.black, color: colors.stone, textAlign: 'center' },
-  stepBody: { fontSize: 14, color: colors.stoneMid, textAlign: 'center', lineHeight: 20, marginBottom: 8 },
+  features: {
+    alignSelf: 'stretch',
+    marginTop: 26,
+    paddingHorizontal: 16,
+    borderRadius: radius.card,
+    backgroundColor: surface.card,
+    ...shadow.card,
+  },
+  featureRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 15 },
+  featureDivider: { borderBottomWidth: 1, borderBottomColor: line.hairline },
+  featureIcon: { width: 44, height: 44, borderRadius: radius.iconTile, alignItems: 'center', justifyContent: 'center' },
+  featureTitle: { fontSize: 15, fontFamily: fonts.bold, color: ink.primary },
+  featureBody: { fontSize: 13, fontFamily: fonts.medium, color: ink.muted, marginTop: 2 },
 
-  label: { fontSize: 11, fontFamily: fonts.extraBold, textTransform: 'uppercase', letterSpacing: 1, color: colors.stoneMid, marginBottom: 6, marginTop: 6 },
-  avatarGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 6, justifyContent: 'center' },
-  avatarChip: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: colors.white,
-    borderWidth: 2,
-    borderColor: colors.stoneLight,
+  bellCircle: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: green.tint,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarChipSelected: { borderColor: colors.sage, backgroundColor: colors.sagePale },
-  input: {
-    backgroundColor: colors.white,
-    borderWidth: 2,
-    borderColor: colors.stoneLight,
-    borderRadius: radius.sm,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    fontFamily: fonts.semiBold,
-    fontSize: 14,
-    color: colors.stone,
-  },
-  inputFilled: { borderColor: colors.sage },
-  inputError: { borderColor: '#C0392B' },
-  errorText: { fontSize: 12, fontFamily: fonts.semiBold, color: '#C0392B', marginTop: 4 },
 
-  scheduleRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 8 },
-  rowFlex: { flex: 1 },
-  medNameInput: { flex: 1.4 },
-  medTimeInput: { flex: 1 },
-  removeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FDECEA',
+  footer: {
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 14,
+    borderTopWidth: 1,
+    borderTopColor: line.border,
+    alignItems: 'stretch',
+  },
+  primaryBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 17,
+    borderRadius: radius.card,
+    backgroundColor: green.mid,
+    ...shadow.fab,
   },
-  removeBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: '#C0392B' },
-  addBtn: {
-    borderWidth: 2,
-    borderColor: colors.stoneLight,
-    borderStyle: 'dashed',
-    borderRadius: radius.sm,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  addBtnText: { fontSize: 13, fontFamily: fonts.bold, color: colors.stoneMid },
-
-  primaryBtn: { backgroundColor: colors.sage, borderRadius: radius.lg, paddingVertical: 16, alignItems: 'center', marginTop: 20 },
-  primaryBtnPressed: { opacity: 0.85, transform: [{ scale: 0.99 }] },
-  primaryBtnText: { color: colors.white, fontSize: 15, fontFamily: fonts.extraBold },
+  primaryPressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
+  primaryText: { fontSize: 16, fontFamily: fonts.bold, color: '#ffffff' },
+  caption: { fontSize: 12.5, fontFamily: fonts.medium, color: ink.muted, textAlign: 'center', marginTop: 10 },
   skipBtn: { paddingVertical: 12, alignItems: 'center', marginTop: 4 },
-  skipBtnText: { fontSize: 13, fontFamily: fonts.bold, color: colors.stoneMid },
-  pressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
+  skipText: { fontSize: 14, fontFamily: fonts.bold, color: ink.muted },
 });

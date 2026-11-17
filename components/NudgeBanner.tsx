@@ -6,15 +6,22 @@ import { usePets } from '../context/PetsContext';
 import { useNow } from '../hooks/useNow';
 import { usePendingNudges } from '../hooks/usePendingNudges';
 import { formatOverdue, type PendingNudge } from '../lib/notifications/pending';
-import { green, ink, radius, terracotta } from '../theme/colors';
+import { amber, green, ink, line, radius, shadow } from '../theme/colors';
 import { fonts } from '../theme/fonts';
+import { Icon } from './Icon';
+
+/** The "Yes" label per nudge kind: "Yes, fed" / "Yes, given" / "Yes, Luna went". */
+function yesLabel(nudge: PendingNudge): string {
+  if (nudge.kind === 'meal') return 'Yes, fed';
+  if (nudge.kind === 'medication') return 'Yes, given';
+  return `Yes, ${nudge.petName} went`;
+}
 
 /**
- * The ✅ Yes / ❌ Not yet / ⏰ Snooze control — shared verbatim by the Notification Center
- * (`app/notifications.tsx`) so an in-app answer looks and behaves the same everywhere. The
- * handlers it calls are the SAME shared action logic (`logYes` / `snoozeNudge`) the headless push
- * handler uses. NOTE: this control is owned by the Notification Center's redesign; it is left as-is
- * here so that screen keeps compiling — the Home surface no longer renders it (see NudgeBanner).
+ * The Yes / Not yet / Snooze control (redesign v3): a full-width green "✓ Yes, …" button over
+ * two outlined buttons. Shared by the Notification Center so an in-app answer looks and behaves
+ * the same everywhere. The handlers it calls are the SAME shared action logic (`logYes` /
+ * `snoozeNudge`) the headless push handler uses.
  */
 export function NudgeActionButtons({
   nudge,
@@ -30,41 +37,49 @@ export function NudgeActionButtons({
   return (
     <View style={styles.actions}>
       <Pressable
-        style={({ pressed }) => [styles.btn, styles.yesBtn, pressed && styles.pressed]}
+        style={({ pressed }) => [styles.yesBtn, pressed && styles.pressed]}
         onPress={() => onYes(nudge)}
         role="button"
         aria-label={`Yes, log ${nudge.subtitle} for ${nudge.petName}`}
       >
-        <Text numberOfLines={1} style={styles.yesBtnText}>✅ Yes</Text>
+        <Icon name="check" size={17} color="#ffffff" strokeWidth={2.6} />
+        <Text numberOfLines={1} style={styles.yesBtnText}>
+          {yesLabel(nudge)}
+        </Text>
       </Pressable>
-      <Pressable
-        style={({ pressed }) => [styles.btn, styles.secondaryBtn, pressed && styles.pressed]}
-        onPress={() => onNotYet(nudge)}
-        role="button"
-        aria-label={`Not yet — re-ask about ${nudge.petName} in 20 minutes`}
-      >
-        <Text numberOfLines={1} style={styles.secondaryBtnText}>❌ Not yet</Text>
-      </Pressable>
-      <Pressable
-        style={({ pressed }) => [styles.btn, styles.secondaryBtn, pressed && styles.pressed]}
-        onPress={() => onSnooze(nudge)}
-        role="button"
-        aria-label={`Snooze ${nudge.petName}'s reminder 15 minutes`}
-      >
-        <Text numberOfLines={1} style={styles.secondaryBtnText}>⏰ Snooze</Text>
-      </Pressable>
+      <View style={styles.secondaryRow}>
+        <Pressable
+          style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
+          onPress={() => onNotYet(nudge)}
+          role="button"
+          aria-label={`Not yet — re-ask about ${nudge.petName} in 20 minutes`}
+        >
+          <Text numberOfLines={1} style={styles.secondaryBtnText}>
+            Not yet
+          </Text>
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
+          onPress={() => onSnooze(nudge)}
+          role="button"
+          aria-label={`Snooze ${nudge.petName}'s reminder 15 minutes`}
+        >
+          <Icon name="clock" size={16} color={green.primary} strokeWidth={2.2} />
+          <Text numberOfLines={1} style={styles.secondaryBtnText}>
+            Snooze 15 min
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
 
 /**
  * In-app nudge for the active pet, computed from PREDICTION data (petSchedule) — so it appears even
- * if the push was suppressed in the foreground, missed, or permission was denied. On Home (screen
- * 2a) it renders as the header line of the "Quick log" card: "<pet> · <break> <overdue>" with a
- * Snooze affordance. Logging via the quick-log tiles below is the "yes" answer (writing a log clears
- * the prediction), so this line carries only the status + Snooze. Meals stay with the dedicated
- * {@link MealTimeBanner} attention card; this covers the flagship pee/poo break plus medications.
- * Renders nothing when nothing is due. Snooze runs the same shared snooze action as before.
+ * if the push was suppressed in the foreground, missed, or permission was denied. On Home it sits
+ * just above the quick-log tiles as an amber attention strip: "<pet> · <break> <overdue>" with a
+ * Snooze affordance. Logging via the tiles is the "yes" answer (writing a log clears the
+ * prediction). Meals stay with {@link MealTimeBanner}. Renders nothing when nothing is due.
  */
 export function NudgeBanner({ pet }: { pet: Pet }) {
   const { getFeedTimesForPet, getMedicationsForPet } = usePets();
@@ -83,8 +98,11 @@ export function NudgeBanner({ pet }: { pet: Pet }) {
   if (!nudge) return null;
 
   return (
-    <View style={styles.header}>
-      <Text style={styles.text} numberOfLines={1}>
+    <View style={styles.banner}>
+      <View style={styles.bannerIcon}>
+        <Icon name={nudge.kind === 'medication' ? 'pill' : 'paw'} size={16} color={amber.warnInk} strokeWidth={2} />
+      </View>
+      <Text style={styles.text} numberOfLines={2}>
         {pet.name} · {nudge.subtitle}{' '}
         <Text style={styles.accent}>{formatOverdue(nudge.overdueBy)}</Text>
       </Text>
@@ -104,23 +122,57 @@ export function NudgeBanner({ pet }: { pet: Pet }) {
 }
 
 const styles = StyleSheet.create({
-  // Quick-log card header line.
-  header: {
+  // Home attention strip.
+  banner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 11,
+    gap: 10,
+    backgroundColor: amber.warnBg,
+    borderWidth: 1,
+    borderColor: '#f3dfb9',
+    borderRadius: radius.card,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 10,
   },
-  text: { flex: 1, fontSize: 13, fontFamily: fonts.semiBold, color: ink.muted },
-  accent: { color: terracotta.primary, fontFamily: fonts.bold },
-  snooze: { fontSize: 11.5, fontFamily: fonts.semiBold, color: green.primary },
+  bannerIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  text: { flex: 1, fontSize: 13, fontFamily: fonts.semiBold, color: ink.primary, lineHeight: 18 },
+  accent: { color: amber.warnInk, fontFamily: fonts.bold },
+  snooze: { fontSize: 13, fontFamily: fonts.bold, color: green.primary },
 
-  // Shared Yes / Not yet / Snooze control (Notification Center) — unchanged.
-  actions: { flexDirection: 'row', gap: 8 },
-  btn: { flex: 1, borderRadius: radius.tile, paddingVertical: 10, alignItems: 'center' },
-  pressed: { opacity: 0.8 },
-  yesBtn: { backgroundColor: green.mid },
-  yesBtnText: { fontSize: 12, fontFamily: fonts.extraBold, color: '#ffffff' },
-  secondaryBtn: { backgroundColor: '#ffffff', borderWidth: 1.5, borderColor: '#e6ded0' },
-  secondaryBtnText: { fontSize: 12, fontFamily: fonts.extraBold, color: ink.muted },
+  // Shared Yes / Not yet / Snooze control (Notification Center).
+  actions: { gap: 8 },
+  pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
+  yesBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: green.mid,
+    borderRadius: radius.tile,
+    paddingVertical: 13,
+    ...shadow.sm,
+  },
+  yesBtnText: { fontSize: 14.5, fontFamily: fonts.bold, color: '#ffffff' },
+  secondaryRow: { flexDirection: 'row', gap: 8 },
+  secondaryBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#ffffff',
+    borderWidth: 1.5,
+    borderColor: line.border,
+    borderRadius: radius.tile,
+    paddingVertical: 12,
+  },
+  secondaryBtnText: { fontSize: 13.5, fontFamily: fonts.bold, color: green.primary },
 });

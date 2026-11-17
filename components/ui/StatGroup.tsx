@@ -22,7 +22,7 @@ export function StatGroup({
 }) {
   const onDark = variant === 'onDark';
   const valColor = onDark ? '#ffffff' : ink.primary;
-  const lblColor = onDark ? 'rgba(255,255,255,0.62)' : ink.faint;
+  const lblColor = onDark ? 'rgba(255,255,255,0.78)' : ink.faint;
   return (
     <View style={[styles.row, style]}>
       {stats.map((s) => (
@@ -30,7 +30,7 @@ export function StatGroup({
           <Text numberOfLines={1} style={[styles.value, { color: s.accent ?? valColor }]}>
             {s.value}
           </Text>
-          <Text numberOfLines={1} style={[styles.label, { color: lblColor }]}>
+          <Text numberOfLines={2} style={[styles.label, { color: lblColor }]}>
             {s.label}
           </Text>
         </View>
@@ -40,15 +40,14 @@ export function StatGroup({
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', gap: 22 },
-  stat: {},
-  value: { fontFamily: fonts.extraBold, fontSize: 19, letterSpacing: -0.2 },
+  // Redesign v3: stats share the row evenly and labels are sentence case ("Next break").
+  row: { flexDirection: 'row', gap: 12 },
+  stat: { flex: 1 },
+  value: { fontFamily: fonts.extraBold, fontSize: 20, letterSpacing: -0.2 },
   label: {
     fontFamily: fonts.semiBold,
-    fontSize: 10,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    marginTop: 2,
+    fontSize: 11.5,
+    marginTop: 3,
   },
 });
 

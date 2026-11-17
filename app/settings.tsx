@@ -18,6 +18,8 @@ import { Toggle } from '../components/Toggle';
 import { PetAvatar } from '../components/PetAvatar';
 import { TimePickerField } from '../components/TimePickerField';
 import { AppModal } from '../components/AppModal';
+import { ScreenHeader } from '../components/ScreenHeader';
+import { joinPetNames } from '../lib/petNames';
 import { usePets } from '../context/PetsContext';
 import { useNotificationPrefs } from '../context/NotificationPrefsContext';
 import { useSession } from '../context/SessionContext';
@@ -45,34 +47,35 @@ export default function SettingsScreen() {
   const { prefs, setQuietHours, setPetMuted } = useNotificationPrefs();
 
   const muted = new Set(prefs.mutedPetIds);
+  const quietOn = !!prefs.quietHoursStart && !!prefs.quietHoursEnd;
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <Pressable
-          style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
-          role="button"
-          aria-label="Back"
-          hitSlop={8}
-        >
-          <Icon name="chevronLeft" size={16} color={ink.primary} strokeWidth={2.3} />
-        </Pressable>
-        <Text style={styles.title}>Settings</Text>
-      </View>
+      <ScreenHeader
+        title="Settings"
+        subtitle={pets.length > 0 ? `Reminders and account for ${joinPetNames(pets.map((p) => p.name))}` : 'Reminders and account'}
+      />
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         {/* Quiet hours */}
-        <SectionLabel>Quiet hours</SectionLabel>
+        <SectionLabel sub="A calm night for you and your pets.">Quiet hours</SectionLabel>
         <Card padded>
           <View style={styles.qhTop}>
             <View style={styles.qhIcon}>
-              <Icon name="moon" size={16} color={category.dinnerInk} strokeWidth={2} />
+              <Icon name="moon" size={19} color={ink.muted} strokeWidth={2} />
             </View>
-            <Text style={styles.qhDesc}>
-              Pauses potty and meal reminders overnight. Medication and appointments still come
-              through. Set both a start and end to turn it on.
-            </Text>
+            <View style={{ flex: 1 }}>
+              <View style={styles.qhTitleRow}>
+                <Text style={styles.qhTitle}>Pause overnight</Text>
+                <Pill
+                  label={quietOn ? 'On' : 'Off'}
+                  bg={quietOn ? green.tint : surface.chip}
+                  color={quietOn ? green.primary : ink.muted}
+                  size="sm"
+                />
+              </View>
+              <Text style={styles.qhDesc}>Pick a start and end time to pause potty and meal nudges.</Text>
+            </View>
           </View>
           <View style={styles.qhRow}>
             <TimePickerField
@@ -92,10 +95,18 @@ export default function SettingsScreen() {
               style={{ flex: 1 }}
             />
           </View>
+          <View style={styles.qhNote}>
+            <View style={styles.qhNoteIcon}>
+              <Icon name="pill" size={15} color={category.medInk} strokeWidth={2} />
+            </View>
+            <Text style={styles.qhNoteText}>Meds and appointment reminders always come through.</Text>
+          </View>
         </Card>
 
         {/* Per-pet notifications */}
-        <SectionLabel style={styles.sectionSpacer}>Per-pet notifications</SectionLabel>
+        <SectionLabel style={styles.sectionSpacer} sub="Turn one off to pause every reminder for that pet.">
+          Reminders for each pet
+        </SectionLabel>
         {pets.length === 0 ? (
           <Text style={styles.helperText}>Add a pet to manage its reminders.</Text>
         ) : (
@@ -105,12 +116,12 @@ export default function SettingsScreen() {
               return (
                 <View key={pet.id}>
                   <View style={styles.muteRow}>
-                    <PetAvatar pet={pet} size={34} emojiSize={20} style={styles.muteAvatar} />
+                    <PetAvatar pet={pet} size={44} emojiSize={23} style={styles.muteAvatar} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.muteName} numberOfLines={1}>
                         {pet.name}
                       </Text>
-                      <Text style={styles.muteSub}>{enabled ? 'Reminders on' : 'Muted'}</Text>
+                      <Text style={styles.muteSub}>{enabled ? `Getting ${pet.name}'s reminders` : 'Paused'}</Text>
                     </View>
                     <Toggle
                       on={enabled}
@@ -419,25 +430,45 @@ const styles = StyleSheet.create({
   helperText: { fontSize: 12, fontFamily: fonts.medium, color: ink.muted, lineHeight: 17 },
 
   // Quiet hours
-  qhTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
+  qhTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   qhIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.iconTileSm,
-    backgroundColor: category.dinnerBg,
+    width: 42,
+    height: 42,
+    borderRadius: radius.iconTile,
+    backgroundColor: surface.chip,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
-  qhDesc: { flex: 1, fontSize: 12.5, fontFamily: fonts.medium, color: ink.muted, lineHeight: 18 },
-  qhRow: { flexDirection: 'row', gap: 8, marginTop: 13 },
+  qhTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  qhTitle: { fontSize: 15, fontFamily: fonts.bold, color: ink.primary },
+  qhDesc: { fontSize: 12.5, fontFamily: fonts.medium, color: ink.muted, lineHeight: 18, marginTop: 3 },
+  qhRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  qhNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: line.hairline,
+  },
+  qhNoteIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.iconTileSm,
+    backgroundColor: category.medBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qhNoteText: { flex: 1, fontSize: 12.5, fontFamily: fonts.medium, color: ink.muted, lineHeight: 18 },
 
   // Per-pet mute rows
   muteRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 16 },
-  muteAvatar: { backgroundColor: 'transparent' },
-  muteName: { fontSize: 14, fontFamily: fonts.bold, color: ink.primary },
-  muteSub: { fontSize: 12, fontFamily: fonts.medium, color: ink.muted, marginTop: 2 },
-  divider: { height: 1, backgroundColor: line.hairline, marginHorizontal: 16 },
+  muteAvatar: { backgroundColor: green.tint, borderWidth: 2, borderColor: '#ffffff' },
+  muteName: { fontSize: 15, fontFamily: fonts.bold, color: ink.primary },
+  muteSub: { fontSize: 12.5, fontFamily: fonts.medium, color: ink.muted, marginTop: 2 },
+  divider: { height: 1, backgroundColor: line.hairline, marginLeft: 72, marginRight: 16 },
 
   // Generic action rows (data, recover)
   rowCardSpacer: { marginTop: 8 },

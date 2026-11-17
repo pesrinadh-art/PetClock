@@ -31,7 +31,7 @@ export function Pill({
       <Text
         style={[
           styles.text,
-          { color, fontSize: size === 'sm' ? 10.5 : 12 },
+          { color, fontSize: size === 'sm' ? 11.5 : 12.5 },
         ]}
       >
         {label}

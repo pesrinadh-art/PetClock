@@ -9,12 +9,20 @@ import { usePets } from '../context/PetsContext';
 import { useNow } from '../hooks/useNow';
 import { usePendingNudges } from '../hooks/usePendingNudges';
 import { usePersistedCollection } from '../hooks/usePersistedCollection';
-import { formatOverdue } from '../lib/notifications/pending';
+import type { PendingKind, PendingNudge } from '../lib/notifications/pending';
 import { listScheduledSummaries, type ScheduledSummary } from '../lib/notifications/scheduler';
 import { repos } from '../lib/repo/types';
 import { formatClock, formatTimeUntil } from '../lib/petSchedule';
-import { colors, radius, shadow } from '../theme/colors';
+import { formatAgo } from '../lib/formatAgo';
+import { amber, green, ink, line, radius, shadow, surface } from '../theme/colors';
 import { fonts } from '../theme/fonts';
+import { Icon, type IconName } from '../components/Icon';
+import { PetAvatar } from '../components/PetAvatar';
+import { SectionLabel } from '../components/ui';
+
+const KIND_ICON: Record<PendingKind, IconName> = { meal: 'bowl', medication: 'pill', break: 'paw' };
+/** A nudge this far past due reads "Running late". */
+const LATE_MS = 15 * 60 * 1000;
 
 /** "2:15 PM" for today, else "Mon 2:15 PM" — a human "when" for a scheduled reminder. */
 function whenLabel(fireAt: Date, now: Date): string {
@@ -70,11 +78,22 @@ export default function NotificationsScreen() {
 
   const hasContent = nudges.length > 0 || scheduled.length > 0;
 
+  // Group the due nudges by pet, keeping the (most-urgent-first) order of the first appearance.
+  const groups: { petId: string; items: PendingNudge[] }[] = [];
+  for (const n of nudges) {
+    const g = groups.find((x) => x.petId === n.petId);
+    if (g) g.items.push(n);
+    else groups.push({ petId: n.petId, items: [n] });
+  }
+
+  const subtitle =
+    nudges.length === 0
+      ? 'Nothing needs an answer'
+      : `${nudges.length} ${nudges.length === 1 ? 'thing needs' : 'things need'} a quick answer`;
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.titleRow}>
-        <View style={{ width: 32 }} />
-        <Text style={styles.title}>Notifications</Text>
         <Pressable
           style={({ pressed }) => [styles.closeBtn, pressed && styles.pressed]}
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
@@ -82,13 +101,19 @@ export default function NotificationsScreen() {
           aria-label="Close notifications"
           hitSlop={8}
         >
-          <Text style={styles.closeBtnText}>✕</Text>
+          <Icon name="close" size={18} color={ink.primary} strokeWidth={2.2} />
         </Pressable>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>Notifications</Text>
+          <Text style={styles.headerSub}>{subtitle}</Text>
+        </View>
       </View>
 
       {!hasContent ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>🔔</Text>
+          <View style={styles.emptyIcon}>
+            <Icon name="bell" size={26} color={green.primary} strokeWidth={1.9} />
+          </View>
           <Text style={styles.emptyTitle}>You're all caught up</Text>
           <Text style={styles.emptyBody}>
             Reminders for potty breaks, meals, and appointments will show up here.
@@ -96,36 +121,56 @@ export default function NotificationsScreen() {
         </View>
       ) : (
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-          {nudges.length > 0 && (
+          {groups.length > 0 && (
             <>
-              <Text style={styles.section}>Needs your answer</Text>
-              {nudges.map((nudge) => (
-                <View key={nudge.key} style={styles.card}>
-                  <View style={styles.cardHeader}>
-                    <Text style={styles.cardIcon}>{nudge.icon}</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.cardTitle}>
-                        {nudge.petName} · {nudge.title}
-                      </Text>
-                      <Text style={styles.cardSub}>
-                        {nudge.subtitle} · {formatOverdue(nudge.overdueBy)}
-                      </Text>
+              <SectionLabel sub="Answer here and we'll update the next reminder.">Needs your answer</SectionLabel>
+              {groups.map((group) => {
+                const pet = pets.find((p) => p.id === group.petId);
+                return (
+                  <View key={group.petId} style={styles.group}>
+                    <View style={styles.petRow}>
+                      {pet && <PetAvatar pet={pet} size={40} emojiSize={21} style={styles.petAvatar} />}
+                      <Text style={styles.petName}>{pet?.name ?? group.items[0].petName}</Text>
+                      <View style={styles.countBadge}>
+                        <Text style={styles.countText}>{group.items.length}</Text>
+                      </View>
                     </View>
+                    {group.items.map((nudge) => (
+                      <View key={nudge.key} style={styles.card}>
+                        <View style={styles.cardHeader}>
+                          <View style={styles.cardIcon}>
+                            <Icon name={KIND_ICON[nudge.kind]} size={20} color={amber.warnInk} strokeWidth={2} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.cardTitle}>{nudge.title}</Text>
+                            <Text style={styles.cardSub}>
+                              {nudge.subtitle} · due {nudge.overdueBy < 60_000 ? 'now' : formatAgo(nudge.overdueBy)}
+                            </Text>
+                          </View>
+                          {nudge.overdueBy >= LATE_MS && (
+                            <View style={styles.latePill}>
+                              <Icon name="clock" size={13} color={amber.warnInk} strokeWidth={2.2} />
+                              <Text style={styles.lateText}>Running late</Text>
+                            </View>
+                          )}
+                        </View>
+                        <NudgeActionButtons
+                          nudge={nudge}
+                          onYes={onYes}
+                          onNotYet={onNotYet}
+                          onSnooze={onSnooze}
+                        />
+                      </View>
+                    ))}
                   </View>
-                  <NudgeActionButtons
-                    nudge={nudge}
-                    onYes={onYes}
-                    onNotYet={onNotYet}
-                    onSnooze={onSnooze}
-                  />
-                </View>
-              ))}
+                );
+              })}
             </>
           )}
 
           {scheduled.length > 0 && (
             <>
-              <Text style={styles.section}>Upcoming reminders</Text>
+              <SectionLabel style={{ marginTop: 14 }}>Upcoming reminders</SectionLabel>
               {scheduled.map((s) => (
                 <View key={s.id} style={styles.row}>
                   <View style={{ flex: 1 }}>
@@ -147,73 +192,102 @@ export default function NotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.cream },
+  safe: { flex: 1, backgroundColor: surface.app },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    marginBottom: 12,
+    gap: 14,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    marginBottom: 18,
   },
-  title: { fontSize: 20, fontFamily: fonts.black, color: colors.stone, textAlign: 'center', flex: 1 },
+  title: { fontSize: 23, fontFamily: fonts.extraBold, color: ink.primary, letterSpacing: -0.6 },
+  headerSub: { fontSize: 13, fontFamily: fonts.medium, color: ink.muted, marginTop: 1 },
   closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.white,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: surface.chip,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  closeBtnText: { fontSize: 14, fontFamily: fonts.extraBold, color: colors.stoneMid },
   pressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
 
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingBottom: 24 },
-  section: {
-    fontSize: 12,
-    fontFamily: fonts.extraBold,
-    color: colors.stoneMid,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginTop: 12,
-    marginBottom: 8,
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 32 },
+
+  group: { marginBottom: 8 },
+  petRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10, marginTop: 4 },
+  petAvatar: { borderWidth: 2, borderColor: '#ffffff' },
+  petName: { fontSize: 15, fontFamily: fonts.bold, color: ink.primary },
+  countBadge: {
+    minWidth: 22,
+    height: 22,
+    paddingHorizontal: 6,
+    borderRadius: 11,
+    backgroundColor: surface.chip,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  countText: { fontSize: 11.5, fontFamily: fonts.bold, color: ink.muted },
 
   card: {
-    backgroundColor: colors.sagePale,
-    borderWidth: 1.5,
-    borderColor: colors.sageLight,
-    borderRadius: radius.sm,
-    padding: 14,
-    marginBottom: 10,
-    ...shadow.sm,
+    backgroundColor: surface.card,
+    borderRadius: radius.card,
+    padding: 16,
+    marginBottom: 12,
+    ...shadow.card,
   },
-  cardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12 },
-  cardIcon: { fontSize: 22 },
-  cardTitle: { fontSize: 14, fontFamily: fonts.extraBold, color: colors.stone, marginBottom: 2 },
-  cardSub: { fontSize: 12, color: colors.stoneMid },
+  cardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 14 },
+  cardIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: radius.iconTile,
+    backgroundColor: amber.warnBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardTitle: { fontSize: 15.5, fontFamily: fonts.bold, color: ink.primary, marginBottom: 2 },
+  cardSub: { fontSize: 12.5, fontFamily: fonts.medium, color: ink.muted, lineHeight: 17 },
+  latePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: amber.warnBg,
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingHorizontal: 9,
+  },
+  lateText: { fontSize: 11.5, fontFamily: fonts.bold, color: amber.warnInk },
 
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: colors.white,
-    borderRadius: radius.sm,
+    backgroundColor: surface.card,
+    borderRadius: radius.card,
     padding: 14,
     marginBottom: 8,
     ...shadow.sm,
   },
-  rowTitle: { fontSize: 14, fontFamily: fonts.extraBold, color: colors.stone },
-  rowSub: { fontSize: 12, color: colors.stoneMid, marginTop: 2 },
+  rowTitle: { fontSize: 14, fontFamily: fonts.bold, color: ink.primary },
+  rowSub: { fontSize: 12, fontFamily: fonts.medium, color: ink.muted, marginTop: 2 },
   whenBadge: { alignItems: 'flex-end' },
-  whenText: { fontSize: 12, fontFamily: fonts.extraBold, color: colors.stone },
-  whenSub: { fontSize: 11, color: colors.stoneMid, marginTop: 2 },
+  whenText: { fontSize: 12.5, fontFamily: fonts.bold, color: ink.primary },
+  whenSub: { fontSize: 11.5, color: ink.muted, marginTop: 2 },
 
   // No negative marginTop: it would pull this full-height view up over the title row and (on web)
   // swallow taps on the ✕ close button — which is exactly why closing failed only when empty.
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 8 },
-  emptyIcon: { fontSize: 40, marginBottom: 4 },
-  emptyTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: colors.stone },
-  emptyBody: { fontSize: 13, color: colors.stoneMid, textAlign: 'center', lineHeight: 19 },
+  emptyIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: green.tint,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  emptyTitle: { fontSize: 17, fontFamily: fonts.extraBold, color: ink.primary },
+  emptyBody: { fontSize: 13, fontFamily: fonts.medium, color: ink.muted, textAlign: 'center', lineHeight: 19 },
 });

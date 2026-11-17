@@ -6,8 +6,9 @@ import { fonts } from '../../theme/fonts';
 import { Icon, type IconName } from '../../components/Icon';
 
 const ACTIVE = green.primary;
-const INACTIVE = '#a9a193';
+const INACTIVE = ink.muted;
 
+/** One bottom-bar item: icon over a sentence-case label; the focused tab sits on a tint pill. */
 function TabIcon({
   name,
   label,
@@ -20,7 +21,9 @@ function TabIcon({
   const color = focused ? ACTIVE : INACTIVE;
   return (
     <View style={styles.tabItem}>
-      <Icon name={name} size={20} color={color} />
+      <View style={[styles.iconPill, focused && styles.iconPillActive]}>
+        <Icon name={name} size={21} color={color} strokeWidth={focused ? 2.1 : 1.8} />
+      </View>
       <Text
         numberOfLines={1}
         style={[styles.tabLabel, { color, fontFamily: focused ? fonts.bold : fonts.semiBold }]}
@@ -53,7 +56,7 @@ export default function TabsLayout() {
             backgroundColor: surface.tabBar,
             borderTopWidth: 1,
             borderTopColor: line.border,
-            height: 64 + insets.bottom,
+            height: 70 + insets.bottom,
             paddingBottom: insets.bottom,
             paddingTop: 8,
             elevation: 0,
@@ -63,23 +66,22 @@ export default function TabsLayout() {
       >
         <Tabs.Screen
           name="index"
-          options={{ tabBarIcon: ({ focused }) => <TabIcon name="home" label="HOME" focused={focused} /> }}
+          options={{ tabBarIcon: ({ focused }) => <TabIcon name="home" label="Today" focused={focused} /> }}
         />
         <Tabs.Screen
           name="shared"
-          options={{ tabBarIcon: ({ focused }) => <TabIcon name="users" label="SHARED" focused={focused} /> }}
+          options={{ tabBarIcon: ({ focused }) => <TabIcon name="users" label="Family" focused={focused} /> }}
         />
         <Tabs.Screen
           name="appointments"
-          options={{ tabBarIcon: ({ focused }) => <TabIcon name="calendar" label="APPTS" focused={focused} /> }}
+          options={{ tabBarIcon: ({ focused }) => <TabIcon name="calendar" label="Visits" focused={focused} /> }}
         />
         <Tabs.Screen
           name="pets"
-          options={{ tabBarIcon: ({ focused }) => <TabIcon name="paw" label="PETS" focused={focused} /> }}
+          options={{ tabBarIcon: ({ focused }) => <TabIcon name="paw" label="Pets" focused={focused} /> }}
         />
-        {/* Food tab retired in the redesign — meal UI moves into the pet profile.
-            The route file stays for now (its logic is reused) but is hidden from
-            the bar. TODO redesign: meal UI moved to pet profile. */}
+        {/* "Mochi's meals" — not a bar tab: opened from the pet profile, but it lives inside
+            the tab navigator so the bar stays visible (no tab highlighted), per the design. */}
         <Tabs.Screen name="food" options={{ href: null }} />
       </Tabs>
 
@@ -91,36 +93,36 @@ export default function TabsLayout() {
         aria-label={fabTarget === '/add-pet' ? 'Add pet' : 'Add appointment'}
         style={({ pressed }) => [
           styles.fab,
-          { bottom: 34 + insets.bottom },
+          { bottom: 38 + insets.bottom },
           pressed && { transform: [{ scale: 0.92 }], backgroundColor: green.primary },
         ]}
       >
-        <Icon name="plus" size={22} color={ink.onDark} strokeWidth={2.4} />
+        <Icon name="plus" size={26} color={ink.onDark} strokeWidth={2.4} />
       </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  tabItem: { alignItems: 'center', gap: 4, width: 72 },
+  tabItem: { alignItems: 'center', gap: 3, width: 76 },
+  iconPill: { paddingHorizontal: 16, paddingVertical: 4, borderRadius: 999 },
+  iconPillActive: { backgroundColor: green.tint },
   tabLabel: {
-    fontSize: 9.5,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
+    fontSize: 11.5,
     textAlign: 'center',
   },
   fab: {
     position: 'absolute',
     left: '50%',
-    marginLeft: -27,
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    marginLeft: -31,
+    width: 62,
+    height: 62,
+    borderRadius: 31,
     backgroundColor: green.mid,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 4,
-    borderColor: surface.tabBar,
+    borderWidth: 5,
+    borderColor: '#ffffff',
     ...shadow.fab,
   },
 });

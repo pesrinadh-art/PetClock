@@ -2,28 +2,21 @@ import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TopNavBar } from '../../components/TopNavBar';
-import { Card, HeroCard } from '../../components/ui';
-import { Icon } from '../../components/Icon';
+import { Card, HeroCard, SectionLabel } from '../../components/ui';
+import { Icon, type IconName } from '../../components/Icon';
 import { HouseholdSection } from '../../components/HouseholdSection';
 import { useSession } from '../../context/SessionContext';
 import { usePets } from '../../context/PetsContext';
 import { useLogs } from '../../context/LogsContext';
 import { getSupabaseClient } from '../../lib/db/client';
 import { getHouseholdName, type Member } from '../../lib/household/invites';
-import { green, ink, surface, terracotta } from '../../theme/colors';
+import { joinPetNames } from '../../lib/petNames';
+import { amber, green, ink, radius, surface } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 
 /**
- * Warm-orange hero gradient for the Shared tab, so the household feels distinct
- * from Home (green) and Appointments (charcoal). Top stop is a deepened orange
- * (not `amber.primary` #e8a33d, which is too light — white title only ~2.2:1);
- * `#d4761f` → `terracotta.primary` keeps the white title/subtitle/stats legible
- * (~3.3:1 at the title, ~4.4:1 over the terracotta where the stats sit).
- */
-const ORANGE_GRADIENT: [string, string] = ['#d4761f', terracotta.primary];
-
-/**
- * SHARED tab — the household-sharing flagship (mockup screen_2h).
+ * FAMILY tab (redesign v3; was "Shared") — the household-sharing flagship. Green hero like every
+ * other tab, plus a "How sharing works" explainer.
  *
  * The whole product rests on two caregivers, one dog, one shared prediction. This screen is
  * where that household is created and grown: a green hero summarising who's caring for the
@@ -36,7 +29,7 @@ const ORANGE_GRADIENT: [string, string] = ['#d4761f', terracotta.primary];
  */
 export default function SharedScreen() {
   const { synced, householdId } = useSession();
-  const { pets } = usePets();
+  const { pets, activePet } = usePets();
   const { logs } = useLogs();
   const [memberCount, setMemberCount] = useState<number | null>(null);
   const [householdName, setHouseholdName] = useState<string | null>(null);
@@ -67,17 +60,18 @@ export default function SharedScreen() {
   }, [logs]);
 
   const petsShared = pets.length;
+  const names = pets.length > 0 ? joinPetNames(pets.map((p) => p.name)) : 'your pets';
+  const possessive = pets.length > 0 ? `${names}'s` : "your pets'";
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopNavBar />
+      <TopNavBar pet={activePet} eyebrow="Care team" title="Family" />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         {isShared ? (
           <>
             <HeroCard
               eyebrow="Everyone caring for your pets"
               title={householdName ?? 'Your household'}
-              gradient={ORANGE_GRADIENT}
               stats={[
                 { value: memberCount == null ? '—' : String(memberCount), label: 'Members' },
                 { value: String(petsShared), label: petsShared === 1 ? 'Pet shared' : 'Pets shared' },
@@ -97,35 +91,67 @@ export default function SharedScreen() {
         ) : (
           <>
             <HeroCard
-              eyebrow="Care for your pets together"
-              title="Share your household"
-              subtitle="Invite a partner, sitter or dog walker"
+              eyebrow="Care together"
+              title={`Share ${possessive} care`}
+              subtitle="Invite a partner, family member, sitter or dog walker."
             />
 
-            <View style={{ height: 20 }} />
-
-            <Card padded style={styles.notice}>
-              <View style={styles.noticeIcon}>
-                <Icon name="users" size={20} color={green.primary} strokeWidth={2} />
+            <View style={styles.notice}>
+              <Icon name="lock" size={22} color={amber.warnInk} strokeWidth={2} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.noticeTitle}>Sharing needs sync turned on</Text>
+                <Text style={styles.noticeBody}>
+                  Once this phone is signed in and syncing, you can invite helpers with a code.
+                  Everyone then sees the same pets, reminders and logs.
+                </Text>
               </View>
-              <Text style={styles.noticeTitle}>Sharing needs sync turned on</Text>
-              <Text style={styles.noticeBody}>
-                Household sharing keeps two phones on one set of pets, reminders and logs. It
-                becomes available once this device is signed in and syncing — then you can create
-                an invite code, add caregivers and manage who has access, right here.
-              </Text>
-            </Card>
+            </View>
           </>
         )}
+
+        <View style={styles.section}>
+          <SectionLabel>How sharing works</SectionLabel>
+          <Card padded style={styles.how}>
+            <HowRow
+              icon="userPlus"
+              title="Invite a helper"
+              body="Send them a short code. It works for a few days, then expires."
+            />
+            <HowRow
+              icon="bell"
+              title="Everyone gets the nudge"
+              body={`All phones get ${possessive} potty, meal and med reminders.`}
+            />
+            <HowRow
+              icon="check"
+              title="First one to answer logs it"
+              body="The other phones update on their own. No double logging."
+            />
+          </Card>
+        </View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function HowRow({ icon, title, body }: { icon: IconName; title: string; body: string }) {
+  return (
+    <View style={styles.howRow}>
+      <View style={styles.howIcon}>
+        <Icon name={icon} size={19} color={green.primary} strokeWidth={2} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.howTitle}>{title}</Text>
+        <Text style={styles.howBody}>{body}</Text>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: surface.app },
   scroll: { flex: 1 },
-  content: { paddingHorizontal: 20, paddingBottom: 28 },
+  content: { paddingHorizontal: 20, paddingBottom: 80 },
   blurb: {
     fontFamily: fonts.medium,
     fontSize: 12.5,
@@ -133,29 +159,30 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginBottom: 16,
   },
-  notice: { alignItems: 'center' },
-  noticeIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  notice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 14,
+    marginTop: 20,
+    padding: 18,
+    borderRadius: radius.card,
+    backgroundColor: amber.warnBg,
+    borderWidth: 1,
+    borderColor: '#f3dfb9',
+  },
+  noticeTitle: { fontFamily: fonts.bold, fontSize: 15.5, color: ink.primary, marginBottom: 4 },
+  noticeBody: { fontFamily: fonts.medium, fontSize: 13, color: ink.muted, lineHeight: 19 },
+  section: { marginTop: 26 },
+  how: { gap: 18, paddingVertical: 18 },
+  howRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
+  howIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: radius.iconTile,
     backgroundColor: green.tint,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
   },
-  noticeTitle: {
-    fontFamily: fonts.extraBold,
-    fontSize: 16,
-    color: ink.primary,
-    letterSpacing: -0.3,
-    marginBottom: 6,
-    textAlign: 'center',
-  },
-  noticeBody: {
-    fontFamily: fonts.medium,
-    fontSize: 13,
-    color: ink.muted,
-    lineHeight: 19,
-    textAlign: 'center',
-  },
+  howTitle: { fontFamily: fonts.bold, fontSize: 15, color: ink.primary },
+  howBody: { fontFamily: fonts.medium, fontSize: 13, color: ink.muted, lineHeight: 19, marginTop: 2 },
 });

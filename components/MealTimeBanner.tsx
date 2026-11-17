@@ -44,7 +44,7 @@ export function MealTimeBanner({ pet }: { pet: Pet }) {
     <Card padded style={styles.card}>
       <View style={styles.row}>
         <View style={styles.tile}>
-          <Icon name="bowl" size={16} color={terracotta.primary} strokeWidth={2} />
+          <Icon name="bowl" size={19} color={terracotta.primary} strokeWidth={2} />
         </View>
         <View style={styles.text}>
           <Text style={styles.title} numberOfLines={1}>{dueMeal.name} time</Text>
@@ -74,14 +74,14 @@ export function MealTimeBanner({ pet }: { pet: Pet }) {
 const styles = StyleSheet.create({
   card: {
     marginTop: 10,
-    borderLeftWidth: 4,
-    borderLeftColor: terracotta.primary,
+    borderWidth: 1.5,
+    borderColor: '#f3cfc0',
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 11 },
   tile: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.iconTileSm,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: terracotta.tint,
     alignItems: 'center',
     justifyContent: 'center',
@@ -90,11 +90,11 @@ const styles = StyleSheet.create({
   text: { flex: 1 },
   title: { fontSize: 14.5, fontFamily: fonts.bold, color: ink.primary },
   sub: { fontSize: 12, fontFamily: fonts.medium, color: ink.muted, marginTop: 1 },
-  snooze: { fontSize: 11.5, fontFamily: fonts.semiBold, color: ink.faint2 },
+  snooze: { fontSize: 12.5, fontFamily: fonts.semiBold, color: ink.muted },
   doneBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: radius.iconTile,
+    paddingVertical: 9,
+    paddingHorizontal: 16,
+    borderRadius: radius.pill,
     backgroundColor: terracotta.primary,
   },
   pressed: { opacity: 0.8 },

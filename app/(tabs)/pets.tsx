@@ -8,6 +8,8 @@ import { Icon } from '../../components/Icon';
 import { HeroCard, SectionLabel, type Stat } from '../../components/ui';
 import { TopNavBar } from '../../components/TopNavBar';
 import { PetListItem } from '../../components/PetListItem';
+import { PetAvatar } from '../../components/PetAvatar';
+import { joinPetNames } from '../../lib/petNames';
 import { AppModal } from '../../components/AppModal';
 import { usePets } from '../../context/PetsContext';
 import { useLogs } from '../../context/LogsContext';
@@ -41,35 +43,56 @@ export default function PetsScreen() {
   const logsToday = pets.reduce((sum, p) => sum + countLogsToday(getLogsForPet(p.id), now), 0);
   const medsCount = pets.reduce((sum, p) => sum + getMedicationsForPet(p.id).filter((m) => m.active).length, 0);
   const stats: Stat[] = [
-    { value: String(pets.length), label: 'Pets' },
+    { value: String(pets.length), label: pets.length === 1 ? 'Pet' : 'Pets' },
     { value: pets.length > 0 ? String(logsToday) : '—', label: 'Logs today' },
-    { value: medsCount > 0 ? String(medsCount) : '—', label: 'Meds' },
+    { value: medsCount > 0 ? String(medsCount) : '—', label: 'Daily meds' },
   ];
+  const heroSub =
+    pets.length === 0
+      ? 'Add your first pet to get started.'
+      : logsToday === 0
+        ? 'Nothing logged yet today.'
+        : `${logsToday} ${logsToday === 1 ? 'moment' : 'moments'} logged today. Lovely work.`;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopNavBar />
+      <TopNavBar eyebrow="Family" title="Your pets" />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <HeroCard
-          eyebrow="PawClock"
-          title="Your pets"
+          eyebrow={`${pets.length} in your care`}
+          title={pets.length > 0 ? joinPetNames(pets.map((p) => p.name)) : 'No pets yet'}
+          subtitle={heroSub}
           stats={stats}
-        />
+        >
+          {pets.length > 0 && (
+            <View style={styles.stack}>
+              {pets.slice(0, 5).map((p, i) => (
+                <PetAvatar
+                  key={p.id}
+                  pet={p}
+                  size={44}
+                  emojiSize={22}
+                  style={[styles.stackAvatar, i > 0 && { marginLeft: -10 }]}
+                />
+              ))}
+            </View>
+          )}
+        </HeroCard>
 
         <View style={styles.section}>
-          <SectionLabel>In your care</SectionLabel>
+          <SectionLabel sub="Tap a pet to open their profile.">Your family</SectionLabel>
           {pets.map((pet) => (
             <PetListItem key={pet.id} pet={pet} onDelete={() => setPendingDelete(pet)} />
           ))}
 
           <Pressable
-            style={({ pressed }) => [styles.dashed, pressed && styles.dashedPressed]}
+            style={({ pressed }) => [styles.addCard, pressed && styles.dashedPressed]}
             onPress={() => router.push('/add-pet')}
             role="button"
-            aria-label="Add pet"
+            aria-label="Add a pet"
           >
-            <Icon name="plus" size={15} color={ink.muted} strokeWidth={2.2} />
-            <Text style={styles.dashedText}>Add pet</Text>
+            <Icon name="plus" size={18} color={green.primary} strokeWidth={2.4} />
+            <Text style={styles.addText}>Add a pet</Text>
           </Pressable>
         </View>
 
@@ -185,22 +208,24 @@ export default function PetsScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: surface.app },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 24 },
-  section: { marginTop: 18 },
-  dashed: {
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 80 },
+  section: { marginTop: 24 },
+  stack: { flexDirection: 'row', marginTop: 16 },
+  stackAvatar: { backgroundColor: '#e8efe6', borderWidth: 3, borderColor: 'rgba(255,255,255,0.85)' },
+  addCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 7,
+    gap: 8,
     marginTop: 2,
-    paddingVertical: 13,
-    borderRadius: 15,
+    paddingVertical: 16,
+    borderRadius: radius.card,
     borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: line.dashed,
+    borderColor: line.border,
+    backgroundColor: surface.card,
   },
   dashedPressed: { opacity: 0.6 },
-  dashedText: { fontSize: 12.5, fontFamily: fonts.semiBold, color: ink.muted },
+  addText: { fontSize: 15, fontFamily: fonts.bold, color: green.primary },
 
   // TODO(FE-5): move to Settings — styling for the temporary demo/reset affordance.
   demoBox: { marginTop: 24, alignItems: 'center', gap: 12, paddingHorizontal: 8 },

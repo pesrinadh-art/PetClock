@@ -1,10 +1,11 @@
 import * as React from 'react';
-import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, G } from 'react-native-svg';
 import { green, ink, radius, shadow } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { Icon } from '../Icon';
+import { PetAvatar } from '../PetAvatar';
 import { StatGroup, type Stat } from './StatGroup';
 
 export type { Stat };
@@ -12,19 +13,18 @@ export type { Stat };
 const DEFAULT_GRADIENT: [string, string] = [green.gradientFrom, green.gradientTo];
 
 /**
- * The green gradient hero at the top of Home / Pet profile / Household (and a
- * charcoal variant on Appointments). Radius 22, deep soft shadow, a faint paw
- * watermark bleeding off the bottom-right, and — on Home — a progress ring.
+ * The green gradient hero at the top of every main screen (redesign v3).
  *
- * Two shapes:
- *  • avatar/ring hero — pass `progress` (0–1) for the ring-with-paw, or a custom
- *    `leading` node (e.g. a pet avatar); title + subtitle sit beside it.
- *  • eyebrow hero — pass `eyebrow` for an uppercase label above a large `title`
- *    (used on the Appointments header). No leading element.
+ * Shapes:
+ *  • avatar hero — `leading` (usually a {@link HeroAvatar}) or `progress` (ring-with-paw)
+ *    beside a title that may wrap to two lines and a wrapping subtitle.
+ *  • eyebrow hero — `eyebrow` (uppercase, e.g. "3 IN YOUR CARE") above a large title.
+ *  • centered hero — `centered` stacks the leading avatar, title and subtitle in the
+ *    middle (pet profile).
  *
- * `stats` renders the divider + {@link StatGroup} underneath either shape.
- * Override `gradient` for the charcoal appointments look
- * (`['#3c3a46','#2a2833']`).
+ * `stats` renders the divider + {@link StatGroup}; `children` renders below everything
+ * (chips, a "See visit details" button, an avatar stack). Decorative translucent bubbles
+ * sit behind the content, bottom-right.
  */
 export function HeroCard({
   title,
@@ -33,9 +33,11 @@ export function HeroCard({
   stats,
   progress,
   leading,
+  centered = false,
   gradient = DEFAULT_GRADIENT,
   watermark = true,
   ringColor = '#f3d27a',
+  children,
   style,
 }: {
   title: string;
@@ -44,12 +46,14 @@ export function HeroCard({
   stats?: Stat[];
   progress?: number;
   leading?: React.ReactNode;
+  centered?: boolean;
   gradient?: [string, string];
   watermark?: boolean;
   ringColor?: string;
-  style?: ViewStyle;
+  children?: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
 }) {
-  const hasLeading = progress != null || leading != null;
+  const lead = progress != null ? <ProgressRing progress={progress} ringColor={ringColor} /> : leading;
   return (
     <LinearGradient
       // 150deg in CSS ≈ this start/end on a roughly square card.
@@ -58,48 +62,79 @@ export function HeroCard({
       end={{ x: 0.9, y: 1 }}
       style={[styles.hero, style]}
     >
-      {watermark && (
-        <View style={styles.watermark} pointerEvents="none">
-          <Icon name="paw" size={108} color="rgba(255,255,255,0.08)" filled />
-        </View>
-      )}
+      {watermark && <Bubbles />}
 
       {eyebrow != null ? (
         <View>
           <Text style={styles.eyebrow}>{eyebrow}</Text>
           <Text style={styles.bigTitle}>{title}</Text>
+          {!!subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+        </View>
+      ) : centered ? (
+        <View style={styles.centered}>
+          {lead}
+          <Text style={[styles.title, styles.centerText, { marginTop: 12 }]} numberOfLines={2}>
+            {title}
+          </Text>
+          {!!subtitle && <Text style={[styles.subtitle, styles.centerText]}>{subtitle}</Text>}
         </View>
       ) : (
         <View style={styles.headerRow}>
-          {hasLeading &&
-            (progress != null ? (
-              <ProgressRing progress={progress} ringColor={ringColor} />
-            ) : (
-              leading
-            ))}
+          {lead}
           <View style={styles.headerText}>
-            <Text style={styles.title} numberOfLines={1}>
+            <Text style={styles.title} numberOfLines={2}>
               {title}
             </Text>
-            {!!subtitle && (
-              <Text style={styles.subtitle} numberOfLines={1}>
-                {subtitle}
-              </Text>
-            )}
+            {!!subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
           </View>
         </View>
       )}
+
+      {centered && children}
 
       {!!stats?.length && (
         <View style={styles.statsWrap}>
           <StatGroup stats={stats} variant="onDark" />
         </View>
       )}
+
+      {!centered && children}
     </LinearGradient>
   );
 }
 
-/** 62px progress ring with a paw at its centre (Home). */
+/** The white avatar circle with a translucent ring that leads a hero ("Getting to know Mochi"). */
+export function HeroAvatar({ pet, size = 62 }: { pet: { id: string; avatarEmoji: string }; size?: number }) {
+  const ring = Math.round(size * 0.07);
+  return (
+    <View
+      style={{
+        width: size + ring * 2,
+        height: size + ring * 2,
+        borderRadius: (size + ring * 2) / 2,
+        backgroundColor: 'rgba(255,255,255,0.28)',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <PetAvatar pet={pet} size={size} emojiSize={Math.round(size * 0.5)} style={{ backgroundColor: '#e8efe6' }} />
+    </View>
+  );
+}
+
+/** Soft translucent circles + blob bleeding off the bottom-right (design watermark). */
+function Bubbles() {
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <View style={[styles.bubble, { width: 26, height: 26, right: 52, bottom: 58 }]} />
+      <View style={[styles.bubble, { width: 26, height: 26, right: 14, bottom: 40 }]} />
+      <View style={[styles.bubble, { width: 22, height: 22, right: 22, bottom: 92 }]} />
+      <View style={[styles.bubble, { width: 84, height: 84, right: 40, bottom: -30, borderRadius: 30 }]} />
+    </View>
+  );
+}
+
+/** 62px progress ring with a paw at its centre (Home, once predictions are live). */
 function ProgressRing({ progress, ringColor }: { progress: number; ringColor: string }) {
   const size = 62;
   const r = 28;
@@ -137,28 +172,30 @@ function ProgressRing({ progress, ringColor }: { progress: number; ringColor: st
 const styles = StyleSheet.create({
   hero: {
     borderRadius: radius.hero,
-    padding: 18,
+    padding: 20,
     overflow: 'hidden',
     ...shadow.hero,
   },
-  watermark: { position: 'absolute', right: 4, bottom: -10 },
+  bubble: { position: 'absolute', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.08)' },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   headerText: { flex: 1 },
-  title: { fontFamily: fonts.extraBold, fontSize: 24, color: ink.onDark, letterSpacing: -0.5, lineHeight: 27 },
-  subtitle: { fontFamily: fonts.medium, fontSize: 12.5, color: 'rgba(255,255,255,0.72)', marginTop: 2 },
+  centered: { alignItems: 'center' },
+  centerText: { textAlign: 'center' },
+  title: { fontFamily: fonts.extraBold, fontSize: 25, color: ink.onDark, letterSpacing: -0.6, lineHeight: 28 },
+  subtitle: { fontFamily: fonts.medium, fontSize: 13, color: 'rgba(255,255,255,0.82)', marginTop: 4, lineHeight: 18 },
   eyebrow: {
     fontFamily: fonts.bold,
-    fontSize: 10.5,
+    fontSize: 11,
     letterSpacing: 1.5,
     textTransform: 'uppercase',
-    color: 'rgba(255,255,255,0.66)',
+    color: 'rgba(255,255,255,0.78)',
   },
-  bigTitle: { fontFamily: fonts.extraBold, fontSize: 26, color: ink.onDark, letterSpacing: -0.5, marginTop: 3 },
+  bigTitle: { fontFamily: fonts.extraBold, fontSize: 27, color: ink.onDark, letterSpacing: -0.6, marginTop: 4, lineHeight: 31 },
   statsWrap: {
-    marginTop: 16,
-    paddingTop: 14,
+    marginTop: 18,
+    paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.16)',
+    borderTopColor: 'rgba(255,255,255,0.18)',
   },
   ringCenter: {
     position: 'absolute',
