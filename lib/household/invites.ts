@@ -224,6 +224,25 @@ export async function revokeInvite(
   if (!data || data.length === 0) throw new HouseholdError('PERMISSION_DENIED', MESSAGES.PERMISSION_DENIED);
 }
 
+/**
+ * Read the household's display name. Any member may read the row (`households_select` =
+ * `app.is_member`), so this is a plain select. Returns null when the row is missing, the name
+ * is blank, or the read fails — the caller falls back to a generic label rather than erroring.
+ */
+export async function getHouseholdName(
+  client: SupabaseClient<Database>,
+  householdId: string,
+): Promise<string | null> {
+  const { data, error } = await client
+    .from('households')
+    .select('name')
+    .eq('id', householdId)
+    .maybeSingle();
+  if (error || !data) return null;
+  const trimmed = data.name?.trim();
+  return trimmed ? trimmed : null;
+}
+
 /** Human-readable reason for any thrown error, safe to show directly. */
 export function householdErrorMessage(e: unknown): string {
   if (e instanceof HouseholdError) return e.message;

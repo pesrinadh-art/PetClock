@@ -1,25 +1,27 @@
 import { useState } from 'react';
 import { FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { colors, radius, shadow } from '../theme/colors';
+import { category, ink, line, logTint, radius, shadow, surface, terracotta } from '../theme/colors';
 import { fonts } from '../theme/fonts';
-import type { LogEntry, Pet } from '../data/mockData';
+import type { Pet } from '../data/mockData';
 import { useLogs } from '../context/LogsContext';
 import { repos } from '../lib/repo/types';
-import { formatClock } from '../lib/petSchedule';
 import { AppModal } from './AppModal';
+import { Icon, type IconName } from './Icon';
 import { useSnackbar } from './Snackbar';
+import { useNow } from '../hooks/useNow';
+import { formatAgo } from '../lib/formatAgo';
+import { loggedLine } from '../lib/petVoice';
 
-/** Which break a tap/long-press targets. 'both' writes a pee AND a poo at once. */
-type LogTarget = 'pee' | 'poo' | 'both';
+/** Which quick-log a tap/long-press targets. 'both' writes a pee AND a poo; 'fed' writes a meal. */
+type LogTarget = 'pee' | 'poo' | 'both' | 'fed';
 
 type LogButtonSpec = {
   key: LogTarget;
-  emoji: string;
+  icon: IconName;
   label: string;
-  sub: string;
   bg: string;
-  border: string;
+  fg: string;
 };
 
 /** Backdate presets offered by the long-press chooser (minutes before now). */
@@ -31,14 +33,6 @@ const PRESETS: { label: string; minutesAgo: number }[] = [
 ];
 
 const MINUTE_MS = 60 * 1000;
-
-function mostRecentLog(logs: LogEntry[], type: 'pee' | 'poo') {
-  const matches = logs.filter((l) => l.type === type && !l.deletedAt);
-  if (matches.length === 0) return null;
-  return matches.reduce((latest, l) =>
-    new Date(l.occurredAt).getTime() > new Date(latest.occurredAt).getTime() ? l : latest,
-  );
-}
 
 /** Half-hour clock slots for the "Custom" backdate picker (12:00 AM … 11:30 PM). */
 function generateTimeSlots(): { label: string; hours: number; minutes: number }[] {
@@ -59,6 +53,7 @@ const SLOT_HEIGHT = 46;
 function targetLabel(target: LogTarget): string {
   if (target === 'pee') return 'Pee';
   if (target === 'poo') return 'Poo';
+  if (target === 'fed') return 'Meal';
   return 'Pee + poo';
 }
 
@@ -68,44 +63,33 @@ function successHaptic(): void {
   void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
 }
 
+const BUTTONS: LogButtonSpec[] = [
+  { key: 'pee', icon: 'drop', label: 'Pee', bg: logTint.peeBg, fg: logTint.peeInk },
+  { key: 'poo', icon: 'poo', label: 'Poo', bg: logTint.pooBg, fg: logTint.pooInk },
+  // "Both" = pee + poo. Lavender/indigo tile carrying BOTH type icons (drop + poo)
+  // so it reads as "pee + poo", not a green "done" confirmation. Uses the palette's
+  // groom lavender so it stays clearly distinct from Poo's warm-beige tile (they
+  // were nearly identical when Both used the neutral chip). `icon`/`fg` are
+  // placeholders; the render special-cases `key === 'both'` (see below).
+  { key: 'both', icon: 'drop', label: 'Both', bg: category.groomBg, fg: ink.primary },
+  { key: 'fed', icon: 'bowl', label: 'Fed', bg: terracotta.tint, fg: terracotta.primary },
+];
+
+/**
+ * The quick-log tile row (screen 2a): Pee / Poo / Both / Fed, each a tinted tile
+ * with a drawn <Icon> and label. Tapping writes the log(s) immediately with a
+ * single Undo; long-pressing opens the "when?" backdate chooser. "Both" writes a
+ * pee and a poo at the same instant; "Fed" writes a generic meal log. All writes
+ * go through the same `repos.logs.add` path as before.
+ */
 export function LogButtons({ pet }: { pet: Pet }) {
-  const { getLogsForPet, removeLog } = useLogs();
+  const { removeLog, getLogsForPet } = useLogs();
   const { show } = useSnackbar();
-  const logs = getLogsForPet(pet.id);
+  const now = useNow();
 
   // Long-press "when?" chooser and its deeper "Custom" time picker.
   const [chooser, setChooser] = useState<LogTarget | null>(null);
   const [customFor, setCustomFor] = useState<LogTarget | null>(null);
-
-  const lastPee = mostRecentLog(logs, 'pee');
-  const lastPoo = mostRecentLog(logs, 'poo');
-
-  const buttons: LogButtonSpec[] = [
-    {
-      key: 'pee',
-      emoji: '💧',
-      label: 'Pee',
-      sub: lastPee ? `Last ${formatClock(new Date(lastPee.occurredAt))}` : 'No logs yet',
-      bg: '#FFF8DB',
-      border: colors.pee,
-    },
-    {
-      key: 'poo',
-      emoji: '💩',
-      label: 'Poo',
-      sub: lastPoo ? `Last ${formatClock(new Date(lastPoo.occurredAt))}` : 'No logs yet',
-      bg: '#FBF0EA',
-      border: colors.pooLight,
-    },
-    {
-      key: 'both',
-      emoji: '💧💩',
-      label: 'Both',
-      sub: 'Pee + poo',
-      bg: colors.sagePale,
-      border: colors.sageLight,
-    },
-  ];
 
   // Writes the log(s) for `target`, shows a single Undo snackbar reverting ALL of them, and
   // buzzes on success. `occurredAt` backdates the entry; omitted = now.
@@ -117,13 +101,18 @@ export function LogButtons({ pet }: { pet: Pet }) {
       const pee = await repos.logs.add(pet.id, { type: 'pee', occurredAt: at });
       const poo = await repos.logs.add(pet.id, { type: 'poo', occurredAt: at });
       ids.push(pee.id, poo.id);
+    } else if (target === 'fed') {
+      // Generic meal log (no feed-slot); the due-meal prompt stays with MealTimeBanner.
+      const entry = await repos.logs.add(pet.id, { type: 'food', feedTimeId: null, occurredAt });
+      ids.push(entry.id);
     } else {
       const entry = await repos.logs.add(pet.id, { type: target, occurredAt });
       ids.push(entry.id);
     }
     successHaptic();
     // One Undo removes every log this action wrote (both, for the "Both" button).
-    show(`${targetLabel(target)} logged for ${pet.name}`, () => ids.forEach((id) => removeLog(id)));
+    // Species-aware confirmation: "Woof! Pee logged for Mochi." / "Yum! Luna has been fed."
+    show(loggedLine(pet, target === 'fed' ? 'food' : target), () => ids.forEach((id) => removeLog(id)));
   };
 
   const handlePreset = (minutesAgo: number) => {
@@ -151,30 +140,52 @@ export function LogButtons({ pet }: { pet: Pet }) {
     void commit(target, d.toISOString());
   };
 
+  // Last-logged time per tile ("1h ago"); "Both" always reads "One trip".
+  const sub = (key: LogTarget): string => {
+    if (key === 'both') return 'One trip';
+    const type = key === 'fed' ? 'food' : key;
+    const latest = getLogsForPet(pet.id)
+      .filter((l) => !l.deletedAt && l.type === type)
+      .reduce<number | null>((best, l) => {
+        const t = new Date(l.occurredAt).getTime();
+        return best == null || t > best ? t : best;
+      }, null);
+    return latest == null ? 'Not logged yet' : formatAgo(now.getTime() - latest);
+  };
+
   return (
-    <View>
-      <View style={styles.row}>
-        {buttons.map((b) => (
-          <Pressable
-            key={b.key}
-            onPress={() => void commit(b.key)}
-            onLongPress={() => setChooser(b.key)}
-            delayLongPress={300}
-            role="button"
-            aria-label={`Log ${targetLabel(b.key).toLowerCase()} for ${pet.name}. ${b.sub}. Long press to backdate.`}
-            style={({ pressed }) => [
-              styles.btn,
-              { backgroundColor: b.bg, borderColor: b.border },
-              pressed && styles.btnPressed,
-            ]}
-          >
-            <Text style={styles.emoji}>{b.emoji}</Text>
-            <Text numberOfLines={1} style={styles.label}>{b.label}</Text>
-            <Text numberOfLines={1} ellipsizeMode="tail" style={styles.sub}>{b.sub}</Text>
-          </Pressable>
-        ))}
-      </View>
-      <Text style={styles.hint}>Tip: long-press a button to backdate.</Text>
+    <View style={styles.grid}>
+      {BUTTONS.map((b) => (
+        <Pressable
+          key={b.key}
+          onPress={() => void commit(b.key)}
+          onLongPress={() => setChooser(b.key)}
+          delayLongPress={300}
+          role="button"
+          aria-label={`Log ${targetLabel(b.key).toLowerCase()} for ${pet.name}. Long press to backdate.`}
+          style={({ pressed }) => [styles.tile, pressed && styles.tilePressed]}
+        >
+          <View style={[styles.iconCircle, { backgroundColor: b.bg }]}>
+            {b.key === 'both' ? (
+              // Two icons so "Both" literally reads as pee + poo.
+              <View style={styles.bothIcons}>
+                <Icon name="drop" size={16} color={logTint.peeInk} strokeWidth={2.1} />
+                <Icon name="poo" size={16} color={logTint.pooInk} strokeWidth={2.1} />
+              </View>
+            ) : (
+              <Icon name={b.icon} size={20} color={b.fg} strokeWidth={2.1} />
+            )}
+          </View>
+          <View style={styles.tileText}>
+            <Text numberOfLines={1} style={styles.tileLabel}>
+              {b.label}
+            </Text>
+            <Text numberOfLines={1} style={styles.tileSub}>
+              {sub(b.key)}
+            </Text>
+          </View>
+        </Pressable>
+      ))}
 
       {/* Long-press "when?" chooser. */}
       <AppModal
@@ -245,41 +256,46 @@ export function LogButtons({ pet }: { pet: Pet }) {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', gap: 10 },
-  btn: {
-    flex: 1,
-    borderRadius: 16,
-    borderWidth: 2,
-    paddingVertical: 16,
-    paddingHorizontal: 8,
+  // 2×2 grid of white tiles: tinted icon circle + label + last-logged time.
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  tile: {
+    flexBasis: '47%',
+    flexGrow: 1,
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 11,
+    backgroundColor: surface.card,
+    borderRadius: radius.card,
+    paddingVertical: 13,
+    paddingHorizontal: 12,
+    ...shadow.sm,
   },
-  btnPressed: { opacity: 0.65, transform: [{ scale: 0.97 }] },
-  emoji: { fontSize: 28 },
-  label: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.stone },
-  sub: { fontSize: 10, color: colors.stoneMid, textAlign: 'center' },
-  hint: { fontSize: 11, color: colors.stoneMid, textAlign: 'center', marginTop: 8, marginBottom: 20 },
+  tilePressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
+  iconCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  bothIcons: { flexDirection: 'row', alignItems: 'center', gap: 1 },
+  tileText: { flex: 1 },
+  tileLabel: { fontSize: 15, fontFamily: fonts.bold, color: ink.primary },
+  tileSub: { fontSize: 12, fontFamily: fonts.medium, color: ink.muted, marginTop: 2 },
 
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', padding: 24 },
   sheet: {
     width: '100%',
     maxWidth: 320,
     maxHeight: '80%',
-    backgroundColor: colors.white,
-    borderRadius: radius.lg,
+    backgroundColor: surface.card,
+    borderRadius: radius.card,
     padding: 16,
     ...shadow.card,
   },
-  sheetTitle: { fontSize: 15, fontFamily: fonts.extraBold, color: colors.stone, marginBottom: 10, textAlign: 'center' },
+  sheetTitle: { fontSize: 15, fontFamily: fonts.extraBold, color: ink.primary, marginBottom: 10, textAlign: 'center' },
   option: {
     height: SLOT_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 12,
-    borderRadius: radius.sm,
+    borderRadius: radius.tile,
   },
-  optionText: { fontSize: 14, fontFamily: fonts.semiBold, color: colors.stone },
-  pressed: { opacity: 0.6, backgroundColor: colors.sagePale },
+  optionText: { fontSize: 14, fontFamily: fonts.semiBold, color: ink.primary },
+  pressed: { opacity: 0.6, backgroundColor: line.hairline },
 });

@@ -1,130 +1,143 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { colors, radius, shadow } from '../theme/colors';
+import { amber, green, ink, line, radius, shadow, surface, terracotta } from '../theme/colors';
 import { fonts } from '../theme/fonts';
+import { Pill } from './ui';
+import { Icon } from './Icon';
 import { AppModal } from './AppModal';
-import { Toggle } from './Toggle';
 import { PetAvatar } from './PetAvatar';
-import { computeCountdown, formatApptDate, formatApptTime } from '../lib/appointmentUtils';
+import { computeCountdown, formatApptTime } from '../lib/appointmentUtils';
+import { needsNewDate, VISIT_META } from '../lib/visits';
+import { joinPetNames } from '../lib/petNames';
 import { useAppointments } from '../context/AppointmentsContext';
 import { usePets } from '../context/PetsContext';
-import type { Appointment, ApptType } from '../data/mockData';
+import type { Appointment } from '../data/mockData';
 import { allDayToHasTime } from '../lib/db/models';
 
-const TYPE_META: Record<ApptType, { label: string; icon: string; accent: string; badgeBg: string }> = {
-  vet: { label: 'Vet Visit', icon: '🏥', accent: colors.apptVet, badgeBg: colors.apptVetLight },
-  groom: { label: 'Grooming', icon: '✂️', accent: colors.apptGroom, badgeBg: colors.apptGroomLight },
-  vaccine: { label: 'Vaccine', icon: '💉', accent: colors.apptVaccine, badgeBg: colors.apptVaccineLight },
-  other: { label: 'Other', icon: '📌', accent: colors.apptOther, badgeBg: colors.apptOtherLight },
-};
-
-const COUNTDOWN_STYLE = {
-  soon: { bg: '#FFF8DB', color: '#B8900A' },
-  upcoming: { bg: colors.sagePale, color: colors.sage },
-  overdue: { bg: '#FDECEA', color: '#C0392B' },
-};
-
-const MINUTES_PER_DAY = 24 * 60;
-
+/**
+ * A visit card (redesign v3): a date tile (SEP / 15 / Tue), the type ("Vaccine") with its icon,
+ * the title, a status pill, and "For Peanut" with the pets' avatars. Tapping opens the visit
+ * details; the trash icon deletes after a confirm. A visit whose date has passed carries
+ * "Needs a new date" plus two quick actions: pick a new date, or mark it done.
+ */
 export function AppointmentCard({ appt }: { appt: Appointment }) {
   const { updateAppointment, removeAppointment } = useAppointments();
   const { pets } = usePets();
   const [pendingDelete, setPendingDelete] = useState(false);
-  const meta = TYPE_META[appt.type];
-  // Computed at render so the badge stays live; integrates with a useNow tick at merge.
+  const meta = VISIT_META[appt.type];
+  const overdue = needsNewDate(appt);
   const cd = computeCountdown(appt.startsAt);
-  const countdown = COUNTDOWN_STYLE[cd.kind];
-  const overdue = cd.kind === 'overdue';
-  const reminderOn = appt.reminderOffsetsMinutes.length > 0;
   const hasTime = allDayToHasTime(appt.allDay);
+  const d = new Date(appt.startsAt);
 
   const apptPets = appt.petIds
     .map((id) => pets.find((p) => p.id === id))
     .filter((p): p is NonNullable<typeof p> => !!p);
 
-  const openEdit = () => {
-    router.push({ pathname: '/add-appointment', params: { apptId: appt.id } });
-  };
-
-  const confirmDelete = () => {
-    setPendingDelete(false);
-    removeAppointment(appt.id);
-  };
-
-  const toggleReminder = () => {
-    updateAppointment(appt.id, { reminderOffsetsMinutes: reminderOn ? [] : [MINUTES_PER_DAY] });
-  };
+  const openDetails = () => router.push({ pathname: '/visit/[id]', params: { id: appt.id } });
+  const reschedule = () => router.push({ pathname: '/add-appointment', params: { apptId: appt.id } });
+  const markDone = () => updateAppointment(appt.id, { completedAt: new Date().toISOString() });
 
   return (
-    <Pressable
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
-      onPress={openEdit}
-      onLongPress={() => setPendingDelete(true)}
-      role="button"
-      aria-label={`${appt.title}, ${meta.label}, ${cd.label}`}
-      accessibilityHint="Opens the appointment to edit. Long press to delete."
-    >
-      <View style={[styles.accent, { backgroundColor: meta.accent }]} />
-      <View style={styles.body}>
-        <View style={styles.topRow}>
-          <View style={[styles.badge, { backgroundColor: meta.badgeBg }]}>
-            <Text numberOfLines={1} style={[styles.badgeText, { color: meta.accent }]}>
-              {meta.icon} {meta.label}
-            </Text>
-          </View>
-          <View style={[styles.countdown, { backgroundColor: countdown.bg }]}>
-            <Text numberOfLines={1} style={[styles.countdownText, { color: countdown.color }]}>{cd.label}</Text>
-          </View>
-        </View>
-
-        <Text numberOfLines={1} style={styles.title}>{appt.title}</Text>
-        <View style={styles.petRow}>
-          {apptPets.map((p) => (
-            <View key={p.id} style={styles.petChip}>
-              <PetAvatar pet={p} size={18} emojiSize={12} style={styles.petChipAvatar} />
-              <Text numberOfLines={1} style={styles.petChipText}>{p.name}</Text>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.detailsRow}>
-          <Text numberOfLines={1} style={styles.detail}>📅 {formatApptDate(appt.startsAt)}</Text>
-          {hasTime && <Text numberOfLines={1} style={styles.detail}>🕐 {formatApptTime(appt.startsAt)}</Text>}
-          {appt.location && <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.detail, styles.detailLocation]}>📍 {appt.location}</Text>}
-        </View>
-
-        {overdue ? (
-          <Pressable
-            style={({ pressed }) => [styles.notifRow, { backgroundColor: '#FDECEA' }, pressed && styles.pressed]}
-            onPress={openEdit}
-            role="button"
-            aria-label={`Reschedule ${appt.title}`}
-          >
-            <Text numberOfLines={1} style={[styles.notifText, { color: '#C0392B' }]}>🔴 Reschedule soon</Text>
-            <Text numberOfLines={1} style={{ fontSize: 12, fontFamily: fonts.extraBold, color: colors.apptVet, flexShrink: 0 }}>Reschedule ›</Text>
-          </Pressable>
-        ) : (
-          <View style={styles.notifRow}>
-            <Text numberOfLines={1} style={styles.notifText}>🔔 Remind me 1 day before</Text>
-            <Toggle on={reminderOn} onToggle={toggleReminder} aria-label="Remind me 1 day before" />
-          </View>
-        )}
-      </View>
-
-      <AppModal
-        visible={pendingDelete}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setPendingDelete(false)}
+    <View style={styles.card}>
+      <Pressable
+        style={({ pressed }) => [styles.body, pressed && styles.cardPressed]}
+        onPress={openDetails}
+        role="button"
+        aria-label={`${appt.title}, ${meta.label}, ${overdue ? 'needs a new date' : cd.label}`}
+        accessibilityHint="Opens the visit details."
       >
+        <View style={[styles.dateTile, overdue && styles.dateTileLate]}>
+          <Text style={styles.dateMonth}>{d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase()}</Text>
+          <Text style={styles.dateDay}>{d.getDate()}</Text>
+          <Text style={styles.dateWeekday}>{d.toLocaleDateString('en-US', { weekday: 'short' })}</Text>
+        </View>
+
+        <View style={styles.main}>
+          <View style={styles.typeRow}>
+            <Icon name={meta.icon} size={15} color={meta.ink} strokeWidth={2} />
+            <Text style={[styles.typeLabel, { color: meta.ink }]}>{meta.label}</Text>
+          </View>
+          <Text numberOfLines={2} style={styles.title}>
+            {appt.title}
+          </Text>
+          {overdue ? (
+            <Pill
+              label="Needs a new date"
+              bg={amber.warnBg}
+              color={amber.warnInk}
+              size="sm"
+              icon={<Icon name="info" size={12} color={amber.warnInk} strokeWidth={2.4} />}
+              style={styles.pill}
+            />
+          ) : (
+            <Pill
+              label={hasTime ? `${cd.label} · ${formatApptTime(appt.startsAt)}` : `${cd.label} · All day`}
+              bg={cd.kind === 'soon' ? amber.warnBg : green.tint}
+              color={cd.kind === 'soon' ? amber.warnInk : green.primary}
+              size="sm"
+              style={styles.pill}
+            />
+          )}
+        </View>
+      </Pressable>
+
+      {/* Sibling of the card body (not nested) so it is its own button. */}
+      <Pressable
+        style={({ pressed }) => [styles.trash, pressed && styles.pressed]}
+        onPress={() => setPendingDelete(true)}
+        role="button"
+        aria-label={`Delete ${appt.title}`}
+        hitSlop={8}
+      >
+        <Icon name="trash" size={19} color={ink.primary} strokeWidth={2} />
+      </Pressable>
+
+      {apptPets.length > 0 && (
+        <View style={styles.forRow}>
+          <View style={styles.avatars}>
+            {apptPets.slice(0, 4).map((p, i) => (
+              <PetAvatar key={p.id} pet={p} size={26} emojiSize={14} style={[styles.forAvatar, i > 0 && { marginLeft: -8 }]} />
+            ))}
+          </View>
+          <Text numberOfLines={1} style={styles.forText}>
+            For {joinPetNames(apptPets.map((p) => p.name))}
+          </Text>
+        </View>
+      )}
+
+      {overdue && (
+        <View style={styles.actions}>
+          <Pressable
+            style={({ pressed }) => [styles.actionBtn, styles.actionPrimary, pressed && styles.pressed]}
+            onPress={reschedule}
+            role="button"
+            aria-label={`Pick a new date for ${appt.title}`}
+          >
+            <Icon name="calendar" size={15} color="#ffffff" strokeWidth={2.2} />
+            <Text style={styles.actionPrimaryText}>Pick a new date</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.actionBtn, styles.actionSecondary, pressed && styles.pressed]}
+            onPress={markDone}
+            role="button"
+            aria-label={`Mark ${appt.title} as done`}
+          >
+            <Icon name="check" size={15} color={green.primary} strokeWidth={2.6} />
+            <Text style={styles.actionSecondaryText}>Mark as done</Text>
+          </Pressable>
+        </View>
+      )}
+
+      <AppModal visible={pendingDelete} transparent animationType="fade" onRequestClose={() => setPendingDelete(false)}>
         <Pressable style={styles.overlay} onPress={() => setPendingDelete(false)}>
           <Pressable style={styles.dialog} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.dialogTitle}>Delete appointment?</Text>
+            <Text style={styles.dialogTitle}>Delete this visit?</Text>
             <Text style={styles.dialogBody}>"{appt.title}" will be removed. This can't be undone.</Text>
             <View style={styles.dialogActions}>
               <Pressable
-                style={({ pressed }) => [styles.dialogBtn, styles.cancelBtn, pressed && styles.dialogPressed]}
+                style={({ pressed }) => [styles.dialogBtn, styles.cancelBtn, pressed && styles.pressed]}
                 onPress={() => setPendingDelete(false)}
                 role="button"
                 aria-label="Cancel"
@@ -132,8 +145,11 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
                 <Text style={styles.cancelBtnText}>Cancel</Text>
               </Pressable>
               <Pressable
-                style={({ pressed }) => [styles.dialogBtn, styles.deleteBtn, pressed && styles.dialogPressed]}
-                onPress={confirmDelete}
+                style={({ pressed }) => [styles.dialogBtn, styles.deleteBtn, pressed && styles.pressed]}
+                onPress={() => {
+                  setPendingDelete(false);
+                  removeAppointment(appt.id);
+                }}
                 role="button"
                 aria-label={`Delete ${appt.title}`}
               >
@@ -143,61 +159,77 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
           </Pressable>
         </Pressable>
       </AppModal>
-    </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: colors.white, borderRadius: radius.lg, marginBottom: 12, overflow: 'hidden', ...shadow.sm },
-  cardPressed: { opacity: 0.9 },
-  accent: { height: 4 },
-  body: { padding: 16 },
-  topRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  badge: { paddingVertical: 5, paddingHorizontal: 10, borderRadius: 99 },
-  badgeText: { fontSize: 11, fontFamily: fonts.extraBold },
-  countdown: { marginLeft: 'auto', paddingVertical: 4, paddingHorizontal: 10, borderRadius: 99 },
-  countdownText: { fontSize: 11, fontFamily: fonts.extraBold },
-  title: { fontSize: 15, fontFamily: fonts.extraBold, color: colors.stone, marginBottom: 6 },
-  petRow: { flexDirection: 'row', gap: 6, marginBottom: 12, flexWrap: 'wrap' },
-  petChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.sagePale, paddingVertical: 3, paddingLeft: 3, paddingRight: 10, borderRadius: 99 },
-  petChipAvatar: { backgroundColor: 'transparent' },
-  petChipText: { fontSize: 11, fontFamily: fonts.bold, color: colors.sage },
-  detailsRow: { flexDirection: 'row', gap: 16, flexWrap: 'wrap', marginBottom: 10 },
-  detail: { fontSize: 12, color: colors.stoneMid, fontFamily: fonts.semiBold },
-  detailLocation: { flexShrink: 1, maxWidth: '100%' },
-  notifRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 10,
-    paddingHorizontal: 14,
-    backgroundColor: colors.sagePale,
-    borderRadius: radius.sm,
-  },
-  notifText: { fontSize: 12, fontFamily: fonts.bold, color: colors.stone, flex: 1, paddingRight: 8 },
-  pressed: { opacity: 0.75 },
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  dialog: {
-    width: '100%',
-    maxWidth: 320,
-    backgroundColor: colors.white,
-    borderRadius: radius.lg,
-    padding: 20,
+  card: {
+    backgroundColor: surface.card,
+    borderRadius: radius.card,
+    marginBottom: 12,
     ...shadow.card,
   },
-  dialogTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: colors.stone, marginBottom: 8 },
-  dialogBody: { fontSize: 13, color: colors.stoneMid, lineHeight: 19, marginBottom: 18 },
+  cardPressed: { opacity: 0.85 },
+  body: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, padding: 16, paddingRight: 48 },
+  dateTile: {
+    width: 62,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: '#e9f4f1',
+    borderWidth: 1,
+    borderColor: '#cfe5de',
+    alignItems: 'center',
+  },
+  dateTileLate: { backgroundColor: '#eef4f2' },
+  dateMonth: { fontSize: 11, fontFamily: fonts.bold, color: green.primary, letterSpacing: 1 },
+  dateDay: { fontSize: 25, fontFamily: fonts.extraBold, color: green.primary, lineHeight: 30 },
+  dateWeekday: { fontSize: 11.5, fontFamily: fonts.semiBold, color: green.primary },
+  main: { flex: 1 },
+  typeRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  typeLabel: { fontSize: 12.5, fontFamily: fonts.bold },
+  title: { fontSize: 17, fontFamily: fonts.extraBold, color: ink.primary, letterSpacing: -0.3, marginTop: 3 },
+  pill: { alignSelf: 'flex-start', marginTop: 8 },
+  trash: { position: 'absolute', top: 10, right: 10, width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+
+  forRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    marginHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 14,
+    borderTopWidth: 1,
+    borderTopColor: line.hairline,
+  },
+  avatars: { flexDirection: 'row' },
+  forAvatar: { backgroundColor: green.tint, borderWidth: 2, borderColor: '#ffffff' },
+  forText: { flex: 1, fontSize: 13, fontFamily: fonts.bold, color: ink.primary },
+
+  actions: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 16 },
+  actionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 11,
+    borderRadius: radius.tile,
+  },
+  actionPrimary: { backgroundColor: green.mid },
+  actionPrimaryText: { fontSize: 13, fontFamily: fonts.bold, color: '#ffffff' },
+  actionSecondary: { backgroundColor: surface.card, borderWidth: 1.5, borderColor: line.border },
+  actionSecondaryText: { fontSize: 13, fontFamily: fonts.bold, color: green.primary },
+  pressed: { opacity: 0.75 },
+
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  dialog: { width: '100%', maxWidth: 320, backgroundColor: surface.card, borderRadius: radius.card, padding: 20 },
+  dialogTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: ink.primary, marginBottom: 8 },
+  dialogBody: { fontSize: 13, color: ink.muted, lineHeight: 19, marginBottom: 18 },
   dialogActions: { flexDirection: 'row', gap: 10 },
-  dialogBtn: { flex: 1, borderRadius: radius.sm, paddingVertical: 12, alignItems: 'center' },
-  dialogPressed: { opacity: 0.8 },
-  cancelBtn: { backgroundColor: colors.sagePale },
-  cancelBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.sage },
-  deleteBtn: { backgroundColor: '#C0392B' },
-  deleteBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.white },
+  dialogBtn: { flex: 1, borderRadius: radius.tile, paddingVertical: 12, alignItems: 'center' },
+  cancelBtn: { backgroundColor: green.tint },
+  cancelBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: green.primary },
+  deleteBtn: { backgroundColor: terracotta.primary },
+  deleteBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: ink.onDark },
 });

@@ -39,3 +39,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# agent worktrees (not part of the project)
+.claude/worktrees/

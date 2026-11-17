@@ -1,9 +1,15 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, radius, shadow } from '../theme/colors';
+import { surface, green, ink, radius, shadow } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { formatClock } from '../lib/petSchedule';
 import type { ScheduleRowItem } from '../lib/petSchedule';
 
+/**
+ * Legacy meal/med row. The meal-logging UI now lives inline on the pet profile
+ * (built from the `ui/` primitives); this component is retained only for the
+ * hidden/retired Food tab and keeps the same props so that screen still
+ * compiles. Reskinned to the redesign tokens for visual consistency.
+ */
 export function ScheduleRow({
   item,
   accent,
@@ -25,13 +31,13 @@ export function ScheduleRow({
   const done = item.status === 'done';
   const due = item.status === 'due';
   const canLog = !done && !!onLogNow;
-  const badgeBg = done ? colors.sagePale : due ? accent : accentLight;
-  const badgeColor = done ? colors.sage : due ? colors.white : accent;
+  const badgeBg = done ? green.tint : due ? accent : accentLight;
+  const badgeColor = done ? green.primary : due ? ink.onDark : accent;
   const badgeLabel = done ? '✓ Done' : due ? 'Due' : formatClock(item.time);
   return (
     <View style={styles.row}>
       <View style={[styles.icon, { backgroundColor: accentLight }]}>
-        <Text style={{ fontSize: 20 }}>{item.icon}</Text>
+        <Text style={{ fontSize: 18 }}>{item.icon}</Text>
       </View>
       <View style={{ flex: 1 }}>
         <Text numberOfLines={1} style={styles.name}>{item.name}</Text>
@@ -45,7 +51,7 @@ export function ScheduleRow({
           aria-label={logAccessibilityLabel ?? `Mark ${item.name} as done`}
           hitSlop={6}
         >
-          <Text numberOfLines={1} style={[styles.badgeText, { color: colors.white }]}>Mark done</Text>
+          <Text numberOfLines={1} style={[styles.badgeText, { color: ink.onDark }]}>Mark done</Text>
         </Pressable>
       ) : (
         <View style={[styles.badge, { backgroundColor: badgeBg }]}>
@@ -61,24 +67,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: colors.white,
-    borderRadius: radius.sm,
+    backgroundColor: surface.card,
+    borderRadius: radius.card,
     padding: 14,
     marginBottom: 8,
-    ...shadow.sm,
+    ...shadow.card,
   },
   icon: {
     width: 40,
     height: 40,
-    borderRadius: 10,
+    borderRadius: radius.iconTile,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
-  name: { fontSize: 14, fontFamily: fonts.extraBold, color: colors.stone },
-  sub: { fontSize: 11, color: colors.stoneMid, marginTop: 2 },
-  badge: { paddingVertical: 5, paddingHorizontal: 10, borderRadius: 99, flexShrink: 0 },
+  name: { fontSize: 14, fontFamily: fonts.bold, color: ink.primary },
+  sub: { fontSize: 11, fontFamily: fonts.medium, color: ink.muted, marginTop: 2 },
+  badge: { paddingVertical: 6, paddingHorizontal: 11, borderRadius: radius.pill, flexShrink: 0 },
   logBadge: { paddingVertical: 7, paddingHorizontal: 12 },
   badgePressed: { opacity: 0.8 },
-  badgeText: { fontSize: 11, fontFamily: fonts.extraBold },
+  badgeText: { fontSize: 11, fontFamily: fonts.bold },
 });

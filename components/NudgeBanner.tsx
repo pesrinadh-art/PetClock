@@ -1,18 +1,29 @@
 import { useState } from 'react';
+import { possessive } from '../lib/petVoice';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Pet } from '../data/mockData';
 import { useLogs } from '../context/LogsContext';
 import { usePets } from '../context/PetsContext';
 import { useNow } from '../hooks/useNow';
 import { usePendingNudges } from '../hooks/usePendingNudges';
-import { formatOverdue, type PendingNudge } from '../lib/notifications/pending';
-import { colors, radius, shadow } from '../theme/colors';
+import type { PendingNudge } from '../lib/notifications/pending';
+import { gentleLate } from '../lib/petVoice';
+import { amber, green, ink, line, radius, shadow } from '../theme/colors';
 import { fonts } from '../theme/fonts';
+import { Icon } from './Icon';
+
+/** The "Yes" label per nudge kind: "Yes, fed" / "Yes, given" / "Yes, Luna went". */
+function yesLabel(nudge: PendingNudge): string {
+  if (nudge.kind === 'meal') return 'Yes, fed';
+  if (nudge.kind === 'medication') return 'Yes, given';
+  return `Yes, ${nudge.petName} went`;
+}
 
 /**
- * The ✅ Yes / ❌ Not yet / ⏰ Snooze control — shared verbatim by the NudgeBanner and the
- * Notification Center so an in-app answer looks and behaves the same everywhere. The handlers it
- * calls are the SAME shared action logic (`logYes` / `snoozeNudge`) the headless push handler uses.
+ * The Yes / Not yet / Snooze control (redesign v3): a full-width green "✓ Yes, …" button over
+ * two outlined buttons. Shared by the Notification Center so an in-app answer looks and behaves
+ * the same everywhere. The handlers it calls are the SAME shared action logic (`logYes` /
+ * `snoozeNudge`) the headless push handler uses.
  */
 export function NudgeActionButtons({
   nudge,
@@ -28,46 +39,55 @@ export function NudgeActionButtons({
   return (
     <View style={styles.actions}>
       <Pressable
-        style={({ pressed }) => [styles.btn, styles.yesBtn, pressed && styles.pressed]}
+        style={({ pressed }) => [styles.yesBtn, pressed && styles.pressed]}
         onPress={() => onYes(nudge)}
         role="button"
         aria-label={`Yes, log ${nudge.subtitle} for ${nudge.petName}`}
       >
-        <Text numberOfLines={1} style={styles.yesBtnText}>✅ Yes</Text>
+        <Icon name="check" size={17} color="#ffffff" strokeWidth={2.6} />
+        <Text numberOfLines={1} style={styles.yesBtnText}>
+          {yesLabel(nudge)}
+        </Text>
       </Pressable>
-      <Pressable
-        style={({ pressed }) => [styles.btn, styles.secondaryBtn, pressed && styles.pressed]}
-        onPress={() => onNotYet(nudge)}
-        role="button"
-        aria-label={`Not yet — re-ask about ${nudge.petName} in 20 minutes`}
-      >
-        <Text numberOfLines={1} style={styles.secondaryBtnText}>❌ Not yet</Text>
-      </Pressable>
-      <Pressable
-        style={({ pressed }) => [styles.btn, styles.secondaryBtn, pressed && styles.pressed]}
-        onPress={() => onSnooze(nudge)}
-        role="button"
-        aria-label={`Snooze ${nudge.petName}'s reminder 15 minutes`}
-      >
-        <Text numberOfLines={1} style={styles.secondaryBtnText}>⏰ Snooze</Text>
-      </Pressable>
+      <View style={styles.secondaryRow}>
+        <Pressable
+          style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
+          onPress={() => onNotYet(nudge)}
+          role="button"
+          aria-label={`Not yet — re-ask about ${nudge.petName} in 20 minutes`}
+        >
+          <Text numberOfLines={1} style={styles.secondaryBtnText}>
+            Not yet
+          </Text>
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
+          onPress={() => onSnooze(nudge)}
+          role="button"
+          aria-label={`Snooze ${nudge.petName}'s reminder 15 minutes`}
+        >
+          <Icon name="clock" size={16} color={green.primary} strokeWidth={2.2} />
+          <Text numberOfLines={1} style={styles.secondaryBtnText}>
+            Snooze 15 min
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
 
 /**
- * In-app nudge for the active pet, computed from PREDICTION data (petSchedule) rather than the OS
- * notification — so it appears even if the push was suppressed in the foreground, missed, or
- * notification permission was denied. Answering it runs the exact same shared action logic a
- * lock-screen tap runs. Meals are intentionally left to the dedicated {@link MealTimeBanner} on
- * Home (no duplication); this covers the flagship pee/poo break plus medications, which have no
- * other in-app banner. Renders nothing when nothing is due. Works on web (prediction is local).
+ * In-app nudge for the active pet, computed from PREDICTION data (petSchedule) — so it appears even
+ * if the push was suppressed in the foreground, missed, or permission was denied. On Home it sits
+ * just above the quick-log tiles as an amber attention strip: "<pet> · <break> <overdue>" with a
+ * Snooze affordance. Logging via the tiles is the "yes" answer (writing a log clears the
+ * prediction). Meals stay with {@link MealTimeBanner}. Renders nothing when nothing is due.
  */
 export function NudgeBanner({ pet }: { pet: Pet }) {
   const { getFeedTimesForPet, getMedicationsForPet } = usePets();
   const { getLogsForPet } = useLogs();
   const now = useNow();
-  const { nudges, onYes, onNotYet, onSnooze } = usePendingNudges(
+  const { nudges, onSnooze } = usePendingNudges(
     [pet],
     getFeedTimesForPet(pet.id),
     getMedicationsForPet(pet.id),
@@ -81,52 +101,80 @@ export function NudgeBanner({ pet }: { pet: Pet }) {
 
   return (
     <View style={styles.banner}>
-      <View style={styles.headerRow}>
-        <Text style={styles.icon}>{nudge.icon}</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.title}>{nudge.title}</Text>
-          <Text style={styles.body}>
-            {nudge.subtitle} · {formatOverdue(nudge.overdueBy)}
-          </Text>
-        </View>
+      <View style={styles.bannerIcon}>
+        <Icon name={nudge.kind === 'medication' ? 'pill' : 'paw'} size={16} color={amber.warnInk} strokeWidth={2} />
       </View>
-      <NudgeActionButtons nudge={nudge} onYes={onYes} onNotYet={onNotYet} onSnooze={onSnooze} />
-      {/* Rendered last so it paints on top of headerRow; on react-native-web an earlier
-          sibling View would otherwise capture taps over the close button. */}
+      <Text style={styles.text} numberOfLines={2}>
+        {pet.name} · {nudge.subtitle}{' '}
+        <Text style={styles.accent}>{gentleLate(Math.floor(nudge.overdueBy / 60_000))}</Text>
+      </Text>
       <Pressable
-        style={({ pressed }) => [styles.dismiss, pressed && styles.pressed]}
-        onPress={() => setDismissed((prev) => new Set(prev).add(nudge.key))}
+        onPress={() => {
+          onSnooze(nudge);
+          setDismissed((prev) => new Set(prev).add(nudge.key));
+        }}
         role="button"
-        aria-label="Dismiss reminder"
+        aria-label={`Snooze ${possessive(pet.name)} reminder`}
         hitSlop={8}
       >
-        <Text style={styles.dismissText}>✕</Text>
+        <Text style={styles.snooze}>Snooze</Text>
       </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  // Home attention strip.
   banner: {
-    borderWidth: 1.5,
-    borderColor: colors.sageLight,
-    backgroundColor: colors.sagePale,
-    borderRadius: radius.sm,
-    padding: 14,
-    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: amber.warnBg,
+    borderWidth: 1,
+    borderColor: '#f3dfb9',
+    borderRadius: radius.card,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 10,
+  },
+  bannerIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  text: { flex: 1, fontSize: 13, fontFamily: fonts.semiBold, color: ink.primary, lineHeight: 18 },
+  accent: { color: amber.warnInk, fontFamily: fonts.bold },
+  snooze: { fontSize: 13, fontFamily: fonts.bold, color: green.primary },
+
+  // Shared Yes / Not yet / Snooze control (Notification Center).
+  actions: { gap: 8 },
+  pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
+  yesBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: green.mid,
+    borderRadius: radius.tile,
+    paddingVertical: 13,
     ...shadow.sm,
   },
-  dismiss: { position: 'absolute', top: 8, right: 8, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
-  dismissText: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.stoneMid },
-  headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingRight: 24, marginBottom: 12 },
-  icon: { fontSize: 22 },
-  title: { fontSize: 14, fontFamily: fonts.extraBold, color: colors.stone, marginBottom: 2 },
-  body: { fontSize: 12, color: colors.stoneMid },
-  actions: { flexDirection: 'row', gap: 8 },
-  btn: { flex: 1, borderRadius: radius.sm, paddingVertical: 10, alignItems: 'center' },
-  pressed: { opacity: 0.8 },
-  yesBtn: { backgroundColor: colors.sage },
-  yesBtnText: { fontSize: 12, fontFamily: fonts.extraBold, color: colors.white },
-  secondaryBtn: { backgroundColor: colors.white, borderWidth: 1.5, borderColor: colors.stoneLight },
-  secondaryBtnText: { fontSize: 12, fontFamily: fonts.extraBold, color: colors.stoneMid },
+  yesBtnText: { fontSize: 14.5, fontFamily: fonts.bold, color: '#ffffff' },
+  secondaryRow: { flexDirection: 'row', gap: 8 },
+  secondaryBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#ffffff',
+    borderWidth: 1.5,
+    borderColor: line.border,
+    borderRadius: radius.tile,
+    paddingVertical: 12,
+  },
+  secondaryBtnText: { fontSize: 13.5, fontFamily: fonts.bold, color: green.primary },
 });

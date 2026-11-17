@@ -1,44 +1,41 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, radius, shadow } from '../theme/colors';
+import { category, green, ink, line, logTint, radius, terracotta } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import type { FeedTime, LogEntry, LogType } from '../data/mockData';
 import { useLogs } from '../context/LogsContext';
 import { describeLog, formatClock } from '../lib/petSchedule';
+import { Card } from './ui';
+import { Icon, type IconName } from './Icon';
 
-const DOT_BG: Record<LogType, string> = {
-  pee: '#FFF8DB',
-  poo: '#FBF0EA',
-  food: colors.foodLight,
-  medication: colors.medicineLight,
-  vet: colors.apptVetLight,
-  other: colors.sagePale,
+/** Drawn-icon + tint per log type (replaces the emoji dots). */
+const TYPE_STYLE: Record<LogType, { icon: IconName; bg: string; fg: string }> = {
+  pee: { icon: 'drop', bg: logTint.peeBg, fg: logTint.peeInk },
+  poo: { icon: 'poo', bg: logTint.pooBg, fg: logTint.pooInk },
+  food: { icon: 'bowl', bg: terracotta.tint, fg: terracotta.primary },
+  medication: { icon: 'pill', bg: category.medBg, fg: category.medInk },
+  vet: { icon: 'vet', bg: category.vetBg, fg: category.vetInk },
+  other: { icon: 'paw', bg: green.tint, fg: green.primary },
 };
 
-const MINUTE_MS = 60 * 1000;
-
-function formatRelative(timestamp: number, now: Date): string {
-  const mins = Math.floor((now.getTime() - timestamp) / MINUTE_MS);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins} min ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) {
-    const rem = mins % 60;
-    return rem > 0 ? `${hours}h ${rem}m ago` : `${hours}h ago`;
-  }
-  const days = Math.floor(hours / 24);
-  return `${days} day${days === 1 ? '' : 's'} ago`;
+/** "by you" / "by a caregiver" — attribution derived from the log's author id. */
+function caregiverLabel(createdBy: string | null, currentUserId?: string | null): string {
+  if (!createdBy || createdBy === currentUserId) return 'you';
+  return 'a caregiver';
 }
 
 export function Timeline({
   entries,
   feedTimes = [],
   now,
+  currentUserId,
 }: {
   entries: LogEntry[];
   /** The pet's feed times, so food logs resolve to their meal-slot name (Δ3). */
   feedTimes?: FeedTime[];
   now: Date;
+  /** Current user id, so a log they authored reads "by you" and others "by a caregiver". */
+  currentUserId?: string | null;
 }) {
   const { removeLog, adjustLogTime } = useLogs();
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -49,26 +46,30 @@ export function Timeline({
     adjustLogTime(entry.id, deltaMinutes);
   };
 
+  if (entries.length === 0) return null;
+
   return (
-    <View style={styles.list}>
-      {entries.map((e) => {
+    <Card style={styles.card}>
+      {entries.map((e, i) => {
         const expanded = expandedId === e.id;
-        const { icon, label } = describeLog(e, feedTimes, now);
+        const { label } = describeLog(e, feedTimes, now);
+        const ts = TYPE_STYLE[e.type] ?? TYPE_STYLE.other;
         const occurredMs = new Date(e.occurredAt).getTime();
+        const last = i === entries.length - 1;
         return (
-          <View key={e.id} style={styles.card}>
+          <View key={e.id}>
             <Pressable
               role="button"
-              aria-label={`${label}, ${formatRelative(occurredMs, now)}. Tap to edit or delete.`}
+              aria-label={`${label}, by ${caregiverLabel(e.createdBy, currentUserId)}, ${formatClock(new Date(occurredMs))}. Tap to edit or delete.`}
               style={styles.item}
               onPress={() => setExpandedId(expanded ? null : e.id)}
             >
-              <View style={[styles.dot, { backgroundColor: DOT_BG[e.type] ?? colors.sagePale }]}>
-                <Text style={{ fontSize: 16 }}>{icon}</Text>
+              <View style={[styles.tile, { backgroundColor: ts.bg }]}>
+                <Icon name={ts.icon} size={14} color={ts.fg} strokeWidth={2} />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.label}>{label}</Text>
-                <Text style={styles.sub}>{formatRelative(occurredMs, now)}</Text>
+              <View style={styles.text}>
+                <Text style={styles.label} numberOfLines={1}>{label}</Text>
+                <Text style={styles.sub} numberOfLines={1}>by {caregiverLabel(e.createdBy, currentUserId)}</Text>
               </View>
               <Text style={styles.time}>{formatClock(new Date(occurredMs))}</Text>
             </Pressable>
@@ -103,46 +104,43 @@ export function Timeline({
                 </Pressable>
               </View>
             )}
+            {!last && !expanded && <View style={styles.divider} />}
           </View>
         );
       })}
-    </View>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  list: { marginBottom: 12 },
-  card: {
-    backgroundColor: colors.white,
-    borderRadius: radius.sm,
-    marginBottom: 7,
-    ...shadow.sm,
-  },
+  card: { marginBottom: 12 },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 11,
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
   },
-  dot: { width: 34, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  label: { fontSize: 13, fontFamily: fonts.bold, color: colors.stone },
-  sub: { fontSize: 11, color: colors.stoneMid, marginTop: 1 },
-  time: { fontFamily: fonts.mono, fontSize: 12, color: colors.stoneMid, marginLeft: 'auto' },
+  tile: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  text: { flex: 1 },
+  label: { fontSize: 13.5, fontFamily: fonts.bold, color: ink.primary },
+  sub: { fontSize: 11.5, fontFamily: fonts.medium, color: ink.faint2, marginTop: 1 },
+  time: { fontSize: 12, fontFamily: fonts.bold, color: ink.muted },
+  divider: { height: 1, backgroundColor: line.hairline, marginHorizontal: 16 },
   actions: {
     flexDirection: 'row',
     gap: 8,
-    paddingHorizontal: 12,
-    paddingBottom: 10,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
   },
   actionBtn: {
     flex: 1,
-    paddingVertical: 7,
-    borderRadius: 9,
-    backgroundColor: colors.sagePale,
+    paddingVertical: 8,
+    borderRadius: radius.iconTile,
+    backgroundColor: green.tint,
     alignItems: 'center',
   },
-  actionText: { fontSize: 12, fontFamily: fonts.bold, color: colors.sage },
-  deleteBtn: { backgroundColor: '#FBEAE8' },
-  deleteText: { color: '#C0392B' },
+  actionText: { fontSize: 12, fontFamily: fonts.bold, color: green.primary },
+  deleteBtn: { backgroundColor: terracotta.tint },
+  deleteText: { color: terracotta.primary },
 });

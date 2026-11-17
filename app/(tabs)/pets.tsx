@@ -2,22 +2,30 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, radius, shadow } from '../../theme/colors';
+import { surface, green, ink, line, radius } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
+import { Icon } from '../../components/Icon';
+import { HeroCard, SectionLabel, type Stat } from '../../components/ui';
 import { TopNavBar } from '../../components/TopNavBar';
-import { SectionTitle } from '../../components/SectionTitle';
 import { PetListItem } from '../../components/PetListItem';
+import { PetAvatar } from '../../components/PetAvatar';
+import { joinPetNames } from '../../lib/petNames';
 import { AppModal } from '../../components/AppModal';
 import { usePets } from '../../context/PetsContext';
+import { useLogs } from '../../context/LogsContext';
 import { useDeletePetCascade } from '../../hooks/useDeletePetCascade';
+import { countLogsToday } from '../../lib/petSchedule';
+import { useNow } from '../../hooks/useNow';
 // TODO(FE-5): move to Settings — the demo-data / reset escape hatch lives here
 // temporarily on the empty Pets tab until the Settings screen (FE-5) exists.
 import { loadDemoData, resetAll } from '../../lib/repo/types';
 import type { Pet } from '../../data/mockData';
 
 export default function PetsScreen() {
-  const { pets } = usePets();
+  const { pets, getMedicationsForPet } = usePets();
+  const { getLogsForPet } = useLogs();
   const deletePetCascade = useDeletePetCascade();
+  const now = useNow();
   const [pendingDelete, setPendingDelete] = useState<Pet | null>(null);
   const [blockedMessage, setBlockedMessage] = useState(false);
   // TODO(FE-5): move to Settings.
@@ -31,28 +39,62 @@ export default function PetsScreen() {
     if (!ok) setBlockedMessage(true);
   };
 
+  // Household summary for the hero — sums across every pet.
+  const logsToday = pets.reduce((sum, p) => sum + countLogsToday(getLogsForPet(p.id), now), 0);
+  const medsCount = pets.reduce((sum, p) => sum + getMedicationsForPet(p.id).filter((m) => m.active).length, 0);
+  const stats: Stat[] = [
+    { value: String(pets.length), label: pets.length === 1 ? 'Pet' : 'Pets' },
+    { value: pets.length > 0 ? String(logsToday) : '—', label: 'Logs today' },
+    { value: medsCount > 0 ? String(medsCount) : '—', label: 'Daily meds' },
+  ];
+  const heroSub =
+    pets.length === 0
+      ? 'Add your first pet to get started.'
+      : logsToday === 0
+        ? 'Nothing logged yet today.'
+        : `${logsToday} ${logsToday === 1 ? 'moment' : 'moments'} logged today. Lovely work.`;
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopNavBar />
+      <TopNavBar eyebrow="Family" title="Your pets" />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <SectionTitle>Your Pets</SectionTitle>
-        {pets.map((pet) => (
-          <PetListItem
-            key={pet.id}
-            pet={pet}
-            onEdit={() => router.push({ pathname: '/add-pet', params: { petId: pet.id } })}
-            onDelete={() => setPendingDelete(pet)}
-          />
-        ))}
-
-        <Pressable
-          style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
-          onPress={() => router.push('/add-pet')}
-          role="button"
-          aria-label="Add pet"
+        <HeroCard
+          eyebrow={`${pets.length} in your care`}
+          title={pets.length > 0 ? joinPetNames(pets.map((p) => p.name)) : 'No pets yet'}
+          subtitle={heroSub}
+          stats={stats}
         >
-          <Text style={styles.addBtnText}>➕ Add Pet</Text>
-        </Pressable>
+          {pets.length > 0 && (
+            <View style={styles.stack}>
+              {pets.slice(0, 5).map((p, i) => (
+                <PetAvatar
+                  key={p.id}
+                  pet={p}
+                  size={44}
+                  emojiSize={22}
+                  style={[styles.stackAvatar, i > 0 && { marginLeft: -10 }]}
+                />
+              ))}
+            </View>
+          )}
+        </HeroCard>
+
+        <View style={styles.section}>
+          <SectionLabel sub="Tap a pet to open their profile.">Your family</SectionLabel>
+          {pets.map((pet) => (
+            <PetListItem key={pet.id} pet={pet} onDelete={() => setPendingDelete(pet)} />
+          ))}
+
+          <Pressable
+            style={({ pressed }) => [styles.addCard, pressed && styles.dashedPressed]}
+            onPress={() => router.push('/add-pet')}
+            role="button"
+            aria-label="Add a pet"
+          >
+            <Icon name="plus" size={18} color={green.primary} strokeWidth={2.4} />
+            <Text style={styles.addText}>Add a pet</Text>
+          </Pressable>
+        </View>
 
         {/* TODO(FE-5): move to Settings — temporary demo-data escape hatch shown
             only when there are no pets (a fresh install starts empty). */}
@@ -164,32 +206,40 @@ export default function PetsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.cream },
+  safe: { flex: 1, backgroundColor: surface.app },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingBottom: 24 },
-  addBtn: {
-    borderWidth: 2,
-    borderColor: colors.stoneLight,
-    borderStyle: 'dashed',
-    borderRadius: radius.sm,
-    paddingVertical: 14,
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 80 },
+  section: { marginTop: 24 },
+  stack: { flexDirection: 'row', marginTop: 16 },
+  stackAvatar: { backgroundColor: '#e8efe6', borderWidth: 3, borderColor: 'rgba(255,255,255,0.85)' },
+  addCard: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 2,
+    paddingVertical: 16,
+    borderRadius: radius.card,
+    borderWidth: 1.5,
+    borderColor: line.border,
+    backgroundColor: surface.card,
   },
-  addBtnPressed: { backgroundColor: colors.sagePale, borderColor: colors.sage },
-  addBtnText: { fontSize: 14, fontFamily: fonts.bold, color: colors.stoneMid },
+  dashedPressed: { opacity: 0.6 },
+  addText: { fontSize: 15, fontFamily: fonts.bold, color: green.primary },
+
   // TODO(FE-5): move to Settings — styling for the temporary demo/reset affordance.
   demoBox: { marginTop: 24, alignItems: 'center', gap: 12, paddingHorizontal: 8 },
-  demoText: { fontSize: 13, color: colors.stoneMid, textAlign: 'center', lineHeight: 19 },
+  demoText: { fontSize: 13, color: ink.muted, textAlign: 'center', lineHeight: 19 },
   demoBtn: {
-    backgroundColor: colors.sage,
-    borderRadius: radius.lg,
+    backgroundColor: green.mid,
+    borderRadius: radius.pill,
     paddingVertical: 12,
     paddingHorizontal: 24,
   },
-  demoBtnText: { color: colors.white, fontSize: 14, fontFamily: fonts.extraBold },
+  demoBtnText: { color: ink.onDark, fontSize: 14, fontFamily: fonts.extraBold },
   resetLink: { paddingVertical: 6, paddingHorizontal: 8 },
-  resetLinkText: { fontSize: 12, fontFamily: fonts.bold, color: colors.stoneLight },
+  resetLinkText: { fontSize: 12, fontFamily: fonts.bold, color: ink.faint },
+
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -200,18 +250,17 @@ const styles = StyleSheet.create({
   dialog: {
     width: '100%',
     maxWidth: 320,
-    backgroundColor: colors.white,
+    backgroundColor: surface.card,
     borderRadius: radius.lg,
     padding: 20,
-    ...shadow.card,
   },
-  dialogTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: colors.stone, marginBottom: 8 },
-  dialogBody: { fontSize: 13, color: colors.stoneMid, lineHeight: 19, marginBottom: 18 },
+  dialogTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: ink.primary, marginBottom: 8 },
+  dialogBody: { fontSize: 13, color: ink.muted, lineHeight: 19, marginBottom: 18 },
   dialogActions: { flexDirection: 'row', gap: 10 },
   dialogBtn: { flex: 1, borderRadius: radius.sm, paddingVertical: 12, alignItems: 'center' },
   pressed: { opacity: 0.8 },
-  cancelBtn: { backgroundColor: colors.sagePale },
-  cancelBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.sage },
+  cancelBtn: { backgroundColor: green.tint },
+  cancelBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: green.primary },
   deleteBtn: { backgroundColor: '#C0392B' },
-  deleteBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.white },
+  deleteBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: ink.onDark },
 });

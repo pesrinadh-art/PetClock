@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, radius, shadow } from '../theme/colors';
+import { green, ink, line, radius, surface } from '../theme/colors';
 import { fonts } from '../theme/fonts';
+import { Icon } from './Icon';
 import { AppModal } from './AppModal';
 
 const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -43,10 +44,12 @@ type Props = {
   placeholder?: string;
   /** Earliest selectable day (inclusive, compared by calendar day); earlier cells are dimmed and disabled. */
   minDate?: Date;
+  /** Renders as a borderless value cell for use inside a grouped card (screen_2d). */
+  inset?: boolean;
   style?: object;
 };
 
-export function DatePickerField({ label, value, onChange, placeholder = 'Select date', minDate, style }: Props) {
+export function DatePickerField({ label, value, onChange, placeholder = 'Select date', minDate, inset = false, style }: Props) {
   const [open, setOpen] = useState(false);
   const [viewDate, setViewDate] = useState(() => parseDisplayDate(value) ?? new Date());
 
@@ -65,17 +68,31 @@ export function DatePickerField({ label, value, onChange, placeholder = 'Select 
   };
 
   return (
-    <View style={[styles.formGroup, style]}>
-      {label ? <Text style={styles.formLabel}>{label}</Text> : null}
-      <Pressable
-        style={({ pressed }) => [styles.field, value ? styles.fieldFilled : null, pressed && styles.pressed]}
-        onPress={openPicker}
-        role="button"
-        aria-label={`${label ? `${label}: ` : ''}${value || placeholder}`}
-      >
-        <Text style={[styles.valueText, !value && styles.placeholderText]}>{value || placeholder}</Text>
-        <Text style={styles.icon}>📅</Text>
-      </Pressable>
+    <View style={[inset ? styles.insetGroup : styles.formGroup, style]}>
+      {inset ? (
+        <Pressable
+          style={({ pressed }) => [styles.insetField, pressed && styles.pressed]}
+          onPress={openPicker}
+          role="button"
+          aria-label={`${label ? `${label}: ` : ''}${value || placeholder}`}
+        >
+          {label ? <Text style={styles.insetLabel}>{label}</Text> : null}
+          <Text style={[styles.insetValue, !value && styles.insetPlaceholder]}>{value || placeholder}</Text>
+        </Pressable>
+      ) : (
+        <>
+          {label ? <Text style={styles.formLabel}>{label}</Text> : null}
+          <Pressable
+            style={({ pressed }) => [styles.field, value ? styles.fieldFilled : null, pressed && styles.pressed]}
+            onPress={openPicker}
+            role="button"
+            aria-label={`${label ? `${label}: ` : ''}${value || placeholder}`}
+          >
+            <Text style={[styles.valueText, !value && styles.placeholderText]}>{value || placeholder}</Text>
+            <Icon name="calendar" size={16} color={ink.faint} strokeWidth={2} />
+          </Pressable>
+        </>
+      )}
 
       <AppModal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.overlay} onPress={() => setOpen(false)}>
@@ -87,7 +104,7 @@ export function DatePickerField({ label, value, onChange, placeholder = 'Select 
                 role="button"
                 aria-label="Previous month"
               >
-                <Text style={styles.navBtnText}>‹</Text>
+                <Icon name="chevronLeft" size={16} color={green.primary} strokeWidth={2.4} />
               </Pressable>
               <Text style={styles.headerTitle}>
                 {viewDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
@@ -98,7 +115,7 @@ export function DatePickerField({ label, value, onChange, placeholder = 'Select 
                 role="button"
                 aria-label="Next month"
               >
-                <Text style={styles.navBtnText}>›</Text>
+                <Icon name="chevronRight" size={16} color={green.primary} strokeWidth={2.4} />
               </Pressable>
             </View>
 
@@ -155,58 +172,66 @@ export function DatePickerField({ label, value, onChange, placeholder = 'Select 
 const CELL_SIZE = 38;
 
 const styles = StyleSheet.create({
-  formGroup: { gap: 5 },
-  formLabel: { fontSize: 11, fontFamily: fonts.extraBold, textTransform: 'uppercase', letterSpacing: 1, color: colors.stoneMid },
+  formGroup: { gap: 6 },
+  formLabel: { fontSize: 11, fontFamily: fonts.extraBold, textTransform: 'uppercase', letterSpacing: 1, color: ink.muted },
   field: {
-    backgroundColor: colors.white,
-    borderWidth: 2,
-    borderColor: colors.stoneLight,
-    borderRadius: radius.sm,
-    paddingVertical: 12,
+    backgroundColor: surface.card,
+    borderWidth: 1,
+    borderColor: line.border,
+    borderRadius: radius.tile,
+    paddingVertical: 13,
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  fieldFilled: { borderColor: colors.sage },
-  pressed: { opacity: 0.75 },
-  valueText: { fontFamily: fonts.semiBold, fontSize: 14, color: colors.stone },
-  placeholderText: { color: colors.stoneLight },
-  icon: { fontSize: 14 },
+  fieldFilled: { borderColor: green.tintBorder },
+  // inset (card cell) variant
+  insetGroup: {},
+  insetField: { paddingVertical: 13, paddingHorizontal: 16 },
+  insetLabel: { fontSize: 10, fontFamily: fonts.bold, textTransform: 'uppercase', letterSpacing: 1.2, color: ink.faint2 },
+  insetValue: { fontFamily: fonts.bold, fontSize: 14.5, color: ink.primary, marginTop: 3 },
+  insetPlaceholder: { fontFamily: fonts.semiBold, color: '#c0b8a8' },
+  pressed: { opacity: 0.7 },
+  valueText: { fontFamily: fonts.semiBold, fontSize: 14, color: ink.primary },
+  placeholderText: { color: '#c0b8a8' },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', padding: 24 },
   sheet: {
     width: '100%',
     maxWidth: 340,
-    backgroundColor: colors.white,
-    borderRadius: radius.lg,
+    backgroundColor: surface.card,
+    borderRadius: radius.card,
     padding: 18,
-    ...shadow.card,
+    shadowColor: '#2a2724',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 20,
+    elevation: 8,
   },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   navBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: colors.sagePale,
+    backgroundColor: green.tint,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  navBtnText: { fontSize: 16, fontFamily: fonts.extraBold, color: colors.sage },
-  headerTitle: { fontSize: 14, fontFamily: fonts.extraBold, color: colors.stone },
+  headerTitle: { fontSize: 14, fontFamily: fonts.extraBold, color: ink.primary },
   weekdayRow: { flexDirection: 'row', marginBottom: 6 },
   weekdayLabel: {
     width: CELL_SIZE,
     textAlign: 'center',
     fontSize: 11,
     fontFamily: fonts.extraBold,
-    color: colors.stoneMid,
+    color: ink.muted,
   },
   weekRow: { flexDirection: 'row' },
   dayCell: { width: CELL_SIZE, height: CELL_SIZE, alignItems: 'center', justifyContent: 'center' },
   dayCellPressable: { borderRadius: CELL_SIZE / 2 },
-  dayCellToday: { borderWidth: 1.5, borderColor: colors.sage },
-  dayCellSelected: { backgroundColor: colors.sage },
-  dayText: { fontSize: 13, fontFamily: fonts.semiBold, color: colors.stone },
-  dayTextSelected: { color: colors.white, fontFamily: fonts.extraBold },
-  dayTextDisabled: { color: colors.stoneLight },
+  dayCellToday: { borderWidth: 1.5, borderColor: green.mid },
+  dayCellSelected: { backgroundColor: green.mid },
+  dayText: { fontSize: 13, fontFamily: fonts.semiBold, color: ink.primary },
+  dayTextSelected: { color: ink.onDark, fontFamily: fonts.extraBold },
+  dayTextDisabled: { color: '#c8c3ba' },
 });

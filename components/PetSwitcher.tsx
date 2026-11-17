@@ -1,7 +1,7 @@
 import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
-import { router } from 'expo-router';
-import { colors, shadow } from '../theme/colors';
+import { green, ink, line, radius, shadow, surface } from '../theme/colors';
 import { fonts } from '../theme/fonts';
+import { Icon } from './Icon';
 import { PetAvatar } from './PetAvatar';
 import type { Pet } from '../data/mockData';
 
@@ -11,6 +11,11 @@ type Props = {
   onSelect: (id: string) => void;
 };
 
+/**
+ * Pet-switcher chips (redesign v3): the selected pet is a green-tint pill with a ringed
+ * avatar, green name and a check; every other pet is a white pill. Adding a pet lives on the
+ * Pets tab and the centre + button, so there is no trailing add chip here.
+ */
 export function PetSwitcher({ pets, activeId, onSelect }: Props) {
   return (
     <ScrollView
@@ -28,55 +33,48 @@ export function PetSwitcher({ pets, activeId, onSelect }: Props) {
             role="button"
             aria-label={`Switch to ${pet.name}`}
             aria-selected={active}
-            style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && styles.pressed]}
+            style={({ pressed }) => [
+              styles.chip,
+              active ? styles.chipActive : styles.chipIdle,
+              pressed && styles.pressed,
+            ]}
           >
-            <PetAvatar pet={pet} size={24} emojiSize={20} style={styles.avatar} />
-            <Text numberOfLines={1} style={styles.name}>{pet.name}</Text>
+            <PetAvatar
+              pet={pet}
+              size={32}
+              emojiSize={18}
+              style={[styles.avatar, active && styles.avatarActive]}
+            />
+            <Text numberOfLines={1} style={[styles.name, active ? styles.nameActive : styles.nameIdle]}>
+              {pet.name}
+            </Text>
+            {active && <Icon name="check" size={15} color={green.primary} strokeWidth={2.6} />}
           </Pressable>
         );
       })}
-      <Pressable
-        style={({ pressed }) => [styles.add, pressed && styles.pressed]}
-        onPress={() => router.push('/add-pet')}
-        role="button"
-        aria-label="Add pet"
-      >
-        <Text style={{ fontSize: 20, color: colors.stoneLight }}>+</Text>
-      </Pressable>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   scroll: { flexGrow: 0, flexShrink: 0 },
-  row: { paddingHorizontal: 16, paddingVertical: 8, gap: 10, alignItems: 'center' },
+  row: { paddingHorizontal: 20, paddingTop: 2, paddingBottom: 14, gap: 8, alignItems: 'center' },
   pressed: { opacity: 0.7, transform: [{ scale: 0.96 }] },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
-    paddingVertical: 8,
-    paddingLeft: 10,
+    gap: 8,
+    paddingVertical: 4,
+    paddingLeft: 4,
     paddingRight: 14,
-    borderRadius: 99,
-    backgroundColor: colors.white,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    ...shadow.sm,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
   },
-  chipActive: { borderColor: colors.sage, backgroundColor: colors.sagePale },
-  avatar: { backgroundColor: 'transparent' },
-  name: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.stone, maxWidth: 160 },
-  add: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.white,
-    borderWidth: 2,
-    borderColor: colors.stoneLight,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadow.sm,
-  },
+  chipActive: { backgroundColor: green.tint, borderColor: green.tintBorder },
+  chipIdle: { backgroundColor: surface.card, borderColor: line.border, ...shadow.sm },
+  avatar: { backgroundColor: green.tint, borderWidth: 2, borderColor: '#ffffff' },
+  avatarActive: { backgroundColor: '#ffffff', borderColor: green.primary },
+  name: { fontSize: 14, fontFamily: fonts.bold, maxWidth: 160 },
+  nameActive: { color: green.primary },
+  nameIdle: { color: ink.primary },
 });

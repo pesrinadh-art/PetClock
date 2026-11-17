@@ -1,14 +1,21 @@
 import { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { possessive, pottyBreakPhrase } from '../../../lib/petVoice';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, radius, shadow } from '../../../theme/colors';
+import { surface, ink, radius, shadow, line, logTint, terracotta, category, green } from '../../../theme/colors';
 import { fonts } from '../../../theme/fonts';
+import { Icon, type IconName } from '../../../components/Icon';
+import { ScreenHeader } from '../../../components/ScreenHeader';
+import { PetAvatar } from '../../../components/PetAvatar';
 import { usePets } from '../../../context/PetsContext';
 import { useLogs } from '../../../context/LogsContext';
+import { useAppointments } from '../../../context/AppointmentsContext';
 import { describeLog, formatClock } from '../../../lib/petSchedule';
 import { useNow } from '../../../hooks/useNow';
-import type { FeedTime, LogEntry } from '../../../lib/db/models';
+import type { Appointment, ApptType, FeedTime, LogEntry, LogType } from '../../../lib/db/models';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 function startOfDay(ms: number): number {
   const d = new Date(ms);
@@ -20,7 +27,7 @@ function startOfDay(ms: number): number {
 function dayLabel(dayMs: number, now: Date): string {
   const today = startOfDay(now.getTime());
   if (dayMs === today) return 'Today';
-  if (dayMs === today - 24 * 60 * 60 * 1000) return 'Yesterday';
+  if (dayMs === today - DAY_MS) return 'Yesterday';
   const d = new Date(dayMs);
   const sameYear = d.getFullYear() === now.getFullYear();
   return d.toLocaleDateString([], {
@@ -31,75 +38,164 @@ function dayLabel(dayMs: number, now: Date): string {
   });
 }
 
-type DayGroup = { dayMs: number; label: string; entries: LogEntry[] };
+type Visual = { icon: IconName; bg: string; fg: string };
 
-function groupByDay(logs: LogEntry[], feedTimes: FeedTime[], now: Date): DayGroup[] {
-  const byDay = new Map<number, LogEntry[]>();
-  for (const l of logs) {
-    if (l.deletedAt) continue;
-    const day = startOfDay(new Date(l.occurredAt).getTime());
-    const list = byDay.get(day);
-    if (list) list.push(l);
-    else byDay.set(day, [l]);
-  }
-  // logs arrive newest-first; keep days descending and entries newest-first within a day.
-  return [...byDay.entries()]
-    .sort((a, b) => b[0] - a[0])
-    .map(([dayMs, entries]) => ({ dayMs, label: dayLabel(dayMs, now), entries }));
+const LOG_VISUAL: Record<LogType, Visual> = {
+  pee: { icon: 'drop', bg: logTint.peeBg, fg: logTint.peeInk },
+  poo: { icon: 'poo', bg: logTint.pooBg, fg: logTint.pooInk },
+  food: { icon: 'bowl', bg: terracotta.tint, fg: terracotta.primary },
+  medication: { icon: 'pill', bg: category.medBg, fg: category.medInk },
+  vet: { icon: 'vet', bg: category.vetBg, fg: category.vetInk },
+  other: { icon: 'dots', bg: category.otherBg, fg: category.otherInk },
+};
+
+const APPT_VISUAL: Record<ApptType, Visual & { label: string }> = {
+  vet: { icon: 'vet', bg: category.vetBg, fg: category.vetInk, label: 'Vet' },
+  vaccine: { icon: 'vaccine', bg: category.vaccineBg, fg: category.vaccineInk, label: 'Vaccine' },
+  groom: { icon: 'scissors', bg: category.groomBg, fg: category.groomInk, label: 'Grooming' },
+  other: { icon: 'calendar', bg: category.otherBg, fg: category.otherInk, label: 'Visit' },
+};
+
+/** One diary line — a log or a visit that has happened. */
+type Moment = {
+  id: string;
+  at: number;
+  label: string;
+  note: string | null;
+  visual: Visual;
+  /** For the day summary: meals, potty walks, everything else. */
+  bucket: 'meal' | 'potty' | 'other';
+  /** All-day visits show "All day" instead of a clock time. */
+  allDay?: boolean;
+};
+
+function toMoments(logs: LogEntry[], appts: Appointment[], feedTimes: FeedTime[], now: Date): Moment[] {
+  const fromLogs: Moment[] = logs
+    .filter((l) => !l.deletedAt)
+    .map((l) => ({
+      id: `log-${l.id}`,
+      at: new Date(l.occurredAt).getTime(),
+      label: l.type === 'food' ? 'Meal' : describeLog(l, feedTimes, now).label,
+      note: l.note ?? null,
+      visual: LOG_VISUAL[l.type] ?? LOG_VISUAL.other,
+      bucket: l.type === 'food' ? 'meal' : l.type === 'pee' || l.type === 'poo' ? 'potty' : 'other',
+    }));
+  // Visits join the diary once they've happened (or were marked done).
+  const fromAppts: Moment[] = appts
+    .filter((a) => !a.deletedAt && (a.completedAt != null || new Date(a.startsAt).getTime() <= now.getTime()))
+    .map((a) => {
+      const v = APPT_VISUAL[a.type] ?? APPT_VISUAL.other;
+      return {
+        id: `appt-${a.id}`,
+        at: new Date(a.startsAt).getTime(),
+        label: v.label,
+        note: a.title || null,
+        visual: v,
+        bucket: 'other' as const,
+        allDay: a.allDay,
+      };
+    });
+  return [...fromLogs, ...fromAppts].sort((a, b) => b.at - a.at);
 }
 
+function plural(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/** "1 meal · 2 potty walks · 1 more" — "litter box trips" for cats and rabbits. */
+function daySummary(moments: Moment[], species: string | null | undefined): string {
+  const potty1 = pottyBreakPhrase(species);
+  const meals = moments.filter((m) => m.bucket === 'meal').length;
+  const potty = moments.filter((m) => m.bucket === 'potty').length;
+  const other = moments.length - meals - potty;
+  return [
+    meals > 0 ? plural(meals, 'meal', 'meals') : null,
+    potty > 0 ? plural(potty, potty1, `${potty1}s`) : null,
+    other > 0 ? `${other} more` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+/**
+ * "Mochi's diary" (redesign v3): everything that happened to the pet — pee/poo/meal/med logs
+ * plus vet visits — newest first, grouped by day in one timeline card per day.
+ */
 export default function LogHistoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { pets, getFeedTimesForPet } = usePets();
   const { getLogsForPet } = useLogs();
+  const { appointments } = useAppointments();
   const now = useNow();
 
   const pet = pets.find((p) => p.id === id) ?? null;
   const feedTimes = pet ? getFeedTimesForPet(pet.id) : [];
   const logs = pet ? getLogsForPet(pet.id) : [];
+  const petAppts = pet ? appointments.filter((a) => a.petIds.includes(pet.id)) : [];
 
-  const groups = useMemo(() => groupByDay(logs, feedTimes, now), [logs, feedTimes, now]);
+  const moments = useMemo(() => toMoments(logs, petAppts, feedTimes, now), [logs, petAppts, feedTimes, now]);
+  const groups = useMemo(() => {
+    const byDay = new Map<number, Moment[]>();
+    for (const m of moments) {
+      const day = startOfDay(m.at);
+      const list = byDay.get(day);
+      if (list) list.push(m);
+      else byDay.set(day, [m]);
+    }
+    return [...byDay.entries()]
+      .sort((a, b) => b[0] - a[0])
+      .map(([dayMs, entries]) => ({ dayMs, label: dayLabel(dayMs, now), entries }));
+  }, [moments, now]);
+
+  const subtitle =
+    moments.length === 0
+      ? 'Nothing logged yet'
+      : `${plural(moments.length, 'moment', 'moments')} over ${plural(groups.length, 'day', 'days')}`;
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.titleRow}>
-        <Pressable
-          style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/pets'))}
-          role="button"
-          aria-label="Back"
-          hitSlop={8}
-        >
-          <Text style={styles.backBtnText}>‹</Text>
-        </Pressable>
-        <Text style={styles.title} numberOfLines={1}>{pet ? `${pet.name}'s History` : 'History'}</Text>
-        <View style={{ width: 32 }} />
-      </View>
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <ScreenHeader
+        title={pet ? `${possessive(pet.name)} diary` : 'Diary'}
+        subtitle={subtitle}
+        fallback="/(tabs)/pets"
+        right={pet ? <PetAvatar pet={pet} size={46} emojiSize={24} style={styles.headerAvatar} /> : <View />}
+      />
 
       {groups.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={styles.emptyIcon}>🗂️</Text>
-          <Text style={styles.emptyTitle}>No logs yet</Text>
-          <Text style={styles.emptyBody}>Logged potty breaks, meals and meds will appear here, grouped by day.</Text>
+          <View style={styles.emptyIcon}>
+            <Icon name="clock" size={26} color={green.primary} />
+          </View>
+          <Text style={styles.emptyTitle}>No moments yet</Text>
+          <Text style={styles.emptyBody}>Potty breaks, meals, meds and vet visits will appear here, grouped by day.</Text>
         </View>
       ) : (
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
           {groups.map((group) => (
             <View key={group.dayMs} style={styles.group}>
-              <Text style={styles.dayHeader}>{group.label}</Text>
-              {group.entries.map((entry) => {
-                const { icon, label } = describeLog(entry, feedTimes, now);
-                return (
-                  <View key={entry.id} style={styles.row}>
-                    <Text style={styles.rowIcon}>{icon}</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.rowLabel}>{label}</Text>
-                      {!!entry.note && <Text style={styles.rowNote}>{entry.note}</Text>}
+              <View style={styles.dayRow}>
+                <Text style={styles.dayHeader}>{group.label}</Text>
+                <Text style={styles.daySummary} numberOfLines={1}>
+                  {daySummary(group.entries, pet?.species)}
+                </Text>
+              </View>
+              <View style={styles.card}>
+                {group.entries.map((m, i) => (
+                  <View key={m.id} style={styles.row}>
+                    <View style={styles.rail}>
+                      <View style={[styles.tile, { backgroundColor: m.visual.bg }]}>
+                        <Icon name={m.visual.icon} size={19} color={m.visual.fg} strokeWidth={2} />
+                      </View>
+                      {i < group.entries.length - 1 && <View style={styles.connector} />}
                     </View>
-                    <Text style={styles.rowTime}>{formatClock(new Date(entry.occurredAt))}</Text>
+                    <View style={styles.rowText}>
+                      <Text style={styles.rowLabel}>{m.label}</Text>
+                      {!!m.note && <Text style={styles.rowNote}>{m.note}</Text>}
+                    </View>
+                    <Text style={styles.rowTime}>{m.allDay ? 'All day' : formatClock(new Date(m.at))}</Text>
                   </View>
-                );
-              })}
+                ))}
+              </View>
             </View>
           ))}
         </ScrollView>
@@ -109,58 +205,41 @@ export default function LogHistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.cream },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  safe: { flex: 1, backgroundColor: surface.app },
+  headerAvatar: { backgroundColor: green.tint, borderWidth: 3, borderColor: '#ffffff', ...shadow.sm },
+
+  scroll: { flex: 1 },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 32, paddingTop: 8 },
+  group: { marginBottom: 22 },
+  dayRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 12 },
+  dayHeader: { fontSize: 17, fontFamily: fonts.extraBold, color: ink.primary, letterSpacing: -0.35 },
+  daySummary: { flexShrink: 1, fontSize: 12.5, fontFamily: fonts.semiBold, color: ink.muted },
+
+  card: {
+    backgroundColor: surface.card,
+    borderRadius: radius.card,
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    paddingTop: 12,
-    marginBottom: 8,
+    ...shadow.card,
   },
-  title: { fontSize: 20, fontFamily: fonts.black, color: colors.stone, textAlign: 'center', flex: 1 },
-  backBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.white,
+  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
+  rail: { alignItems: 'center', width: 42 },
+  tile: { width: 42, height: 42, borderRadius: radius.iconTile, alignItems: 'center', justifyContent: 'center' },
+  connector: { width: 2, height: 14, backgroundColor: line.hairline, marginVertical: 3 },
+  rowText: { flex: 1, minHeight: 42, justifyContent: 'center' },
+  rowLabel: { fontSize: 15, fontFamily: fonts.bold, color: ink.primary },
+  rowNote: { fontSize: 12, fontFamily: fonts.medium, color: ink.muted, marginTop: 2 },
+  rowTime: { fontSize: 13, fontFamily: fonts.semiBold, color: ink.muted, lineHeight: 42 },
+
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 10 },
+  emptyIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: green.tint,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  backBtnText: { fontSize: 22, fontFamily: fonts.extraBold, color: colors.stoneMid, marginTop: -2 },
-  pressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
-
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingBottom: 24 },
-  group: { marginBottom: 16 },
-  dayHeader: {
-    fontSize: 12,
-    fontFamily: fonts.extraBold,
-    color: colors.stoneMid,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-    marginTop: 4,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.white,
-    borderRadius: radius.sm,
-    padding: 14,
-    marginBottom: 8,
-    ...shadow.sm,
-  },
-  rowIcon: { fontSize: 20 },
-  rowLabel: { fontSize: 14, fontFamily: fonts.extraBold, color: colors.stone },
-  rowNote: { fontSize: 12, color: colors.stoneMid, marginTop: 2 },
-  rowTime: { fontSize: 12, fontFamily: fonts.mono, color: colors.stoneMid },
-
-  // No negative marginTop: on web it would pull this full-height view up over the header row and
-  // swallow taps on the back button — the same failure the notifications empty state had.
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 8 },
-  emptyIcon: { fontSize: 40, marginBottom: 4 },
-  emptyTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: colors.stone },
-  emptyBody: { fontSize: 13, color: colors.stoneMid, textAlign: 'center', lineHeight: 19 },
+  emptyTitle: { fontSize: 17, fontFamily: fonts.extraBold, color: ink.primary },
+  emptyBody: { fontSize: 13, color: ink.muted, textAlign: 'center', lineHeight: 19 },
 });

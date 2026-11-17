@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { possessive } from '../lib/petVoice';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, radius } from '../theme/colors';
+import { category, green, ink, line, radius, surface } from '../theme/colors';
 import { fonts } from '../theme/fonts';
-import { SectionTitle } from '../components/SectionTitle';
+import { Card, GlassSurface, SectionLabel } from '../components/ui';
+import { Icon, type IconName } from '../components/Icon';
 import { Toggle } from '../components/Toggle';
 import { DatePickerField } from '../components/DatePickerField';
 import { TimePickerField } from '../components/TimePickerField';
@@ -14,13 +16,22 @@ import { usePets } from '../context/PetsContext';
 import { useAppointments } from '../context/AppointmentsContext';
 import { formatApptTime, parseAppointmentDateTime } from '../lib/appointmentUtils';
 import { allDayToHasTime, hasTimeToAllDay } from '../lib/db/models';
+import { joinPetNames } from '../lib/petNames';
 
-const TYPES: { key: ApptType; icon: string; label: string; bg: string; border: string }[] = [
-  { key: 'vet', icon: '🏥', label: 'Vet Visit', bg: colors.apptVetLight, border: colors.apptVet },
-  { key: 'groom', icon: '✂️', label: 'Grooming', bg: colors.apptGroomLight, border: colors.apptGroom },
-  { key: 'vaccine', icon: '💉', label: 'Vaccination', bg: colors.apptVaccineLight, border: colors.apptVaccine },
-  { key: 'other', icon: '📌', label: 'Other', bg: colors.apptOtherLight, border: colors.stoneLight },
+const TYPES: { key: ApptType; icon: IconName; label: string; bg: string; ink: string }[] = [
+  { key: 'vet', icon: 'vet', label: 'Vet visit', bg: category.vetBg, ink: category.vetInk },
+  { key: 'vaccine', icon: 'vaccine', label: 'Vaccine', bg: category.vaccineBg, ink: category.vaccineInk },
+  { key: 'groom', icon: 'scissors', label: 'Grooming', bg: category.groomBg, ink: category.groomInk },
+  { key: 'other', icon: 'dots', label: 'Other', bg: category.otherBg, ink: category.otherInk },
 ];
+
+/** Quick-fill titles under "What's it for?", per visit type. */
+const SUGGESTIONS: Record<ApptType, string[]> = {
+  vet: ['Annual check-up', 'Follow-up visit', 'Dental check'],
+  vaccine: ['Rabies booster', 'Annual vaccines', 'Puppy shots'],
+  groom: ['Bath & brush', 'Nail trim', 'Full groom'],
+  other: ['Training class', 'Boarding', 'Pet sitter'],
+};
 
 const MINUTES_PER_DAY = 24 * 60;
 
@@ -92,26 +103,69 @@ export default function AddAppointmentScreen() {
     else router.replace('/(tabs)');
   };
 
+  const closeSheet = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)'));
+
+  const chosenPets = pets.filter((p) => selectedPets.includes(p.id));
+  const forNames = joinPetNames(chosenPets.map((p) => p.name));
+  const saveLabel = isEditing
+    ? 'Save changes'
+    : chosenPets.length === 1
+      ? `Save ${possessive(chosenPets[0].name)} visit`
+      : 'Save visit';
+
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['bottom']}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <GlassSurface fallbackColor={surface.app} fallbackOpacity={0.98} style={styles.header}>
           <View style={styles.handle} />
           <View style={styles.titleRow}>
-            <View style={{ width: 32 }} />
-            <Text style={styles.modalTitle}>{isEditing ? 'Edit Appointment' : 'New Appointment'}</Text>
             <Pressable
               style={({ pressed }) => [styles.closeBtn, pressed && styles.pressed]}
-              onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
+              onPress={closeSheet}
               role="button"
               aria-label="Close"
               hitSlop={8}
             >
-              <Text style={styles.closeBtnText}>✕</Text>
+              <Icon name="close" size={18} color={ink.primary} strokeWidth={2.2} />
             </Pressable>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.modalTitle}>{isEditing ? 'Edit visit' : 'Plan a visit'}</Text>
+              {!!forNames && <Text style={styles.modalSub}>For {forNames}</Text>}
+            </View>
+          </View>
+        </GlassSurface>
+
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <SectionLabel sub="Tap everyone who's coming along">Who's going?</SectionLabel>
+          <View style={styles.petRow}>
+            {pets.map((p) => {
+              const selected = selectedPets.includes(p.id);
+              return (
+                <Pressable
+                  key={p.id}
+                  onPress={() => togglePet(p.id)}
+                  role="button"
+                  aria-label={p.name}
+                  aria-selected={selected}
+                  style={({ pressed }) => [
+                    styles.petChip,
+                    selected
+                      ? { backgroundColor: green.tint, borderColor: green.mid }
+                      : { backgroundColor: surface.card, borderColor: line.border },
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <PetAvatar pet={p} size={30} emojiSize={17} style={styles.petChipAvatar} />
+                  <Text style={[styles.petChipText, { color: selected ? green.primary : ink.primary }]}>
+                    {p.name}
+                  </Text>
+                  {selected && <Icon name="check" size={15} color={green.primary} strokeWidth={2.6} />}
+                </Pressable>
+              );
+            })}
           </View>
 
-          <SectionTitle>Type</SectionTitle>
+          <SectionLabel style={styles.groupLabel}>What kind of visit?</SectionLabel>
           <View style={styles.typeGrid}>
             {TYPES.map((t) => {
               const selected = type === t.key;
@@ -124,78 +178,113 @@ export default function AddAppointmentScreen() {
                   aria-selected={selected}
                   style={({ pressed }) => [
                     styles.typeChip,
-                    { backgroundColor: t.bg, borderColor: selected ? t.border : 'transparent' },
+                    selected
+                      ? { backgroundColor: t.bg, borderColor: t.ink }
+                      : { backgroundColor: surface.card, borderColor: line.border },
                     pressed && styles.pressed,
                   ]}
                 >
-                  <Text style={{ fontSize: 28 }}>{t.icon}</Text>
-                  <Text style={styles.typeChipLabel}>{t.label}</Text>
+                  <Icon name={t.icon} size={18} color={selected ? t.ink : ink.primary} strokeWidth={2} />
+                  <Text style={[styles.typeChipLabel, { color: selected ? t.ink : ink.primary }]}>{t.label}</Text>
+                  {selected && <Icon name="check" size={15} color={t.ink} strokeWidth={2.6} />}
                 </Pressable>
               );
             })}
           </View>
 
-          <View style={styles.formGroup}>
-            <Text style={styles.formLabel}>Pet(s)</Text>
-            <View style={styles.petRow}>
-              {pets.map((p) => {
-                const selected = selectedPets.includes(p.id);
-                return (
-                  <Pressable
-                    key={p.id}
-                    onPress={() => togglePet(p.id)}
-                    role="button"
-                    aria-label={p.name}
-                    aria-selected={selected}
-                    style={({ pressed }) => [
-                      styles.petChip,
-                      selected
-                        ? { backgroundColor: colors.sagePale, borderColor: colors.sage }
-                        : { backgroundColor: colors.white, borderColor: colors.stoneLight },
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <PetAvatar pet={p} size={18} emojiSize={13} style={styles.petChipAvatar} />
-                    <Text style={{ fontSize: 13, fontFamily: fonts.bold, color: selected ? colors.sage : colors.stoneMid }}>
-                      {p.name}{selected ? ' ✓' : ''}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-
-          <Field label="Title" value={title} onChangeText={setTitle} placeholder="e.g. Annual Checkup" />
-
-          <View style={styles.row2}>
-            <DatePickerField
-              label="Date"
-              value={date}
-              onChange={setDate}
-              placeholder="Jul 4, 2026"
-              minDate={new Date()}
-              style={{ flex: 1, marginBottom: 14 }}
-            />
-            <TimePickerField label="Time" value={time} onChange={setTime} placeholder="10:00 AM" defaultTime="9:00 AM" style={{ flex: 1, marginBottom: 14 }} />
-          </View>
-
-          <Field label="Clinic / Location" value={location} onChangeText={setLocation} placeholder="City Vet Clinic" />
-          <Field label="Notes" value={notes} onChangeText={setNotes} placeholder="e.g. bring vaccination records…" />
-
-          <SectionTitle>Notifications</SectionTitle>
-          <View style={styles.notifList}>
-            {REMINDER_OPTIONS.map((opt) => (
-              <View key={opt.offsetMinutes} style={styles.notifOption}>
-                <Text style={styles.notifLabel}>🔔 {opt.label}</Text>
-                <Toggle
-                  on={reminderOffsets.includes(opt.offsetMinutes)}
-                  onToggle={() => toggleReminder(opt.offsetMinutes)}
-                  aria-label={`Remind ${opt.label}`}
-                />
-              </View>
+          <SectionLabel style={styles.groupLabel}>What's it for?</SectionLabel>
+          <TextInput
+            value={title}
+            onChangeText={setTitle}
+            placeholder={`e.g. ${SUGGESTIONS[type][0]}`}
+            placeholderTextColor={ink.placeholder}
+            style={styles.titleInput}
+            aria-label="What's it for?"
+          />
+          <View style={styles.suggestRow}>
+            {SUGGESTIONS[type].map((s) => (
+              <Pressable
+                key={s}
+                onPress={() => setTitle(s)}
+                role="button"
+                aria-label={`Use "${s}"`}
+                style={({ pressed }) => [styles.suggestChip, title === s && styles.suggestChipOn, pressed && styles.pressed]}
+              >
+                <Text style={[styles.suggestText, title === s && { color: green.primary }]}>{s}</Text>
+              </Pressable>
             ))}
           </View>
 
+          <SectionLabel style={styles.groupLabel} sub="Leave the time empty for an all-day visit">
+            When?
+          </SectionLabel>
+          <Card>
+            <View style={styles.splitRow}>
+              <DatePickerField
+                inset
+                label="Date"
+                value={date}
+                onChange={setDate}
+                placeholder="Pick a day"
+                minDate={new Date()}
+                style={styles.splitCell}
+              />
+              <View style={styles.vDivider} />
+              <TimePickerField
+                inset
+                label="Time"
+                value={time}
+                onChange={setTime}
+                placeholder="Any time"
+                defaultTime="9:00 AM"
+                style={styles.splitCell}
+              />
+            </View>
+          </Card>
+
+          <SectionLabel style={styles.groupLabel}>Where?</SectionLabel>
+          <Card>
+            <InsetField
+              label="Clinic / Location"
+              icon="mapPin"
+              value={location}
+              onChangeText={setLocation}
+              placeholder="City Vet Clinic"
+            />
+            <View style={styles.hairline} />
+            <InsetField
+              label="Notes"
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="e.g. bring vaccination records…"
+            />
+          </Card>
+
+          <SectionLabel style={styles.groupLabel}>Reminders</SectionLabel>
+          <Card>
+            {REMINDER_OPTIONS.map((opt, i) => (
+              <View key={opt.offsetMinutes}>
+                <View style={styles.notifOption}>
+                  <View style={styles.notifLabelWrap}>
+                    <Icon name="bell" size={16} color={ink.muted} strokeWidth={2} />
+                    <Text style={styles.notifLabel}>Remind {opt.label}</Text>
+                  </View>
+                  <Toggle
+                    on={reminderOffsets.includes(opt.offsetMinutes)}
+                    onToggle={() => toggleReminder(opt.offsetMinutes)}
+                    aria-label={`Remind ${opt.label}`}
+                  />
+                </View>
+                {i < REMINDER_OPTIONS.length - 1 && <View style={styles.hairline} />}
+              </View>
+            ))}
+          </Card>
+
+        </ScrollView>
+
+        {/* Sticky save: disabled (pale) until there's a title and a date. */}
+        <View style={styles.footer}>
+          {!canSave && <Text style={styles.footerHint}>Add a title and a date to save.</Text>}
           <Pressable
             style={({ pressed }) => [
               styles.saveBtn,
@@ -205,98 +294,163 @@ export default function AddAppointmentScreen() {
             onPress={handleSave}
             disabled={!canSave}
             role="button"
-            aria-label={isEditing ? 'Save changes' : 'Save appointment'}
+            aria-label={saveLabel}
             aria-disabled={!canSave}
           >
-            <Text style={styles.saveBtnText}>{isEditing ? 'Save Changes' : 'Save Appointment'}</Text>
+            <Icon name="check" size={18} color={ink.onDark} strokeWidth={2.6} />
+            <Text style={styles.saveBtnText}>{saveLabel}</Text>
           </Pressable>
-        </ScrollView>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-function Field({
+function InsetField({
   label,
-  style,
+  icon,
   ...inputProps
 }: {
   label: string;
+  icon?: IconName;
   value: string;
   onChangeText: (v: string) => void;
   placeholder?: string;
-  style?: object;
 }) {
   return (
-    <View style={[styles.formGroup, style]}>
-      <Text style={styles.formLabel}>{label}</Text>
-      <TextInput
-        {...inputProps}
-        style={[styles.input, inputProps.value ? styles.inputFilled : null]}
-        placeholderTextColor={colors.stoneLight}
-      />
+    <View style={styles.insetRow}>
+      {icon && (
+        <View style={styles.insetIcon}>
+          <Icon name={icon} size={16} color={ink.faint} strokeWidth={2} />
+        </View>
+      )}
+      <View style={styles.insetTextWrap}>
+        <Text style={styles.insetLabel}>{label}</Text>
+        <TextInput
+          {...inputProps}
+          style={styles.insetInput}
+          placeholderTextColor="#c0b8a8"
+        />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.cream },
+  safe: { flex: 1, backgroundColor: surface.app },
   flex: { flex: 1 },
-  content: { paddingHorizontal: 16, paddingBottom: 32 },
-  handle: { width: 40, height: 4, backgroundColor: colors.stoneLight, borderRadius: 99, alignSelf: 'center', marginTop: 12, marginBottom: 10 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
-  modalTitle: { fontSize: 20, fontFamily: fonts.black, color: colors.stone, textAlign: 'center', flex: 1 },
+  header: { paddingBottom: 4, borderTopLeftRadius: radius.sheet, borderTopRightRadius: radius.sheet },
+  handle: { width: 38, height: 4, backgroundColor: '#ddd6c7', borderRadius: 2, alignSelf: 'center', marginTop: 9 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 },
+  modalTitle: { fontSize: 23, fontFamily: fonts.extraBold, color: ink.primary, letterSpacing: -0.6 },
+  modalSub: { fontSize: 13, fontFamily: fonts.medium, color: ink.muted, marginTop: 1 },
   closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.white,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: surface.chip,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  closeBtnText: { fontSize: 14, fontFamily: fonts.extraBold, color: colors.stoneMid },
   pressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
-  typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
+  content: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 28 },
+  groupLabel: { marginTop: 24 },
+  typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   typeChip: {
-    width: '48%',
-    borderRadius: radius.sm,
-    paddingVertical: 16,
+    flexBasis: '47%',
+    flexGrow: 1,
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    borderWidth: 2,
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: radius.tile,
+    paddingVertical: 13,
+    borderWidth: 1.5,
   },
-  typeChipLabel: { fontSize: 13, fontFamily: fonts.extraBold, color: colors.stone },
-  formGroup: { marginBottom: 14, gap: 5 },
-  formLabel: { fontSize: 11, fontFamily: fonts.extraBold, textTransform: 'uppercase', letterSpacing: 1, color: colors.stoneMid },
+  typeChipLabel: { fontSize: 14, fontFamily: fonts.bold },
   petRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  petChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 7, paddingHorizontal: 14, borderRadius: 99, borderWidth: 2 },
-  petChipAvatar: { backgroundColor: 'transparent' },
-  input: {
-    backgroundColor: colors.white,
-    borderWidth: 2,
-    borderColor: colors.stoneLight,
-    borderRadius: radius.sm,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    fontFamily: fonts.semiBold,
-    fontSize: 14,
-    color: colors.stone,
+  petChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    paddingVertical: 6,
+    paddingLeft: 6,
+    paddingRight: 16,
+    borderRadius: radius.tile,
+    borderWidth: 1.5,
   },
-  inputFilled: { borderColor: colors.sage },
-  row2: { flexDirection: 'row', gap: 10 },
-  notifList: { gap: 8, marginBottom: 20 },
+  petChipAvatar: { backgroundColor: green.tint },
+  petChipText: { fontSize: 14, fontFamily: fonts.bold },
+  titleInput: {
+    backgroundColor: surface.card,
+    borderWidth: 1.5,
+    borderColor: line.border,
+    borderRadius: radius.tile,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    fontFamily: fonts.semiBold,
+    fontSize: 15,
+    color: ink.primary,
+  },
+  suggestRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
+  suggestChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: radius.tile,
+    borderWidth: 1.5,
+    borderColor: line.border,
+    backgroundColor: surface.card,
+  },
+  suggestChipOn: { borderColor: green.mid, backgroundColor: green.tint },
+  suggestText: { fontSize: 13.5, fontFamily: fonts.bold, color: ink.primary },
+  footer: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 12,
+    borderTopWidth: 1,
+    borderTopColor: line.border,
+    backgroundColor: surface.app,
+  },
+  footerHint: { fontSize: 12.5, fontFamily: fonts.medium, color: ink.muted, textAlign: 'center', marginBottom: 8 },
+  insetRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 16 },
+  insetIcon: { paddingTop: 20 },
+  insetTextWrap: { flex: 1, paddingVertical: 11 },
+  insetLabel: { fontSize: 10, fontFamily: fonts.bold, textTransform: 'uppercase', letterSpacing: 1.2, color: ink.faint2 },
+  insetInput: {
+    fontFamily: fonts.semiBold,
+    fontSize: 14.5,
+    color: ink.primary,
+    paddingVertical: 0,
+    marginTop: 3,
+  },
+  hairline: { height: 1, backgroundColor: line.hairline, marginHorizontal: 16 },
+  splitRow: { flexDirection: 'row', alignItems: 'stretch' },
+  splitCell: { flex: 1 },
+  vDivider: { width: 1, backgroundColor: line.hairline, marginVertical: 10 },
   notifOption: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.white,
-    borderRadius: radius.sm,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
   },
-  notifLabel: { fontSize: 13, fontFamily: fonts.bold, color: colors.stone },
-  saveBtn: { backgroundColor: colors.sage, borderRadius: radius.lg, paddingVertical: 16, alignItems: 'center' },
-  saveBtnDisabled: { backgroundColor: colors.stoneLight },
-  saveBtnPressed: { opacity: 0.85, transform: [{ scale: 0.99 }] },
-  saveBtnText: { color: colors.white, fontSize: 15, fontFamily: fonts.extraBold },
+  notifLabelWrap: { flexDirection: 'row', alignItems: 'center', gap: 11, flex: 1, paddingRight: 8 },
+  notifLabel: { fontSize: 14, fontFamily: fonts.semiBold, color: ink.primary },
+  saveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: green.mid,
+    borderRadius: radius.card,
+    paddingVertical: 16,
+    shadowColor: green.mid,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  saveBtnDisabled: { backgroundColor: '#a9c4b0', shadowOpacity: 0, elevation: 0 },
+  saveBtnPressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
+  saveBtnText: { color: ink.onDark, fontSize: 16, fontFamily: fonts.bold },
 });
