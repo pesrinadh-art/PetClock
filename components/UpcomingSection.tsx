@@ -1,6 +1,8 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { possessive } from '../lib/petVoice';
 import { router } from 'expo-router';
-import { category, green, ink, logTint, radius, shadow, surface, terracotta } from '../theme/colors';
+import { amber, category, green, ink, logTint, radius, shadow, surface, terracotta } from '../theme/colors';
+import { gentleLate } from '../lib/petVoice';
 import { fonts } from '../theme/fonts';
 import { SectionLabel } from './ui';
 import { Icon, type IconName } from './Icon';
@@ -27,20 +29,19 @@ const ITEM_STYLE: Record<UpcomingItem['type'], { icon: IconName; bg: string; fg:
 
 /**
  * One upcoming reminder as its own card: tinted drawn-icon tile, label, time
- * range, and a relative "when" / "overdue" sub. Overdue items pick up a
- * terracotta accent bar + terracotta time/sub text. (Restores the pre-redesign
- * per-item card look, restyled in the new design system.)
+ * range, and a relative "when" sub. A late item reads gently ("a little late ·
+ * 20m", "running late · 2h") with a soft amber accent — never red "Overdue".
  */
 function UpcomingCard({ item, now }: { item: UpcomingItem; now: Date }) {
   const s = ITEM_STYLE[item.type];
   const overdue = item.kind === 'overdue';
   const sub = overdue
-    ? `Overdue ${formatTimeUntilCompact(new Date(now.getTime() + item.overdueBy), now)}`
+    ? `${gentleLate(Math.floor(item.overdueBy / 60_000))} · ${formatTimeUntilCompact(new Date(now.getTime() + item.overdueBy), now)}`
     : formatTimeUntil(item.timeStart, now);
   return (
     <View style={[styles.card, overdue && styles.cardOverdue]}>
-      <View style={[styles.typeTile, { backgroundColor: overdue ? terracotta.tint : s.bg }]}>
-        <Icon name={s.icon} size={16} color={overdue ? terracotta.primary : s.fg} strokeWidth={2} />
+      <View style={[styles.typeTile, { backgroundColor: overdue ? amber.warnBg : s.bg }]}>
+        <Icon name={s.icon} size={16} color={overdue ? amber.warnInk : s.fg} strokeWidth={2} />
       </View>
       <Text numberOfLines={1} style={styles.cardLabel}>
         {item.label}
@@ -96,7 +97,7 @@ export function UpcomingSection({ pet }: { pet: Pet }) {
             <Icon name="sparkle" size={18} color={green.primary} strokeWidth={1.9} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.learnTitle}>Learning {pet.name}'s rhythm</Text>
+            <Text style={styles.learnTitle}>Learning {possessive(pet.name)} rhythm</Text>
             <Text style={styles.noticeBody}>
               Day {status.day} of 3. Log a few pees, poos and meals and we'll start predicting the next break.
             </Text>
@@ -104,7 +105,7 @@ export function UpcomingSection({ pet }: { pet: Pet }) {
               style={({ pressed }) => [styles.noticeLink, pressed && styles.noticePressed]}
               onPress={editRoutine}
               role="button"
-              aria-label={`Add ${pet.name}'s schedule now`}
+              aria-label={`Add ${possessive(pet.name)} schedule now`}
               hitSlop={4}
             >
               <Text style={styles.noticeLinkText}>Add schedule now instead</Text>
@@ -120,14 +121,14 @@ export function UpcomingSection({ pet }: { pet: Pet }) {
     return (
       <View style={styles.section}>
         {heading}
-        <Pressable onPress={editRoutine} role="button" aria-label={`Set up ${pet.name}'s schedule`}>
+        <Pressable onPress={editRoutine} role="button" aria-label={`Set up ${possessive(pet.name)} schedule`}>
           {({ pressed }) => (
             <View style={[styles.learnCard, pressed && styles.noticePressed]}>
               <View style={styles.learnIcon}>
                 <Icon name="calendar" size={17} color={green.primary} strokeWidth={2} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.learnTitle}>Set up {pet.name}'s routine</Text>
+                <Text style={styles.learnTitle}>Set up {possessive(pet.name)} routine</Text>
                 <Text style={styles.noticeBody}>
                   We still don't have feeding & potty info. Fill it in to get real upcoming reminders.
                 </Text>
@@ -197,7 +198,7 @@ const styles = StyleSheet.create({
     borderTopColor: 'transparent',
     ...shadow.card,
   },
-  cardOverdue: { borderTopColor: terracotta.primary },
+  cardOverdue: { borderTopColor: amber.primary },
   typeTile: {
     width: 30,
     height: 30,
@@ -210,7 +211,7 @@ const styles = StyleSheet.create({
   cardSub: { fontSize: 11.5, fontFamily: fonts.medium, color: ink.muted, marginTop: 2 },
 
   time: { fontSize: 13, fontFamily: fonts.extraBold, color: ink.primary },
-  timeOverdue: { color: terracotta.primary },
+  timeOverdue: { color: amber.warnInk },
   noticePressed: { opacity: 0.8 },
   noticeBody: { fontSize: 12.5, fontFamily: fonts.medium, color: ink.muted, lineHeight: 18 },
   noticeLink: { marginTop: 10, alignSelf: 'flex-start' },

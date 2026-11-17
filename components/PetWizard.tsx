@@ -295,7 +295,7 @@ export function PetWizard({
                 clearError('name');
               }}
               placeholder="e.g. Biscuit"
-              placeholderTextColor={ink.faint2}
+              placeholderTextColor={ink.placeholder}
               style={[styles.input, errors.name ? styles.inputError : null]}
               aria-label="Pet name"
             />
@@ -407,7 +407,7 @@ export function PetWizard({
                         setMedications((prev) => prev.map((m) => (m.rowId === med.rowId ? { ...m, name: v } : m)))
                       }
                       placeholder="Medicine name"
-                      placeholderTextColor={ink.faint2}
+                      placeholderTextColor={ink.placeholder}
                       style={styles.medNameInput}
                       aria-label="Medicine name"
                     />
@@ -518,7 +518,7 @@ function HoldTile({
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
-          placeholderTextColor={ink.faint2}
+          placeholderTextColor={ink.placeholder}
           keyboardType="numeric"
           style={styles.holdInput}
           aria-label={label}

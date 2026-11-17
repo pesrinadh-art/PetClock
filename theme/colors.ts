@@ -34,11 +34,14 @@ export const line = {
 } as const;
 
 // ── Ink (text) ────────────────────────────────────────────────────────────────
+// Darkened (from PR #41) so every text role clears WCAG AA (4.5:1) on both
+// `surface.app` and white. `placeholder` is for input placeholders / chevrons only.
 export const ink = {
-  primary: '#2a2724',
-  muted: '#8a8276',
-  faint: '#9a9184',
-  faint2: '#a39b8c',
+  primary: '#2a2724', // ~14:1
+  muted: '#6f685d', // ~5.1:1 — secondary copy, subtitles
+  faint: '#776f63', // ~4.6:1 — labels, timestamps
+  faint2: '#7a7266', // ~4.4:1 app bg / 4.7:1 white — inset field labels
+  placeholder: '#a39b8c', // placeholders + chevrons ONLY
   onDark: '#ffffff',
 } as const;
 
@@ -55,16 +58,16 @@ export const green = {
 
 // ── Terracotta — food ─────────────────────────────────────────────────────────
 export const terracotta = {
-  primary: '#c9532f',
+  primary: '#c9532f', // fills, icons
   tint: '#fbe9e1',
-  ink: '#c9532f',
+  ink: '#a8432a', // text on white/tint (AA)
 } as const;
 
 // ── Amber — attention (bell dot, warnings) ────────────────────────────────────
 export const amber = {
   primary: '#e8a33d',
   warnBg: '#fdf3e3', // "Not secured" / pending pill bg
-  warnInk: '#a8741f',
+  warnInk: '#8a5d14', // AA on warnBg (was #a8741f)
 } as const;
 
 // ── Incidental log tints (pee / poo) ──────────────────────────────────────────
@@ -77,22 +80,23 @@ export const logTint = {
 
 // ── Appointment / category roles (from sheet + appt screens) ──────────────────
 export const category = {
+  // Inks darkened for AA contrast on their tints (PR #41).
   vetBg: '#eaf1f7',
-  vetInk: '#3f7fa6',
+  vetInk: '#2f6a8f',
   vaccineBg: '#e9f4f1',
-  vaccineInk: '#3d8577',
+  vaccineInk: '#2d6e62',
   groomBg: '#f1ecf6',
-  groomInk: '#7a5f9b',
+  groomInk: '#6c528c',
   otherBg: '#f2efe6',
-  otherInk: '#7b7365',
+  otherInk: '#6b6457',
   // meal slots
   breakfastBg: '#fdf0e2',
-  breakfastInk: '#c98a2f',
+  breakfastInk: '#8f5e12',
   dinnerBg: '#eceaf6',
   dinnerInk: '#5f5b96',
   // medication
   medBg: '#eaf1f7',
-  medInk: '#3f7fa6',
+  medInk: '#2f6a8f',
 } as const;
 
 // ── Radii ─────────────────────────────────────────────────────────────────────

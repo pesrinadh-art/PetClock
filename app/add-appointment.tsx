@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { possessive } from '../lib/petVoice';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -109,7 +110,7 @@ export default function AddAppointmentScreen() {
   const saveLabel = isEditing
     ? 'Save changes'
     : chosenPets.length === 1
-      ? `Save ${chosenPets[0].name}'s visit`
+      ? `Save ${possessive(chosenPets[0].name)} visit`
       : 'Save visit';
 
   return (
@@ -196,7 +197,7 @@ export default function AddAppointmentScreen() {
             value={title}
             onChangeText={setTitle}
             placeholder={`e.g. ${SUGGESTIONS[type][0]}`}
-            placeholderTextColor={ink.faint2}
+            placeholderTextColor={ink.placeholder}
             style={styles.titleInput}
             aria-label="What's it for?"
           />

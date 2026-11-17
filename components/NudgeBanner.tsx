@@ -1,11 +1,13 @@
 import { useState } from 'react';
+import { possessive } from '../lib/petVoice';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Pet } from '../data/mockData';
 import { useLogs } from '../context/LogsContext';
 import { usePets } from '../context/PetsContext';
 import { useNow } from '../hooks/useNow';
 import { usePendingNudges } from '../hooks/usePendingNudges';
-import { formatOverdue, type PendingNudge } from '../lib/notifications/pending';
+import type { PendingNudge } from '../lib/notifications/pending';
+import { gentleLate } from '../lib/petVoice';
 import { amber, green, ink, line, radius, shadow } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { Icon } from './Icon';
@@ -104,7 +106,7 @@ export function NudgeBanner({ pet }: { pet: Pet }) {
       </View>
       <Text style={styles.text} numberOfLines={2}>
         {pet.name} · {nudge.subtitle}{' '}
-        <Text style={styles.accent}>{formatOverdue(nudge.overdueBy)}</Text>
+        <Text style={styles.accent}>{gentleLate(Math.floor(nudge.overdueBy / 60_000))}</Text>
       </Text>
       <Pressable
         onPress={() => {
@@ -112,7 +114,7 @@ export function NudgeBanner({ pet }: { pet: Pet }) {
           setDismissed((prev) => new Set(prev).add(nudge.key));
         }}
         role="button"
-        aria-label={`Snooze ${pet.name}'s reminder`}
+        aria-label={`Snooze ${possessive(pet.name)} reminder`}
         hitSlop={8}
       >
         <Text style={styles.snooze}>Snooze</Text>

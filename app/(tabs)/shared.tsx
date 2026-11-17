@@ -11,6 +11,7 @@ import { useLogs } from '../../context/LogsContext';
 import { getSupabaseClient } from '../../lib/db/client';
 import { getHouseholdName, type Member } from '../../lib/household/invites';
 import { joinPetNames } from '../../lib/petNames';
+import { possessive as possessiveOf } from '../../lib/petVoice';
 import { amber, green, ink, radius, surface } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 
@@ -61,7 +62,7 @@ export default function SharedScreen() {
 
   const petsShared = pets.length;
   const names = pets.length > 0 ? joinPetNames(pets.map((p) => p.name)) : 'your pets';
-  const possessive = pets.length > 0 ? `${names}'s` : "your pets'";
+  const possessive = pets.length > 0 ? possessiveOf(names) : "your pets'";
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>

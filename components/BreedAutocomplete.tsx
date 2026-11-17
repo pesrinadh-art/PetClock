@@ -77,7 +77,7 @@ export function BreedAutocomplete({ label, value, onChange, placeholder, species
               blurTimer.current = setTimeout(() => setFocused(false), 120);
             }}
             placeholder={placeholder}
-            placeholderTextColor={ink.faint2}
+            placeholderTextColor={ink.placeholder}
             style={styles.input}
             autoCorrect={false}
             autoCapitalize="words"

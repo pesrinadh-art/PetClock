@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { possessive, pottyBreakPhrase } from '../../../lib/petVoice';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -101,14 +102,15 @@ function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-/** "1 meal · 2 potty walks · 1 more". */
-function daySummary(moments: Moment[]): string {
+/** "1 meal · 2 potty walks · 1 more" — "litter box trips" for cats and rabbits. */
+function daySummary(moments: Moment[], species: string | null | undefined): string {
+  const potty1 = pottyBreakPhrase(species);
   const meals = moments.filter((m) => m.bucket === 'meal').length;
   const potty = moments.filter((m) => m.bucket === 'potty').length;
   const other = moments.length - meals - potty;
   return [
     meals > 0 ? plural(meals, 'meal', 'meals') : null,
-    potty > 0 ? plural(potty, 'potty walk', 'potty walks') : null,
+    potty > 0 ? plural(potty, potty1, `${potty1}s`) : null,
     other > 0 ? `${other} more` : null,
   ]
     .filter(Boolean)
@@ -153,7 +155,7 @@ export default function LogHistoryScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScreenHeader
-        title={pet ? `${pet.name}'s diary` : 'Diary'}
+        title={pet ? `${possessive(pet.name)} diary` : 'Diary'}
         subtitle={subtitle}
         fallback="/(tabs)/pets"
         right={pet ? <PetAvatar pet={pet} size={46} emojiSize={24} style={styles.headerAvatar} /> : <View />}
@@ -174,7 +176,7 @@ export default function LogHistoryScreen() {
               <View style={styles.dayRow}>
                 <Text style={styles.dayHeader}>{group.label}</Text>
                 <Text style={styles.daySummary} numberOfLines={1}>
-                  {daySummary(group.entries)}
+                  {daySummary(group.entries, pet?.species)}
                 </Text>
               </View>
               <View style={styles.card}>

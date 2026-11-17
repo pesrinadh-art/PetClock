@@ -10,6 +10,7 @@ import {
 import { useLogs } from '../context/LogsContext';
 import { usePets } from '../context/PetsContext';
 import { HeroAvatar, HeroCard, type Stat } from './ui';
+import { petMeta } from '../lib/petVoice';
 
 /**
  * The green gradient hero at the top of Home (screen 2a): a progress ring with a
@@ -31,7 +32,8 @@ export function PetCard({ pet }: { pet: Pet }) {
   const mealsDone = meals.filter((m) => m.status === 'done').length;
   const mealsStat = mealsTotal > 0 ? `${mealsDone}/${mealsTotal}` : '—';
 
-  const meta = pet.breed || 'Pet';
+  // "Toy poodle · 3 yrs" (breed or species, plus age when a birthdate is known).
+  const meta = petMeta(pet, now);
   let title = pet.name;
   let subtitle = meta;
   let nextBreakDisplay = '—';

@@ -1,4 +1,5 @@
 // "Mochi's meals" — the meal plan + meds for the active pet (redesign v3). Not a bar tab: it is
+import { possessive } from '../../lib/petVoice';
 // opened from the pet profile ("Meal plan"), and lives inside the tab navigator so the bottom
 // bar stays visible with no tab highlighted. Tapping a meal row logs that meal.
 import { useState } from 'react';
@@ -74,11 +75,11 @@ export default function FoodScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopNavBar pet={activePet} eyebrow={greeting(now)} title={`${activePet.name}'s meals`} />
+      <TopNavBar pet={activePet} eyebrow={greeting(now)} title={`${possessive(activePet.name)} meals`} />
       <PetSwitcher pets={pets} activeId={activePetId} onSelect={setActivePetId} />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <HeroCard
-          title={`${activePet.name}'s meal plan`}
+          title={`${possessive(activePet.name)} meal plan`}
           subtitle={subtitleBits.join(' · ')}
           leading={<HeroAvatar pet={activePet} size={60} />}
           stats={[
@@ -131,7 +132,7 @@ export default function FoodScreen() {
         )}
 
         <View style={styles.section}>
-          <SectionLabel>{activePet.name}'s meds</SectionLabel>
+          <SectionLabel>{possessive(activePet.name)} meds</SectionLabel>
           {meds.length === 0 ? (
             <Pressable
               style={({ pressed }) => [styles.dashed, pressed && styles.pressed]}

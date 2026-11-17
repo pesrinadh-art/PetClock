@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
   iconPill: { paddingHorizontal: 16, paddingVertical: 4, borderRadius: 999 },
   iconPillActive: { backgroundColor: green.tint },
   tabLabel: {
-    fontSize: 11.5,
+    fontSize: 12,
     textAlign: 'center',
   },
   fab: {

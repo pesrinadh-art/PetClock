@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { petDayTitle, possessive } from '../../lib/petVoice';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -82,7 +83,7 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopNavBar pet={activePet} eyebrow={greeting(now)} title={`${activePet.name}'s day`} />
+      <TopNavBar pet={activePet} eyebrow={greeting(now)} title={petDayTitle(activePet.name, now)} />
       <PetSwitcher pets={pets} activeId={activePetId} onSelect={setActivePetId} />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <PetCard pet={activePet} />
@@ -104,7 +105,7 @@ export default function HomeScreen() {
               <Pressable
                 onPress={() => router.push(`/pet/${activePet.id}/history`)}
                 role="button"
-                aria-label={`See ${activePet.name}'s diary`}
+                aria-label={`See ${possessive(activePet.name)} diary`}
                 hitSlop={8}
               >
                 <Text style={styles.seeAll}>See all</Text>

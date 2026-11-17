@@ -46,7 +46,7 @@ const styles = StyleSheet.create({
   value: { fontFamily: fonts.extraBold, fontSize: 20, letterSpacing: -0.2 },
   label: {
     fontFamily: fonts.semiBold,
-    fontSize: 11.5,
+    fontSize: 12,
     marginTop: 3,
   },
 });

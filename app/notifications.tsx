@@ -14,6 +14,7 @@ import { listScheduledSummaries, type ScheduledSummary } from '../lib/notificati
 import { repos } from '../lib/repo/types';
 import { formatClock, formatTimeUntil } from '../lib/petSchedule';
 import { formatAgo } from '../lib/formatAgo';
+import { gentleLate } from '../lib/petVoice';
 import { amber, green, ink, line, radius, shadow, surface } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { Icon, type IconName } from '../components/Icon';
@@ -150,7 +151,9 @@ export default function NotificationsScreen() {
                           {nudge.overdueBy >= LATE_MS && (
                             <View style={styles.latePill}>
                               <Icon name="clock" size={13} color={amber.warnInk} strokeWidth={2.2} />
-                              <Text style={styles.lateText}>Running late</Text>
+                              <Text style={styles.lateText}>
+                                {gentleLate(Math.floor(nudge.overdueBy / 60_000)).replace(/^./, (c) => c.toUpperCase())}
+                              </Text>
                             </View>
                           )}
                         </View>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { possessive } from '../lib/petVoice';
 import {
   ActivityIndicator,
   Pressable,
@@ -121,7 +122,7 @@ export default function SettingsScreen() {
                       <Text style={styles.muteName} numberOfLines={1}>
                         {pet.name}
                       </Text>
-                      <Text style={styles.muteSub}>{enabled ? `Getting ${pet.name}'s reminders` : 'Paused'}</Text>
+                      <Text style={styles.muteSub}>{enabled ? `Getting ${possessive(pet.name)} reminders` : 'Paused'}</Text>
                     </View>
                     <Toggle
                       on={enabled}
@@ -236,7 +237,7 @@ function AccountSection() {
               value={emailInput}
               onChangeText={setEmailInput}
               placeholder="you@example.com"
-              placeholderTextColor={ink.faint2}
+              placeholderTextColor={ink.placeholder}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="email-address"
@@ -328,7 +329,7 @@ function AccountSection() {
               value={recoverEmail}
               onChangeText={setRecoverEmail}
               placeholder="you@example.com"
-              placeholderTextColor={ink.faint2}
+              placeholderTextColor={ink.placeholder}
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="email-address"

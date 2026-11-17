@@ -98,7 +98,8 @@ function SnackbarToast({ state, onUndo }: { state: SnackbarState; onUndo: () => 
   }, [anim]);
 
   return (
-    <View pointerEvents="box-none" style={[styles.overlay, { paddingBottom: insets.bottom + 16 }]}>
+    // Sits above the tab bar + centre "+" button (bar ≈ 70px, button pokes ~38px above it).
+    <View pointerEvents="box-none" style={[styles.overlay, { paddingBottom: insets.bottom + 112 }]}>
       <Animated.View
         pointerEvents="box-none"
         style={{
@@ -163,7 +164,8 @@ const styles = StyleSheet.create({
   undoText: {
     fontSize: 13,
     fontFamily: fonts.extraBold,
-    color: colors.pee,
+    color: '#f3d27a', // warm gold — readable on the dark toast
+
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },

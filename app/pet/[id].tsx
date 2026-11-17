@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { possessive } from '../../lib/petVoice';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -123,7 +124,7 @@ export default function PetDetailScreen() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <ScreenHeader
         title={pet.name}
-        subtitle={`${pet.name}'s profile`}
+        subtitle={`${possessive(pet.name)} profile`}
         onEdit={() => editPet('about')}
         editLabel={`Edit ${pet.name}`}
         fallback="/(tabs)/pets"
@@ -145,8 +146,8 @@ export default function PetDetailScreen() {
 
         {/* ── Meals ── */}
         <View style={styles.section}>
-          <SectionLabel right={seeAll('Meal plan', openMealPlan, `Open ${pet.name}'s meal plan`)}>
-            {pet.name}'s meals
+          <SectionLabel right={seeAll('Meal plan', openMealPlan, `Open ${possessive(pet.name)} meal plan`)}>
+            {possessive(pet.name)} meals
           </SectionLabel>
           {meals.length > 0 ? (
             <>
@@ -209,7 +210,7 @@ export default function PetDetailScreen() {
 
         {/* ── Medications ── */}
         <View style={styles.section}>
-          <SectionLabel>{pet.name}'s meds</SectionLabel>
+          <SectionLabel>{possessive(pet.name)} meds</SectionLabel>
           {meds.length > 0 && (
             <Card>
               {meds.map((med, i) => {
@@ -244,7 +245,7 @@ export default function PetDetailScreen() {
               iconBg={green.tint}
               iconColor={green.primary}
               iconLarge
-              title={`${pet.name}'s diary`}
+              title={`${possessive(pet.name)} diary`}
               right={<Text style={styles.recordValue}>{activeLogs.length} moments</Text>}
               showChevron
               divider
@@ -270,10 +271,10 @@ export default function PetDetailScreen() {
           style={({ pressed }) => [styles.footerBtn, pressed && styles.pressed]}
           onPress={() => editPet('routine')}
           role="button"
-          aria-label={`Edit ${pet.name}'s routine`}
+          aria-label={`Edit ${possessive(pet.name)} routine`}
         >
           <Icon name="pencil" size={18} color={green.primary} strokeWidth={2.2} />
-          <Text style={styles.footerText}>Edit {pet.name}'s routine</Text>
+          <Text style={styles.footerText}>Edit {possessive(pet.name)} routine</Text>
         </Pressable>
       </View>
 

@@ -174,7 +174,7 @@ export function AuthFlow() {
                   value={name}
                   onChangeText={setName}
                   placeholder="Alex"
-                  placeholderTextColor={ink.faint2}
+                  placeholderTextColor={ink.placeholder}
                   autoCapitalize="words"
                   autoCorrect={false}
                   autoComplete="name"
@@ -197,7 +197,7 @@ export function AuthFlow() {
                     if (error) setError(null);
                   }}
                   placeholder="you@example.com"
-                  placeholderTextColor={ink.faint2}
+                  placeholderTextColor={ink.placeholder}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}

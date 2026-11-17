@@ -11,6 +11,7 @@ import { Icon, type IconName } from './Icon';
 import { useSnackbar } from './Snackbar';
 import { useNow } from '../hooks/useNow';
 import { formatAgo } from '../lib/formatAgo';
+import { loggedLine } from '../lib/petVoice';
 
 /** Which quick-log a tap/long-press targets. 'both' writes a pee AND a poo; 'fed' writes a meal. */
 type LogTarget = 'pee' | 'poo' | 'both' | 'fed';
@@ -110,7 +111,8 @@ export function LogButtons({ pet }: { pet: Pet }) {
     }
     successHaptic();
     // One Undo removes every log this action wrote (both, for the "Both" button).
-    show(`${targetLabel(target)} logged for ${pet.name}`, () => ids.forEach((id) => removeLog(id)));
+    // Species-aware confirmation: "Woof! Pee logged for Mochi." / "Yum! Luna has been fed."
+    show(loggedLine(pet, target === 'fed' ? 'food' : target), () => ids.forEach((id) => removeLog(id)));
   };
 
   const handlePreset = (minutesAgo: number) => {

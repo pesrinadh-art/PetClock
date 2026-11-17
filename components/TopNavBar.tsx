@@ -5,13 +5,8 @@ import { fonts } from '../theme/fonts';
 import { Icon } from './Icon';
 import { PetAvatar } from './PetAvatar';
 
-/** "Good morning" / "Good afternoon" / "Good evening" for the header eyebrow. */
-export function greeting(now: Date = new Date()): string {
-  const h = now.getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 18) return 'Good afternoon';
-  return 'Good evening';
-}
+/** "Good morning" / "Good afternoon" / "Good evening" / "Late-night check-in" for the header eyebrow. */
+export { greeting } from '../lib/petVoice';
 
 /**
  * Screen header (redesign v3): an optional round pet avatar, a small muted eyebrow over a
