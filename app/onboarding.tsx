@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -9,8 +9,10 @@ import { Icon, type IconName } from '../components/Icon';
 import { PetWizard } from '../components/PetWizard';
 import { completeOnboarding } from '../lib/onboarding';
 import { requestNotificationPermission } from '../lib/notifications/permissions';
+import { useSession } from '../context/SessionContext';
+import { householdErrorMessage } from '../lib/household/invites';
 
-type Step = 'welcome' | 'pet' | 'notify';
+type Step = 'welcome' | 'pet' | 'join' | 'notify';
 
 const FEATURES: { icon: IconName; bg: string; fg: string; title: string; body: string }[] = [
   { icon: 'drop', bg: logTint.peeBg, fg: logTint.peeInk, title: 'Potty breaks, predicted', body: 'A heads-up before they need to go.' },
@@ -38,6 +40,24 @@ function AppMark({ size = 88 }: { size?: number }) {
  */
 export default function OnboardingScreen() {
   const [step, setStep] = useState<Step>('welcome');
+  const { join } = useSession();
+  const [code, setCode] = useState('');
+  const [joining, setJoining] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
+
+  const submitJoin = async () => {
+    if (!code.trim() || joining) return;
+    setJoining(true);
+    setJoinError(null);
+    try {
+      await join(code.trim());
+      setStep('notify');
+    } catch (e) {
+      setJoinError(householdErrorMessage(e));
+    } finally {
+      setJoining(false);
+    }
+  };
 
   const finish = async () => {
     await completeOnboarding();
@@ -54,6 +74,65 @@ export default function OnboardingScreen() {
     return (
       <SafeAreaView style={styles.safe}>
         <PetWizard closeIcon="chevronLeft" onClose={() => setStep('welcome')} onSaved={() => setStep('notify')} />
+      </SafeAreaView>
+    );
+  }
+
+  if (step === 'join') {
+    // A second caregiver joins an existing household with its invite code, skipping the
+    // "add a pet" wizard — the household they join already has the pets.
+    return (
+      <SafeAreaView style={styles.safe}>
+        <ScrollView contentContainerStyle={styles.center} keyboardShouldPersistTaps="handled">
+          <View style={styles.bellCircle}>
+            <Icon name="key" size={38} color={green.primary} strokeWidth={1.8} />
+          </View>
+          <Text style={styles.headline}>Join a household</Text>
+          <Text style={styles.lede}>
+            Enter the invite code from the person who set up PawClock. You'll share their pets and
+            reminders.
+          </Text>
+          <TextInput
+            style={styles.codeInput}
+            value={code}
+            onChangeText={(t) => {
+              setCode(t.toUpperCase());
+              setJoinError(null);
+            }}
+            placeholder="ABC123"
+            placeholderTextColor={ink.placeholder}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            autoFocus
+            maxLength={12}
+            accessibilityLabel="Invite code"
+            onSubmitEditing={() => void submitJoin()}
+          />
+          {joinError ? <Text style={styles.errorText}>{joinError}</Text> : null}
+        </ScrollView>
+        <View style={styles.footer}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.primaryBtn,
+              (!code.trim() || joining) && styles.disabled,
+              pressed && styles.primaryPressed,
+            ]}
+            onPress={() => void submitJoin()}
+            disabled={!code.trim() || joining}
+            role="button"
+            aria-label="Join household"
+          >
+            {joining ? <ActivityIndicator color="#ffffff" /> : <Text style={styles.primaryText}>Join household</Text>}
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.skipBtn, pressed && styles.pressed]}
+            onPress={() => setStep('welcome')}
+            role="button"
+            aria-label="Back"
+          >
+            <Text style={styles.skipText}>Back</Text>
+          </Pressable>
+        </View>
       </SafeAreaView>
     );
   }
@@ -123,6 +202,16 @@ export default function OnboardingScreen() {
           <Icon name="arrowRight" size={18} color="#ffffff" strokeWidth={2.4} />
         </Pressable>
         <Text style={styles.caption}>Takes less than a minute</Text>
+        <Pressable
+          style={({ pressed }) => [styles.skipBtn, pressed && styles.pressed]}
+          onPress={() => setStep('join')}
+          role="button"
+          aria-label="Join a household with an invite code"
+        >
+          <Text style={styles.joinText}>
+            Have an invite code? <Text style={styles.joinStrong}>Join a household</Text>
+          </Text>
+        </Pressable>
       </View>
     </SafeAreaView>
   );
@@ -192,4 +281,24 @@ const styles = StyleSheet.create({
   caption: { fontSize: 12.5, fontFamily: fonts.medium, color: ink.muted, textAlign: 'center', marginTop: 10 },
   skipBtn: { paddingVertical: 12, alignItems: 'center', marginTop: 4 },
   skipText: { fontSize: 14, fontFamily: fonts.bold, color: ink.muted },
+  joinText: { fontSize: 14, fontFamily: fonts.medium, color: ink.muted, textAlign: 'center' },
+  joinStrong: { fontFamily: fonts.bold, color: green.primary },
+  disabled: { opacity: 0.5 },
+  codeInput: {
+    alignSelf: 'stretch',
+    marginTop: 26,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    borderRadius: radius.card,
+    backgroundColor: surface.card,
+    borderWidth: 1,
+    borderColor: line.border,
+    fontSize: 22,
+    fontFamily: fonts.extraBold,
+    letterSpacing: 4,
+    textAlign: 'center',
+    color: ink.primary,
+    ...shadow.card,
+  },
+  errorText: { fontSize: 13.5, fontFamily: fonts.semiBold, color: terracotta.ink, textAlign: 'center', marginTop: 12 },
 });

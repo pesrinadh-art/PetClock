@@ -147,12 +147,14 @@ const styles = StyleSheet.create({
     color: ink.primary,
     padding: 0,
   },
+  // Opens UPWARD: the breed field sits low in the wizard, so a popover below it ran off the
+  // bottom of the screen (and under the keyboard on a phone).
   dropdown: {
     position: 'absolute',
-    top: '100%',
+    bottom: '100%',
     left: 0,
     right: 0,
-    marginTop: 6,
+    marginBottom: 6,
     maxHeight: 240,
     // SOLID opaque surface — set explicitly so the popover fully occludes the fields behind it.
     backgroundColor: surface.card,
