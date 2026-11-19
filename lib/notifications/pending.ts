@@ -1,5 +1,7 @@
 import { PUSH_PAYLOAD_VERSION } from '../../shared/notificationContracts';
-import type { FeedTime, LogEntry, Medication, Pet } from '../db/models';
+import type { FeedTime, LogEntry, LogType, Medication, Pet } from '../db/models';
+import { presentLogType } from '../care/logTypes';
+import type { IconName } from '../../components/Icon';
 import { getTodaysMeals, parseClockTime, predictBreak } from '../petSchedule';
 import type { ScheduledNotificationData } from './scheduler';
 
@@ -32,6 +34,34 @@ export type PendingNudge = {
   /** Payload the shared actions (`logYes` / `snoozeNudge`) consume. */
   data: ScheduledNotificationData;
 };
+
+/**
+ * The drawn (line) icon for a nudge, derived from its typed payload rather than from display
+ * text: the break type's glyph, the bowl for meals, the pill for meds. Unknown payloads fall back
+ * to the shared other/unknown row.
+ *
+ * Deliberately a function, not a stored field: the emoji `icon` above is part of the Phase 0
+ * characterization snapshots, which this release must leave byte-identical.
+ */
+export function nudgeLineIcon(nudge: PendingNudge): IconName {
+  return presentLogType(nudgeLogType(nudge)).icon;
+}
+
+/** Which log type answering this nudge "Yes" records. */
+function nudgeLogType(nudge: PendingNudge): LogType | 'unknown' {
+  const data = nudge.data;
+  switch (data.kind) {
+    case 'break_prediction':
+      return data.breakType;
+    case 'meal':
+      return 'food';
+    case 'medication':
+    case 'med_escalation':
+      return 'medication';
+    default:
+      return 'unknown';
+  }
+}
 
 // In LOCAL mode there is no server-issued token; the shared actions write through the repo.
 const LOCAL_ACTION_TOKEN = '';

@@ -18,22 +18,49 @@ function liveLogsOfType(logs: LogEntry[], type: LogEntry['type']): LogEntry[] {
   return logs.filter((l) => l.type === type && !l.deletedAt);
 }
 
-/** Active feed times parsed onto `reference`'s day, sorted chronologically. */
+/**
+ * Active feed times parsed onto `reference`'s day, sorted chronologically.
+ *
+ * With no `timeZone` (every caller today) the wall clock resolves in the DEVICE timezone,
+ * exactly as before. With a household `timeZone` it resolves on the household-local date in
+ * that zone, the way app.recompute_prediction does (see {@link parseClockTimeInZone}).
+ */
 function activeFeedSlots(
   feedTimes: FeedTime[],
   reference: Date,
+  timeZone?: string | null,
 ): { feedTime: FeedTime; time: Date }[] {
   return feedTimes
     .filter((f) => f.active)
-    .map((feedTime) => ({ feedTime, time: parseClockTime(feedTime.localTime, reference) }))
+    .map((feedTime) => ({
+      feedTime,
+      time: timeZone
+        ? parseClockTimeInZone(feedTime.localTime, reference, timeZone)
+        : parseClockTime(feedTime.localTime, reference),
+    }))
     .filter((s): s is { feedTime: FeedTime; time: Date } => s.time !== null)
     .sort((a, b) => a.time.getTime() - b.time.getTime());
 }
 
+/**
+ * Pet-level "is there a schedule" — BOTH holds plus an active feed time. Drives the pet status
+ * (ready / calibrating / needsInfo) and the Upcoming list. Per-break predictions use the
+ * narrower {@link hasBreakSchedule}, which is what the server checks.
+ */
 export function hasSchedule(pet: Pet, feedTimes: FeedTime[]): boolean {
   return (
     feedTimes.some((f) => f.active) && pet.peeHoldHours != null && pet.poopHoldHours != null
   );
+}
+
+/**
+ * Per-break-type schedule: an active feed time and THIS type's hold. Mirrors
+ * app.recompute_prediction, which computes pee and poo independently from their own hold — a
+ * pet with only a pee hold still gets a pee prediction (and push).
+ */
+export function hasBreakSchedule(pet: Pet, feedTimes: FeedTime[], type: 'pee' | 'poo'): boolean {
+  const holdHours = type === 'pee' ? pet.peeHoldHours : pet.poopHoldHours;
+  return holdHours != null && feedTimes.some((f) => f.active);
 }
 
 function startOfDay(date: Date): number {
@@ -57,6 +84,15 @@ export function getPetStatus(pet: Pet, feedTimes: FeedTime[], now: Date = new Da
 
 /** Parses "7:30 AM" / "6 PM" / "18:00" / "12:00" into a Date on the same day as `reference`. */
 export function parseClockTime(text: string, reference: Date): Date | null {
+  const clock = parseClockParts(text);
+  if (!clock) return null;
+  const result = new Date(reference);
+  result.setHours(clock.hours, clock.minutes, 0, 0);
+  return result;
+}
+
+/** "7:30 AM" / "6 PM" / "18:00" → 24-hour { hours, minutes }, or null if unparseable. */
+function parseClockParts(text: string): { hours: number; minutes: number } | null {
   const match = text.trim().match(/^(\d{1,2})(?::(\d{2}))?\s*([AaPp][Mm])?$/);
   if (!match) return null;
   let hours = parseInt(match[1], 10);
@@ -65,9 +101,87 @@ export function parseClockTime(text: string, reference: Date): Date | null {
   if (meridiem === 'PM' && hours < 12) hours += 12;
   if (meridiem === 'AM' && hours === 12) hours = 0;
   if (hours > 23 || minutes > 59) return null;
-  const result = new Date(reference);
-  result.setHours(hours, minutes, 0, 0);
-  return result;
+  return { hours, minutes };
+}
+
+const zoneFormatters = new Map<string, Intl.DateTimeFormat>();
+
+/** Cached `Intl.DateTimeFormat` that reports wall-clock parts in `timeZone` (throws if invalid). */
+function zoneFormatter(timeZone: string): Intl.DateTimeFormat {
+  let f = zoneFormatters.get(timeZone);
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    zoneFormatters.set(timeZone, f);
+  }
+  return f;
+}
+
+/** The wall clock of instant `ms` in `timeZone`, encoded as if it were UTC (epoch ms). */
+function wallClockMs(ms: number, timeZone: string): number {
+  const parts: Record<string, number> = {};
+  for (const p of zoneFormatter(timeZone).formatToParts(new Date(ms))) {
+    if (p.type !== 'literal') parts[p.type] = parseInt(p.value, 10);
+  }
+  // Some engines render midnight as hour 24 even with h23.
+  const hour = parts.hour === 24 ? 0 : parts.hour;
+  const wall = Date.UTC(parts.year, parts.month - 1, parts.day, hour, parts.minute, parts.second);
+  // A runtime whose Intl ignores timeZone/formatToParts yields NaN; surface it so the caller
+  // falls back to device-local parsing instead of producing an Invalid Date.
+  if (!Number.isFinite(wall)) throw new RangeError(`Cannot resolve wall clock in ${timeZone}`);
+  return wall;
+}
+
+/** UTC offset of `timeZone` at instant `ms`, in ms (wall clock − UTC). */
+function zoneOffsetMs(ms: number, timeZone: string): number {
+  return wallClockMs(ms, timeZone) - Math.floor(ms / 1000) * 1000;
+}
+
+/**
+ * Like {@link parseClockTime}, but resolves the wall clock in an explicit IANA `timeZone`
+ * (the household's) instead of the device's: the result is `text` on `reference`'s calendar
+ * date AS SEEN IN `timeZone`. This is the client mirror of the server's
+ * `(date_trunc('day', now() at time zone tz) + local_time) at time zone tz`, including
+ * Postgres's DST rules: a wall time inside a spring-forward gap uses the offset from BEFORE
+ * the transition (02:30 → 03:30 DST), and an ambiguous fall-back time uses the offset from
+ * AFTER it (the later, standard-time instant).
+ *
+ * Falls back to device-local {@link parseClockTime} if the runtime's Intl cannot resolve the
+ * zone, so a bad/unsupported tz degrades to today's behaviour instead of breaking predictions.
+ */
+export function parseClockTimeInZone(text: string, reference: Date, timeZone: string): Date | null {
+  const clock = parseClockParts(text);
+  if (!clock) return null;
+  try {
+    const { hours, minutes } = clock;
+    const refWall = new Date(wallClockMs(reference.getTime(), timeZone));
+    const target = Date.UTC(
+      refWall.getUTCFullYear(),
+      refWall.getUTCMonth(),
+      refWall.getUTCDate(),
+      hours,
+      minutes,
+    );
+    const offBefore = zoneOffsetMs(target - DAY_MS, timeZone);
+    const offAfter = zoneOffsetMs(target + DAY_MS, timeZone);
+    const viaBefore = target - offBefore;
+    const viaAfter = target - offAfter;
+    const okBefore = wallClockMs(viaBefore, timeZone) === target;
+    const okAfter = wallClockMs(viaAfter, timeZone) === target;
+    if (okAfter) return new Date(viaAfter); // unique, or ambiguous → the later (post-transition) offset
+    if (okBefore) return new Date(viaBefore);
+    return new Date(viaBefore); // in a gap → the pre-transition offset, as Postgres does
+  } catch {
+    return parseClockTime(text, reference);
+  }
 }
 
 export function formatClock(date: Date): string {
@@ -182,16 +296,23 @@ export type BreakPrediction = {
   overdueBy: number;
 };
 
+/**
+ * `timeZone` is the HOUSEHOLD's IANA zone (`households.timezone`). When given, the feed-time
+ * fallback anchor resolves in it, exactly as on the server; when omitted (local mode, or a
+ * caller that doesn't know the household yet) it resolves in the device zone as it always has.
+ */
 export function predictBreak(
   pet: Pet,
   feedTimes: FeedTime[],
   logs: LogEntry[],
   type: 'pee' | 'poo',
   now: Date = new Date(),
+  timeZone?: string | null,
 ): BreakPrediction | null {
   const holdHours = type === 'pee' ? pet.peeHoldHours : pet.poopHoldHours;
-  if (!hasSchedule(pet, feedTimes) || holdHours == null) return null;
-  const slots = activeFeedSlots(feedTimes, now);
+  // Per-type, like app.recompute_prediction: only THIS type's hold + an active feed time.
+  if (!hasBreakSchedule(pet, feedTimes, type) || holdHours == null) return null;
+  const slots = activeFeedSlots(feedTimes, now, timeZone);
   if (slots.length === 0) return null;
 
   const lastLog = mostRecentLog(logs, type);

@@ -5,13 +5,13 @@ import { useLogs } from '../context/LogsContext';
 import { usePets } from '../context/PetsContext';
 import { useNow } from '../hooks/useNow';
 import { usePendingNudges } from '../hooks/usePendingNudges';
-import type { PendingNudge } from '../lib/notifications/pending';
+import { nudgeLineIcon, type PendingNudge } from '../lib/notifications/pending';
 import { formatAgo } from '../lib/formatAgo';
 import { formatClock } from '../lib/petSchedule';
 import { gentleLate } from '../lib/petVoice';
 import { glass, ink, radius, warn } from '../theme/colors';
 import { fonts } from '../theme/fonts';
-import { Icon, type IconName } from './Icon';
+import { Icon } from './Icon';
 
 /** The "Yes" label per nudge kind: "Yes, fed" / "Yes, given" / "Yes, Luna went". */
 function yesLabel(nudge: PendingNudge): string {
@@ -76,13 +76,6 @@ export function NudgeActionButtons({
   );
 }
 
-/** Line icon for a nudge: the break type's glyph, or the pill for meds. */
-function nudgeIcon(nudge: PendingNudge): IconName {
-  if (nudge.kind === 'medication') return 'pill';
-  if (nudge.kind === 'meal') return 'bowl';
-  return nudge.subtitle.startsWith('Pee') ? 'drop' : 'poo';
-}
-
 /**
  * In-app nudge for the active pet, computed from PREDICTION data (petSchedule) — so it appears even
  * if the push was suppressed in the foreground, missed, or permission was denied. On Home it sits
@@ -122,7 +115,7 @@ export function NudgeBanner({ pet }: { pet: Pet }) {
   return (
     <View style={styles.banner}>
       <View style={styles.top}>
-        <Icon name={nudgeIcon(nudge)} size={18} color={warn.ink} strokeWidth={1.8} />
+        <Icon name={nudgeLineIcon(nudge)} size={18} color={warn.ink} strokeWidth={1.8} />
         <View style={styles.topText}>
           <Text style={styles.title} numberOfLines={2}>
             {heading}

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { possessive, pottyBreakPhrase } from '../../../lib/petVoice';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { accent, ink, line, logTint, terracotta, category, radius } from '../../../theme/colors';
+import { accent, ink, line, category, radius } from '../../../theme/colors';
 import { fonts } from '../../../theme/fonts';
 import { Icon, type IconName } from '../../../components/Icon';
 import { ScreenHeader } from '../../../components/ScreenHeader';
@@ -12,7 +12,8 @@ import { useLogs } from '../../../context/LogsContext';
 import { useAppointments } from '../../../context/AppointmentsContext';
 import { describeLog, formatClock } from '../../../lib/petSchedule';
 import { useNow } from '../../../hooks/useNow';
-import type { Appointment, ApptType, FeedTime, LogEntry, LogType } from '../../../lib/db/models';
+import type { Appointment, ApptType, FeedTime, LogEntry } from '../../../lib/db/models';
+import { presentLogType } from '../../../lib/care/logTypes';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -38,15 +39,6 @@ function dayLabel(dayMs: number, now: Date): string {
 }
 
 type Visual = { icon: IconName; bg: string; fg: string };
-
-const LOG_VISUAL: Record<LogType, Visual> = {
-  pee: { icon: 'drop', bg: logTint.peeBg, fg: logTint.peeInk },
-  poo: { icon: 'poo', bg: logTint.pooBg, fg: logTint.pooInk },
-  food: { icon: 'bowl', bg: terracotta.tint, fg: terracotta.ink },
-  medication: { icon: 'pill', bg: category.medBg, fg: category.medInk },
-  vet: { icon: 'vet', bg: category.vetBg, fg: category.vetInk },
-  other: { icon: 'dots', bg: category.otherBg, fg: category.otherInk },
-};
 
 const APPT_VISUAL: Record<ApptType, Visual & { label: string }> = {
   vet: { icon: 'vet', bg: category.vetBg, fg: category.vetInk, label: 'Vet' },
@@ -76,7 +68,7 @@ function toMoments(logs: LogEntry[], appts: Appointment[], feedTimes: FeedTime[]
       at: new Date(l.occurredAt).getTime(),
       label: l.type === 'food' ? 'Meal' : describeLog(l, feedTimes, now).label,
       note: l.note ?? null,
-      visual: LOG_VISUAL[l.type] ?? LOG_VISUAL.other,
+      visual: presentLogType(l.type),
       bucket: l.type === 'food' ? 'meal' : l.type === 'pee' || l.type === 'poo' ? 'potty' : 'other',
     }));
   // Visits join the diary once they've happened (or were marked done).

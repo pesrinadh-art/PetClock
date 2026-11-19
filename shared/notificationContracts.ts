@@ -137,13 +137,33 @@ export type PawClockPushData =
   | MedicationPushData
   | AppointmentPushData;
 
-/** Runtime guard — payloads arrive as untyped JSON from the OS. */
+/**
+ * Every NotificationKind this build understands. A Record so a kind added to the union without
+ * being listed here is a compile error.
+ */
+const KNOWN_KINDS: Record<NotificationKind, true> = {
+  break_prediction: true,
+  meal: true,
+  medication: true,
+  appointment: true,
+  digest: true,
+  med_escalation: true,
+};
+
+/**
+ * Runtime guard — payloads arrive as untyped JSON from the OS.
+ *
+ * Release N tolerance: only kinds this build knows are accepted. A push of a kind added by a
+ * later release (e.g. a future care reminder) is ignored rather than handed to code that would
+ * mis-handle it.
+ */
 export function isPawClockPush(data: unknown): data is PawClockPushData {
   if (typeof data !== 'object' || data === null) return false;
   const d = data as Record<string, unknown>;
   return (
     d.v === PUSH_PAYLOAD_VERSION &&
     typeof d.kind === 'string' &&
+    Object.prototype.hasOwnProperty.call(KNOWN_KINDS, d.kind) &&
     typeof d.notificationId === 'string' &&
     typeof d.actionToken === 'string'
   );

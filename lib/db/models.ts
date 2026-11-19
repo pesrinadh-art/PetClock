@@ -284,12 +284,36 @@ export function toMedication(r: Row): Medication {
   };
 }
 
+/**
+ * Every LogType this build understands. A Record (not an array) so adding a member to the
+ * LogType union without listing it here is a compile error.
+ */
+const KNOWN_LOG_TYPES: Record<LogType, true> = {
+  pee: true,
+  poo: true,
+  food: true,
+  medication: true,
+  vet: true,
+  other: true,
+};
+
+/**
+ * Release N tolerance: a newer server (or a partner on a newer build) may write log types this
+ * build has never heard of. Narrow them to 'other' here, at the one place rows become models,
+ * so nothing downstream ever sees a value outside the LogType union.
+ */
+function narrowLogType(t: unknown): LogType {
+  return typeof t === 'string' && Object.prototype.hasOwnProperty.call(KNOWN_LOG_TYPES, t)
+    ? (t as LogType)
+    : 'other';
+}
+
 export function toLogEntry(r: Row): LogEntry {
   return {
     id: r.id,
     householdId: r.household_id,
     petId: r.pet_id,
-    type: r.type,
+    type: narrowLogType(r.type),
     occurredAt: r.occurred_at,
     note: r.note,
     source: r.source,
