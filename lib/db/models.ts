@@ -16,8 +16,12 @@
 export type Species =
   | 'dog' | 'cat' | 'rabbit' | 'hamster' | 'bird' | 'turtle' | 'snake' | 'fish' | 'other';
 
-/** Δ: 'medication' is new vs the old TimelineEntry union — meds finally get real logs. */
-export type LogType = 'pee' | 'poo' | 'food' | 'medication' | 'vet' | 'other';
+/**
+ * Δ: 'medication' is new vs the old TimelineEntry union — meds finally get real logs.
+ * 'walk' and 'habitat_clean' arrive with 0020_care_enums.sql (care modules Phase 2).
+ */
+export type LogType =
+  | 'pee' | 'poo' | 'food' | 'medication' | 'vet' | 'walk' | 'habitat_clean' | 'other';
 
 export type LogSource =
   | 'manual' | 'notification_yes' | 'backfill' | 'import' | 'system' | 'walker';
@@ -30,8 +34,8 @@ export type MemberRole = 'owner' | 'member' | 'walker';
 
 /**
  * A kind of care a pet gets help with (docs/CARE_MODULES_PLAN.md). Mirrors the Postgres text
- * domain `public.care_module` (0019_care_modules.sql). `walks` and `habitat` are reserved for
- * Phase 2: the type and the domain already accept them, but no module implements them yet.
+ * domain `public.care_module` (0019_care_modules.sql). `walks` and `habitat` are implemented
+ * since Phase 2 (opt-in: existing pets were backfilled with the four legacy modules only).
  */
 export type CareModuleId = 'potty' | 'walks' | 'meds' | 'meals' | 'habitat' | 'visits';
 
@@ -112,6 +116,17 @@ export type Pet = {
    * maps to {@link LEGACY_CARE_MODULES} — see {@link narrowCareModules}.
    */
   careModules: CareModuleId[];
+  /**
+   * Walks module: "every N hours since the last walk" (pets.walk_interval_hours, 0021,
+   * 0.5–24). null/absent = not set — read it through rhythmsForPet (lib/care/rhythms.ts), which
+   * supplies the default. Optional so pets built before 0021 (and older local data) still type.
+   */
+  walkIntervalHours?: number | null;
+  /**
+   * Habitat module: cleaning "due every N days" (pets.habitat_interval_days, 0021, 1–90).
+   * null/absent = not set — read it through rhythmsForPet.
+   */
+  habitatIntervalDays?: number | null;
   /** Soft delete. Archived pets keep their log history. */
   archivedAt: string | null;
   createdAt: string;
@@ -275,6 +290,9 @@ export function toPet(r: Row): Pet {
     poopHoldHours: r.poop_hold_hours === null ? null : Number(r.poop_hold_hours),
     calibrationStartedAt: r.calibration_started_at,
     careModules: narrowCareModules(r.care_modules),
+    // Absent on a DB without 0021: `== null` maps undefined and null alike to null.
+    walkIntervalHours: r.walk_interval_hours == null ? null : Number(r.walk_interval_hours),
+    habitatIntervalDays: r.habitat_interval_days == null ? null : Number(r.habitat_interval_days),
     archivedAt: r.archived_at,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -348,6 +366,8 @@ const KNOWN_LOG_TYPES: Record<LogType, true> = {
   food: true,
   medication: true,
   vet: true,
+  walk: true,
+  habitat_clean: true,
   other: true,
 };
 

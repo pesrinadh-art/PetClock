@@ -29,11 +29,11 @@ const logRow = (type: unknown) => ({
 });
 
 describe('toLogEntry narrowing', () => {
-  test.each(['pee', 'poo', 'food', 'medication', 'vet', 'other'])('keeps known type %s', (t) => {
+  test.each(['pee', 'poo', 'food', 'medication', 'vet', 'walk', 'habitat_clean', 'other'])('keeps known type %s', (t) => {
     expect(toLogEntry(logRow(t)).type).toBe(t);
   });
 
-  test.each([['walk'], ['habitat_clean'], [''], ['PEE'], [null], [undefined], [42], ['toString'], ['__proto__']])(
+  test.each([['grooming'], ['litter_scoop'], [''], ['PEE'], [null], [undefined], [42], ['toString'], ['__proto__']])(
     'narrows unknown type %p to other',
     (t) => {
       expect(toLogEntry(logRow(t)).type).toBe('other');
@@ -41,7 +41,7 @@ describe('toLogEntry narrowing', () => {
   );
 
   test('leaves every other field untouched', () => {
-    const e = toLogEntry(logRow('walk'));
+    const e = toLogEntry(logRow('grooming'));
     expect(e).toEqual({
       id: '00000000-0000-4000-8000-000000000001',
       householdId: 'h1',
@@ -96,18 +96,21 @@ describe('log type presentation', () => {
     expect(pick(presentLogType('medication'))).toBe('pill');
     expect(pick(presentLogType('vet'))).toBe('vet');
     expect(pick(presentLogType('other'))).toBe('dots');
+    // Phase 2 (0020_care_enums.sql): no longer unknown.
+    expect(pick(presentLogType('walk'))).toBe('paw');
+    expect(pick(presentLogType('habitat_clean'))).toBe('sparkle');
     expect(presentLogType('pee')).toBe(LOG_TYPE_PRESENTATION.pee);
   });
 
   test('unknown types fall back to the other row', () => {
-    expect(presentLogType('walk')).toBe(OTHER_LOG_PRESENTATION);
+    expect(presentLogType('grooming')).toBe(OTHER_LOG_PRESENTATION);
     expect(presentLogType('toString')).toBe(OTHER_LOG_PRESENTATION);
   });
 
   test('a view-specific other row applies to other and unknown alike', () => {
     const mine: LogTypePresentation = { icon: 'paw', label: 'Log', bg: 'a', fg: 'b' };
     expect(presentLogType('other', mine)).toBe(mine);
-    expect(presentLogType('walk', mine)).toBe(mine);
+    expect(presentLogType('grooming', mine)).toBe(mine);
     expect(presentLogType('pee', mine)).toBe(LOG_TYPE_PRESENTATION.pee);
   });
 });

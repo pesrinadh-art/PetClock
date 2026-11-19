@@ -550,6 +550,10 @@ export function describeLog(
       return { icon: '🏥', label: 'Vet' };
     case 'medication':
       return { icon: '💊', label: 'Medication' };
+    case 'walk':
+      return { icon: '🦮', label: 'Walk' };
+    case 'habitat_clean':
+      return { icon: '🧽', label: 'Cleaned' };
     case 'food': {
       if (log.feedTimeId) {
         const slots = activeFeedSlots(feedTimes, now);

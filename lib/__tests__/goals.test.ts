@@ -22,15 +22,15 @@ const ids = (opts: { id: CareModuleId }[]) => opts.map((o) => o.id);
 
 describe('goal options', () => {
   it('offers only implemented modules for the species, in registry order', () => {
-    expect(ids(goalOptions('dog'))).toEqual(['potty', 'meals', 'meds', 'visits']);
-    expect(ids(goalOptions('cat'))).toEqual(['potty', 'meals', 'meds', 'visits']);
-    expect(ids(goalOptions('hamster'))).toEqual(['meals', 'meds', 'visits']);
-    expect(ids(goalOptions('fish'))).toEqual(['meals', 'visits']);
+    expect(ids(goalOptions('dog'))).toEqual(['potty', 'walks', 'meals', 'meds', 'visits']);
+    expect(ids(goalOptions('cat'))).toEqual(['potty', 'meals', 'meds', 'habitat', 'visits']);
+    expect(ids(goalOptions('hamster'))).toEqual(['meals', 'meds', 'habitat', 'visits']);
+    expect(ids(goalOptions('fish'))).toEqual(['meals', 'habitat', 'visits']);
   });
 
   it('keeps a stored module the species would not be offered, so it can be unticked', () => {
     // An existing hamster backfilled with potty by 0019.
-    expect(ids(goalOptions('hamster', LEGACY_CARE_MODULES))).toEqual(['potty', 'meals', 'meds', 'visits']);
+    expect(ids(goalOptions('hamster', LEGACY_CARE_MODULES))).toEqual(['potty', 'meals', 'meds', 'habitat', 'visits']);
   });
 
   it('words potty for the species, from lib/care/species.ts', () => {
@@ -46,10 +46,10 @@ describe('goal options', () => {
 
 describe('initial goals', () => {
   it('pre-ticks the species defaults for a new pet', () => {
-    expect(initialGoals('dog')).toEqual(['potty', 'meals', 'meds', 'visits']);
+    expect(initialGoals('dog')).toEqual(['potty', 'walks', 'meals', 'meds', 'visits']);
     // Product decision: cats start without potty.
-    expect(initialGoals('cat')).toEqual(['meals', 'meds', 'visits']);
-    expect(initialGoals('fish')).toEqual(['meals']);
+    expect(initialGoals('cat')).toEqual(['habitat', 'meals', 'meds', 'visits']);
+    expect(initialGoals('fish')).toEqual(['habitat', 'meals']);
   });
 
   it("uses an edited pet's stored list, not the species defaults", () => {
@@ -57,8 +57,8 @@ describe('initial goals', () => {
     expect(initialGoals('dog', LEGACY_CARE_MODULES)).toEqual(['potty', 'meals', 'meds', 'visits']);
   });
 
-  it('hides stored modules this build does not implement', () => {
-    expect(initialGoals('dog', ['walks', 'potty'])).toEqual(['potty']);
+  it('keeps a stored list as is, in registry order (walks is implemented since Phase 2)', () => {
+    expect(initialGoals('dog', ['walks', 'potty'])).toEqual(['potty', 'walks']);
   });
 
   it("takes the edited pet's stored species, else the picked kind", () => {
@@ -81,19 +81,20 @@ describe('toggling', () => {
 
 describe('changing the kind of a new pet', () => {
   it('follows the new defaults while untouched', () => {
-    expect(goalsForSpeciesChange(['potty', 'meals', 'meds', 'visits'], 'cat', false)).toEqual(['meals', 'meds', 'visits']);
+    expect(goalsForSpeciesChange(['potty', 'meals', 'meds', 'visits'], 'cat', false)).toEqual(['habitat', 'meals', 'meds', 'visits']);
   });
 
   it('keeps touched choices that still apply', () => {
     expect(goalsForSpeciesChange(['potty', 'meds'], 'hamster', true)).toEqual(['meds']);
-    expect(goalsForSpeciesChange(['potty'], 'fish', true)).toEqual(['meals']);
+    expect(goalsForSpeciesChange(['potty'], 'fish', true)).toEqual(['habitat', 'meals']);
   });
 });
 
 describe('saving', () => {
-  it('writes the explicit list, keeping stored modules this build does not implement', () => {
+  it('writes the explicit list in registry order', () => {
     expect(goalsToSave(['meds', 'potty'])).toEqual(['potty', 'meds']);
-    expect(goalsToSave(['meals'], ['walks', 'potty', 'meals'])).toEqual(['meals', 'walks']);
+    // walks is implemented since Phase 2, so unticking it really removes it.
+    expect(goalsToSave(['meals'], ['walks', 'potty', 'meals'])).toEqual(['meals']);
   });
 
   it('compares lists order-insensitively', () => {

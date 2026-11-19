@@ -1,5 +1,5 @@
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
-import type { Appointment, FeedTime, LogEntry, Medication, Pet } from '../db/models';
+import type { Appointment, FeedTime, LogEntry, LogType, Medication, Pet } from '../db/models';
 import {
   toAppointment,
   toFeedTime,
@@ -39,12 +39,22 @@ type Client = SupabaseClient<Database>;
 type Row = Record<string, any>;
 
 /**
- * `care_modules` arrives with 0019_care_modules.sql. It is added here by hand until
- * types.gen.ts is regenerated against a project that has 0019 (never hand-edit that file).
+ * `care_modules` arrives with 0019_care_modules.sql, and the walk / habitat intervals with
+ * 0021_care_config.sql. They are added here by hand until types.gen.ts is regenerated against a
+ * project that has them (never hand-edit that file).
  */
 type GenPetInsert = Database['public']['Tables']['pets']['Insert'];
-type PetInsert = GenPetInsert & { care_modules?: string[] };
-type LogInsert = Database['public']['Tables']['logs']['Insert'];
+type PetInsert = GenPetInsert & {
+  care_modules?: string[];
+  walk_interval_hours?: number | null;
+  habitat_interval_days?: number | null;
+};
+/**
+ * The generated log_type enum predates 0020_care_enums.sql ('walk', 'habitat_clean'), so the
+ * insert's `type` is widened to the app's LogType until types.gen.ts is regenerated.
+ */
+type GenLogInsert = Database['public']['Tables']['logs']['Insert'];
+type LogInsert = Omit<GenLogInsert, 'type'> & { type: LogType };
 type FeedTimeInsert = Database['public']['Tables']['feed_times']['Insert'];
 type MedicationInsert = Database['public']['Tables']['medications']['Insert'];
 
@@ -213,19 +223,26 @@ function petToInsert(p: Pet, householdId: string): PetInsert {
     poop_hold_hours: p.poopHoldHours,
     calibration_started_at: p.calibrationStartedAt,
     care_modules: [...p.careModules],
+    walk_interval_hours: p.walkIntervalHours ?? null,
+    habitat_interval_days: p.habitatIntervalDays ?? null,
     archived_at: p.archivedAt,
     created_at: p.createdAt,
     updated_at: p.updatedAt,
   };
 }
 
-/** PostgREST's "unknown column" error for pets.care_modules (a DB without 0019). */
-function isMissingCareModulesColumn(error: { code?: string; message?: string }): boolean {
-  return (
-    (error.code === 'PGRST204' || error.code === '42703') &&
-    typeof error.message === 'string' &&
-    error.message.includes('care_modules')
-  );
+/**
+ * Pet columns newer than some deployed databases: care_modules (0019) and the walk / habitat
+ * intervals (0021). A write to a project without them retries without the missing column.
+ */
+const OPTIONAL_PET_COLUMNS = ['care_modules', 'walk_interval_hours', 'habitat_interval_days'] as const;
+type OptionalPetColumn = (typeof OPTIONAL_PET_COLUMNS)[number];
+
+/** PostgREST's "unknown column" error for one of OPTIONAL_PET_COLUMNS, naming which. */
+function missingOptionalPetColumn(error: { code?: string; message?: string }): OptionalPetColumn | null {
+  const message = error.message;
+  if (!(error.code === 'PGRST204' || error.code === '42703') || typeof message !== 'string') return null;
+  return OPTIONAL_PET_COLUMNS.find((c) => message.includes(c)) ?? null;
 }
 
 function feedTimeToInsert(f: FeedTime): FeedTimeInsert {
@@ -339,13 +356,17 @@ export function createSyncedRepos(
   // ---- pets writes ----
   const upsertPet = async (pet: Pet): Promise<Pet> => {
     const row = petToInsert(pet, householdId);
-    // Cast: the generated Insert type predates 0019 (see PetInsert).
+    // Cast: the generated Insert type predates 0019/0021 (see PetInsert).
     let { error } = await client.from('pets').upsert(row as GenPetInsert);
-    if (error && isMissingCareModulesColumn(error)) {
-      // A project where 0019 is not applied yet: write everything else. The column's default
-      // ({potty,meals,meds,visits}) is what this pet gets once the migration lands.
-      const { care_modules: _omit, ...legacyRow } = row;
-      ({ error } = await client.from('pets').upsert(legacyRow));
+    // A project where 0019 or 0021 is not applied yet: drop each missing column in turn and
+    // write everything else. care_modules' default ({potty,meals,meds,visits}) is what the pet
+    // gets once 0019 lands; unset intervals read as the defaults (rhythmsForPet).
+    const legacyRow: Record<string, unknown> = { ...row };
+    for (let i = 0; error && i < OPTIONAL_PET_COLUMNS.length; i++) {
+      const missing = missingOptionalPetColumn(error);
+      if (!missing || !(missing in legacyRow)) break;
+      delete legacyRow[missing];
+      ({ error } = await client.from('pets').upsert(legacyRow as GenPetInsert));
     }
     fail(error);
     petsEmitter.notify();
@@ -506,7 +527,8 @@ export function createSyncedRepos(
     // Idempotent: a retry of the same tap re-sends the same PK and no-ops (gate 2).
     const { error } = await client
       .from('logs')
-      .upsert(insert, { onConflict: 'id', ignoreDuplicates: true });
+      // Cast: see LogInsert (the generated enum predates 0020).
+      .upsert(insert as GenLogInsert, { onConflict: 'id', ignoreDuplicates: true });
     fail(error);
     logsEmitter.notify();
     return entry;

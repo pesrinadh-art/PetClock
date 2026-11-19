@@ -26,7 +26,7 @@ jest.mock('../../components/AppModal', () => ({ AppModal: () => null }));
 jest.mock('../../components/Icon', () => ({ Icon: () => null }));
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { arcLayout, QUICK_LOG_MAX } = require('../../components/QuickLogMenu') as typeof import('../../components/QuickLogMenu');
+const { arcLayout, arcRadiusFor, QUICK_LOG_MAX } = require('../../components/QuickLogMenu') as typeof import('../../components/QuickLogMenu');
 
 /** QuickLogMenu.tsx ITEMS before Phase 1, verbatim (key, icon, label, verb, dx, dy). */
 const LEGACY_MENU = [
@@ -44,7 +44,7 @@ describe('arcLayout', () => {
   test('every n up to the cap: n points, left to right, mirror-symmetric, above the button', () => {
     expect(arcLayout(0)).toEqual([]);
     for (let n = 1; n <= QUICK_LOG_MAX; n++) {
-      const pts = arcLayout(n);
+      const pts = arcLayout(n, arcRadiusFor(n));
       expect(pts).toHaveLength(n);
       for (let i = 0; i < n; i++) {
         expect(pts[i].dy).toBeLessThan(0);
@@ -58,7 +58,7 @@ describe('arcLayout', () => {
 
   test('circles (58px) never overlap at any n up to the cap', () => {
     for (let n = 2; n <= QUICK_LOG_MAX; n++) {
-      const pts = arcLayout(n);
+      const pts = arcLayout(n, arcRadiusFor(n));
       for (let i = 1; i < n; i++) {
         const d = Math.hypot(pts[i].dx - pts[i - 1].dx, pts[i].dy - pts[i - 1].dy);
         expect(d).toBeGreaterThanOrEqual(58);

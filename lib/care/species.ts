@@ -6,9 +6,12 @@
  * `careModules` list, which is also what the server gates the potty push on. Changing a row
  * here needs frontend + backend sign-off (plan, "Guardrails" 5).
  *
- * Rows may reference modules that are not implemented yet (walks, habitat: Phase 2). Use
- * {@link defaultCareModules} for a new pet: it keeps only modules this build implements, so a
- * pet created today does not silently gain walk/habitat reminders when Phase 2 ships.
+ * Use {@link defaultCareModules} for a new pet: it keeps only modules this build implements, so
+ * a row may name a module before it ships without a pet silently gaining it. Since Phase 2 every
+ * module is implemented, so a NEW dog starts with walks and a new cat/rabbit/hamster/bird/fish/
+ * turtle/snake with habitat cleaning. Existing pets keep their stored list (no backfill).
+ *
+ * `habitatIntervalDays` is the suggested cleaning interval a new pet's Routine step starts from.
  */
 import type { CareModuleId, Species } from '../db/models';
 import type { SpeciesProfile } from './types';
@@ -30,24 +33,28 @@ export const SPECIES_PROFILES: Record<Species, SpeciesProfile> = {
     // Product decision (2026-11-19): potty prediction is offered but OFF by default for cats.
     defaults: ['habitat', 'meals', 'meds', 'visits'],
     wording: { pottyBreak: 'litter box trip', pottyPlace: 'litter box', habitatNoun: 'litter tray' },
+    habitatIntervalDays: 7,
   },
   rabbit: {
     species: 'rabbit',
     offered: ['potty', 'habitat', 'meals', 'meds', 'visits'],
     defaults: ['habitat', 'meals', 'meds', 'visits'],
     wording: { pottyBreak: 'litter box trip', pottyPlace: 'litter box', habitatNoun: 'hutch' },
+    habitatIntervalDays: 7,
   },
   hamster: {
     species: 'hamster',
     offered: ['habitat', 'meals', 'meds', 'visits'],
     defaults: ['habitat', 'meals', 'meds', 'visits'],
     wording: { pottyBreak: 'potty break', pottyPlace: 'potty', habitatNoun: 'cage' },
+    habitatIntervalDays: 7,
   },
   bird: {
     species: 'bird',
     offered: ['habitat', 'meals', 'meds', 'visits'],
     defaults: ['habitat', 'meals', 'meds', 'visits'],
     wording: { pottyBreak: 'potty break', pottyPlace: 'potty', habitatNoun: 'cage' },
+    habitatIntervalDays: 7,
   },
   fish: {
     species: 'fish',
@@ -61,18 +68,21 @@ export const SPECIES_PROFILES: Record<Species, SpeciesProfile> = {
     offered: ['habitat', 'meals', 'meds', 'visits'],
     defaults: ['habitat', 'meals', 'visits'],
     wording: { pottyBreak: 'potty break', pottyPlace: 'potty', habitatNoun: 'tank' },
+    habitatIntervalDays: 7,
   },
   snake: {
     species: 'snake',
     offered: ['habitat', 'meals', 'meds', 'visits'],
     defaults: ['habitat', 'meals', 'visits'],
     wording: { pottyBreak: 'potty break', pottyPlace: 'potty', habitatNoun: 'enclosure' },
+    habitatIntervalDays: 14,
   },
   other: {
     species: 'other',
     offered: ALL,
     defaults: ['meals', 'meds', 'visits'],
     wording: { pottyBreak: 'potty break', pottyPlace: 'potty', habitatNoun: 'habitat' },
+    habitatIntervalDays: 7,
   },
 };
 

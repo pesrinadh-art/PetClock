@@ -6,16 +6,27 @@
  * composing modules in this order reproduces today's lists exactly. Hero priority is the
  * separate `priority` field (see plan.ts).
  *
- * Phase 2 adds walks and habitat here.
+ * Phase 2 added walks and habitat (opt-in: existing pets keep their stored four). Walks sits
+ * after potty and habitat after meds; for a pet without them every list is unchanged, and the
+ * order is also the Goals step's display order.
  */
 import type { CareModuleId } from '../db/models';
+import { habitatModule } from './modules/habitat';
 import { mealsModule } from './modules/meals';
 import { medsModule } from './modules/meds';
 import { pottyModule } from './modules/potty';
 import { visitsModule } from './modules/visits';
+import { walksModule } from './modules/walks';
 import type { CareModule } from './types';
 
-export const REGISTRY: readonly CareModule[] = [pottyModule, mealsModule, medsModule, visitsModule];
+export const REGISTRY: readonly CareModule[] = [
+  pottyModule,
+  walksModule,
+  mealsModule,
+  medsModule,
+  habitatModule,
+  visitsModule,
+];
 
 /** True when this build implements `id` (species rows may name modules that ship later). */
 export function isImplemented(id: CareModuleId): boolean {

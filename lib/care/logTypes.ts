@@ -1,6 +1,6 @@
 import type { IconName } from '../../components/Icon';
 import type { LogType } from '../db/models';
-import { category, logTint, terracotta } from '../../theme/colors';
+import { accent, category, logTint, terracotta } from '../../theme/colors';
 
 /**
  * The one presentation table for log types (docs/CARE_MODULES_PLAN.md, Release N).
@@ -36,6 +36,9 @@ export const LOG_TYPE_PRESENTATION: Record<LogType, LogTypePresentation> = {
   food: { icon: 'bowl', label: 'Meal', bg: terracotta.tint, fg: terracotta.ink },
   medication: { icon: 'pill', label: 'Medication', bg: category.medBg, fg: category.medInk },
   vet: { icon: 'vet', label: 'Vet', bg: category.vetBg, fg: category.vetInk },
+  // Phase 2 (0020_care_enums.sql). Older builds narrow these to 'other' (Release N).
+  walk: { icon: 'paw', label: 'Walk', bg: accent.soft, fg: accent.ink },
+  habitat_clean: { icon: 'sparkle', label: 'Cleaning', bg: accent.soft, fg: accent.ink },
   other: OTHER_LOG_PRESENTATION,
 };
 

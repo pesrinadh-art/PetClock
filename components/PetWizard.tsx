@@ -33,6 +33,14 @@ import {
   sameGoals,
   toggleGoal,
 } from './care/goals';
+import {
+  habitatNounFor,
+  parseHabitatIntervalDays,
+  parseWalkIntervalHours,
+  rhythmSections,
+  suggestedHabitatDays,
+  suggestedWalkHours,
+} from './care/rhythmFields';
 
 export type WizardStep = 'about' | 'goals' | 'routine' | 'meds';
 
@@ -53,7 +61,13 @@ const HOLD_HOURS_MAX = 24;
 
 type MedRow = { rowId: string; name: string; time: string };
 type FeedRow = { rowId: string; time: string };
-type FormErrors = { name?: string; peeHoldHours?: string; poopHoldHours?: string };
+type FormErrors = {
+  name?: string;
+  peeHoldHours?: string;
+  poopHoldHours?: string;
+  walkIntervalHours?: string;
+  habitatIntervalDays?: string;
+};
 
 function makeRowId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -90,8 +104,9 @@ function parseHoldHours(raw: string): { value: number | null; error?: string } {
  *
  * Goals ("What do you want help with?") picks the pet's care modules (docs/CARE_MODULES_PLAN.md):
  * pre-ticked with the species' defaults for a new pet, or the pet's stored list when editing.
- * Routine shows only the sections those goals need (meal times for meals, hold times for potty)
- * and is skipped when it would be empty; Meds is shown only with the meds goal. Hidden sections
+ * Routine shows only the sections those goals need (meal times for meals, hold times for potty,
+ * the walk interval for walks, the cleaning interval for habitat) and is skipped when it would
+ * be empty; Meds is shown only with the meds goal. Hidden sections
  * keep their values, so unticking a goal never erases a routine.
  *
  * Saving writes through the same PetsContext add/update paths as the old single-page form, plus
@@ -122,9 +137,13 @@ export function PetWizard({
   const [goalsTouched, setGoalsTouched] = useState(false);
   const options = goalOptions(goalSpecies, storedGoals);
   const sections = goalSections(goals);
+  const rhythms = rhythmSections(goals);
+  const habitatNoun = habitatNounFor(goalSpecies);
 
   const steps = STEPS.filter(
-    (s) => (s.key !== 'routine' || sections.meals || sections.potty) && (s.key !== 'meds' || sections.meds),
+    (s) =>
+      (s.key !== 'routine' || sections.meals || sections.potty || rhythms.walks || rhythms.habitat) &&
+      (s.key !== 'meds' || sections.meds),
   );
   const [requestedStep, setStep] = useState<WizardStep>(initialStep);
   const step = visibleStep(requestedStep, steps);
@@ -145,6 +164,11 @@ export function PetWizard({
   });
   const [peeHoldHours, setPeeHoldHours] = useState(editingPet?.peeHoldHours?.toString() ?? '');
   const [poopHoldHours, setPoopHoldHours] = useState(editingPet?.poopHoldHours?.toString() ?? '');
+  // Walk / cleaning intervals (Phase 2). Blank = not set: the modules use the suggested value.
+  const [walkIntervalHours, setWalkIntervalHours] = useState(editingPet?.walkIntervalHours?.toString() ?? '');
+  const [habitatIntervalDays, setHabitatIntervalDays] = useState(
+    editingPet?.habitatIntervalDays?.toString() ?? '',
+  );
   const [medications, setMedications] = useState<MedRow[]>(() =>
     (editingPet ? getMedicationsForPet(editingPet.id) : []).map((m) => ({
       rowId: m.id,
@@ -206,12 +230,26 @@ export function PetWizard({
     const parsedPoop = parseHoldHours(poopHoldHours);
     const pee = sections.potty || !parsedPee.error ? parsedPee : { value: editingPet?.peeHoldHours ?? null };
     const poop = sections.potty || !parsedPoop.error ? parsedPoop : { value: editingPet?.poopHoldHours ?? null };
+    // Same rule for the walk / cleaning intervals: validated only while their goal shows them.
+    const parsedWalk = parseWalkIntervalHours(walkIntervalHours);
+    const parsedHabitat = parseHabitatIntervalDays(habitatIntervalDays);
+    const walk = rhythms.walks || !parsedWalk.error ? parsedWalk : { value: editingPet?.walkIntervalHours ?? null };
+    const habitat =
+      rhythms.habitat || !parsedHabitat.error ? parsedHabitat : { value: editingPet?.habitatIntervalDays ?? null };
     const feedTimes = feedRows.map((r) => to24h(r.time.trim())).filter(Boolean);
     const nextErrors: FormErrors = {};
     if (name.trim().length === 0) nextErrors.name = 'Give your pet a name to save';
     if (pee.error) nextErrors.peeHoldHours = pee.error;
     if (poop.error) nextErrors.poopHoldHours = poop.error;
-    if (nextErrors.name || nextErrors.peeHoldHours || nextErrors.poopHoldHours) {
+    if (walk.error) nextErrors.walkIntervalHours = walk.error;
+    if (habitat.error) nextErrors.habitatIntervalDays = habitat.error;
+    if (
+      nextErrors.name ||
+      nextErrors.peeHoldHours ||
+      nextErrors.poopHoldHours ||
+      nextErrors.walkIntervalHours ||
+      nextErrors.habitatIntervalDays
+    ) {
       setErrors(nextErrors);
       setStep(nextErrors.name ? 'about' : 'routine');
       return;
@@ -223,6 +261,8 @@ export function PetWizard({
       feedTimes,
       peeHoldHours: pee.value,
       poopHoldHours: poop.value,
+      walkIntervalHours: walk.value,
+      habitatIntervalDays: habitat.value,
       medications: medications
         .map((m) => ({ name: m.name.trim(), localTime: to24h(m.time.trim()) }))
         .filter((m) => m.name && m.localTime),
@@ -481,6 +521,52 @@ export function PetWizard({
                     }}
                     placeholder="e.g. 8"
                     error={errors.poopHoldHours}
+                  />
+                </View>
+              </>
+            )}
+
+            {rhythms.walks && (
+              <>
+                <SectionLabel
+                  style={sections.meals || sections.potty ? styles.sectionSpacer : undefined}
+                  sub={`How often does ${petName} need a walk? We'll remind you that long after the last one. Leave blank for every ${suggestedWalkHours()} hours.`}
+                >
+                  Walks
+                </SectionLabel>
+                <View style={styles.holdRow}>
+                  <HoldTile
+                    label="Walk every (hours)"
+                    value={walkIntervalHours}
+                    onChangeText={(v) => {
+                      setWalkIntervalHours(v);
+                      clearError('walkIntervalHours');
+                    }}
+                    placeholder={`e.g. ${suggestedWalkHours()}`}
+                    error={errors.walkIntervalHours}
+                  />
+                </View>
+              </>
+            )}
+
+            {rhythms.habitat && (
+              <>
+                <SectionLabel
+                  style={sections.meals || sections.potty || rhythms.walks ? styles.sectionSpacer : undefined}
+                  sub={`How often should the ${habitatNoun} be cleaned? We'll remind you at 10 AM on the day it's due. Leave blank for every ${suggestedHabitatDays(goalSpecies)} days.`}
+                >
+                  {`Cleaning the ${habitatNoun}`}
+                </SectionLabel>
+                <View style={styles.holdRow}>
+                  <HoldTile
+                    label="Clean every (days)"
+                    value={habitatIntervalDays}
+                    onChangeText={(v) => {
+                      setHabitatIntervalDays(v);
+                      clearError('habitatIntervalDays');
+                    }}
+                    placeholder={`e.g. ${suggestedHabitatDays(goalSpecies)}`}
+                    error={errors.habitatIntervalDays}
                   />
                 </View>
               </>

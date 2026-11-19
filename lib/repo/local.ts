@@ -22,9 +22,18 @@ const KEY_SEEDED = 'pawclock:seeded';
 
 type Listener = () => void;
 
-/** A pet as read back from AsyncStorage: older builds wrote no `careModules`. */
+/**
+ * A pet as read back from AsyncStorage: older builds wrote no `careModules` (→ today's four
+ * modules) and no walk / habitat intervals (→ null: unset, rhythmsForPet supplies the default).
+ */
 function normalizeStoredPet(p: Pet): Pet {
-  return { ...p, careModules: narrowCareModules((p as Partial<Pet>).careModules) };
+  const stored = p as Partial<Pet>;
+  return {
+    ...p,
+    careModules: narrowCareModules(stored.careModules),
+    walkIntervalHours: typeof stored.walkIntervalHours === 'number' ? stored.walkIntervalHours : null,
+    habitatIntervalDays: typeof stored.habitatIntervalDays === 'number' ? stored.habitatIntervalDays : null,
+  };
 }
 
 /**

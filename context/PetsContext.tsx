@@ -16,6 +16,10 @@ type ScheduleFields = {
   peeHoldHours: number | null;
   poopHoldHours: number | null;
   medications: MedicationInput[];
+  /** Walks module: hours between walks. null = the module's default. undefined = keep stored. */
+  walkIntervalHours?: number | null;
+  /** Habitat module: days between cleanings. null = the species default. undefined = keep stored. */
+  habitatIntervalDays?: number | null;
 };
 
 type NewPet = {
@@ -178,6 +182,8 @@ export function PetsProvider({ children }: { children: ReactNode }) {
         poopHoldHours: pet.poopHoldHours ?? null,
         calibrationStartedAt: nowIso,
         careModules: initialCareModules(pet, species),
+        walkIntervalHours: pet.walkIntervalHours ?? null,
+        habitatIntervalDays: pet.habitatIntervalDays ?? null,
         archivedAt: null,
         createdAt: nowIso,
         updatedAt: nowIso,
@@ -214,6 +220,10 @@ export function PetsProvider({ children }: { children: ReactNode }) {
         peeHoldHours: edits.peeHoldHours,
         poopHoldHours: edits.poopHoldHours,
         careModules: edits.careModules ? [...edits.careModules] : existing.careModules,
+        walkIntervalHours:
+          edits.walkIntervalHours !== undefined ? edits.walkIntervalHours : existing.walkIntervalHours ?? null,
+        habitatIntervalDays:
+          edits.habitatIntervalDays !== undefined ? edits.habitatIntervalDays : existing.habitatIntervalDays ?? null,
         updatedAt: new Date().toISOString(),
       }));
       // Replacing the whole slot list mints fresh ids; a food log referencing an old feed-time

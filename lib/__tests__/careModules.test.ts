@@ -509,10 +509,10 @@ describe('species profiles', () => {
     expect(offeredCareModules('cat')).toContain('potty');
   });
 
-  test('dog defaults are potty, walks, meals, meds, visits (walks ships in Phase 2)', () => {
+  test('dog defaults are potty, walks, meals, meds, visits (walks shipped in Phase 2)', () => {
     expect([...SPECIES_PROFILES.dog.defaults].sort()).toEqual(['meals', 'meds', 'potty', 'visits', 'walks']);
-    // Only implemented modules are stored on a new pet, so nothing turns on by itself later.
-    expect(defaultCareModules('dog')).toEqual(['potty', 'meals', 'meds', 'visits']);
+    // A NEW dog now starts with walks; existing pets keep their stored list (no backfill).
+    expect(defaultCareModules('dog')).toEqual(['potty', 'walks', 'meals', 'meds', 'visits']);
   });
 
   test('every species has a row whose defaults are offered; unknown species read as other', () => {
@@ -580,7 +580,7 @@ describe('guardrails', () => {
 
   test('module priorities give the strict hero order', () => {
     const order = [...REGISTRY].sort((a, b) => a.priority - b.priority).map((m) => m.id);
-    expect(order).toEqual(['potty', 'meds', 'meals', 'visits']);
+    expect(order).toEqual(['potty', 'walks', 'meds', 'meals', 'habitat', 'visits']);
   });
 });
 

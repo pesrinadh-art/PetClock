@@ -81,10 +81,12 @@ export function PetCard({ pet }: { pet: Pet }) {
   // strict priority order, with something to say (potty's next break today), else "All caught up".
   const { kicker, headline, detail, progress, late, headlineMono } = care.hero;
 
+  // Only stats for modules this pet uses (a cat without potty has no hold time to show).
+  // With the legacy modules enabled this is today's three stats, unchanged.
   const stats: Stat[] = [
     { value: String(countLogsToday(petLogs, now)), label: 'Logs today' },
-    { value: mealsStat, label: 'Meals' },
-    { value: holdStat, label: 'Holds up to' },
+    ...(care.plan.has('meals') ? [{ value: mealsStat, label: 'Meals' }] : []),
+    ...(care.plan.has('potty') ? [{ value: holdStat, label: 'Holds up to' }] : []),
   ];
 
   return (

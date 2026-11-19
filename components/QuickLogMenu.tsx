@@ -26,8 +26,18 @@ import { useSnackbar } from './Snackbar';
  * same time), and one Undo reverts the whole action.
  */
 
-/** At most this many circles fit the arc. */
-export const QUICK_LOG_MAX = 5;
+/**
+ * At most this many circles fit the arc. Six is every quick log the registry can produce
+ * (pee, poo, both, walk, fed, cleaned), so no action is ever dropped. Six circles need the
+ * wider ARC_RADIUS_WIDE so neighbours (58px) don't overlap.
+ */
+export const QUICK_LOG_MAX = 6;
+const ARC_RADIUS_WIDE = 134;
+
+/** The arc radius for n circles: today's arc up to five, the wider one for six. */
+export function arcRadiusFor(n: number): number {
+  return n >= 6 ? ARC_RADIUS_WIDE : ARC_RADIUS;
+}
 
 /**
  * The arc the circles fan out on: a slightly squashed circle lifted above the + Log button,
@@ -126,7 +136,11 @@ export function QuickLogMenu({
   const quickLog = useQuickLog();
   const care = useCareOutputs(pet?.id);
   const actions = (care?.quickLog ?? []).slice(0, QUICK_LOG_MAX);
-  const positions = arcLayout(actions.length);
+  // Up to five keep today's arc (four land on the original design positions); six widen it.
+  const arcRadius = arcRadiusFor(actions.length);
+  const positions = arcLayout(actions.length, arcRadius);
+  // The hint sits just above the arc's highest circle.
+  const hintBottom = Math.round(214 * (arcRadius / ARC_RADIUS));
   const anim = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(open);
   // The action being timed is kept whole, so a re-render can't swap it mid-choice.
@@ -165,7 +179,7 @@ export function QuickLogMenu({
           </Animated.View>
 
           <Animated.Text
-            style={[styles.hint, { bottom: fabCenterBottom + 214, opacity: anim }]}
+            style={[styles.hint, { bottom: fabCenterBottom + hintBottom, opacity: anim }]}
             pointerEvents="none"
           >
             {pet ? `Logging for ${pet.name}` : ''}
