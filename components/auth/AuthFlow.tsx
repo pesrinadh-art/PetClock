@@ -13,6 +13,7 @@ import {
 import { accent, danger, glass, ink, radius } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { Icon } from '../Icon';
+import { BrandMark } from '../BrandMark';
 import { Screen } from '../ui';
 import { useSession } from '../../context/SessionContext';
 import { accountErrorMessage } from '../../lib/auth/account';
@@ -155,7 +156,7 @@ export function AuthFlow() {
           {/* Brand lockup (shared by both steps) */}
           <View style={styles.brand}>
             <View style={styles.mark}>
-              <Icon name="paw" size={26} color={accent.onAccent} strokeWidth={1.9} />
+              <BrandMark size={52} />
             </View>
             <View style={styles.brandText}>
               <Text style={styles.wordmark}>PawClock</Text>
@@ -365,20 +366,13 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.7 },
   content: { flexGrow: 1, paddingHorizontal: 22, paddingTop: 28, paddingBottom: 40 },
 
-  // Brand mark: accent-violet rounded square with a white paw.
+  // Brand mark: the Liquid Glass Paw logo with a soft lift off the aurora.
   brand: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 34 },
   mark: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: accent.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: accent.primary,
+    shadowColor: '#1E1E46',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28,
+    shadowOpacity: 0.14,
     shadowRadius: 14,
-    elevation: 4,
   },
   brandText: { flex: 1 },
   wordmark: { fontSize: 19, fontFamily: fonts.medium, color: ink.primary, letterSpacing: -0.6 },

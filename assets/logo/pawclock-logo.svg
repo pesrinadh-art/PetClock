@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="1024" height="1024" role="img" aria-label="PawClock — Liquid Glass Paw logo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e8f6f1"/><stop offset=".55" stop-color="#e3ebff"/><stop offset="1" stop-color="#ffe9dc"/>
+    </linearGradient>
+    <linearGradient id="paw" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6c5ce7"/><stop offset="1" stop-color="#17a398"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="112" height="112" rx="27" fill="url(#bg)"/>
+  <circle cx="38" cy="30" r="17" fill="#3ec6b8" opacity=".18"/>
+  <circle cx="88" cy="88" r="20" fill="#7c6cf0" opacity=".15"/>
+  <circle cx="60" cy="60" r="37" fill="#ffffff" opacity=".5"/>
+  <circle cx="60" cy="60" r="37" fill="none" stroke="#ffffff" stroke-width="1.6" opacity=".9"/>
+  <g stroke="#8b93a7" stroke-width="2.4" stroke-linecap="round" opacity=".65">
+    <line x1="60" y1="27.5" x2="60" y2="32"/><line x1="83" y1="37" x2="79.8" y2="40.2"/>
+    <line x1="92.5" y1="60" x2="88" y2="60"/><line x1="83" y1="83" x2="79.8" y2="79.8"/>
+    <line x1="60" y1="92.5" x2="60" y2="88"/><line x1="37" y1="83" x2="40.2" y2="79.8"/>
+    <line x1="27.5" y1="60" x2="32" y2="60"/><line x1="37" y1="37" x2="40.2" y2="40.2"/>
+  </g>
+  <line x1="60" y1="27.5" x2="60" y2="33.5" stroke="#17a398" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M38 44a30 30 0 0 1 15-9" fill="none" stroke="#ffffff" stroke-width="3.4" stroke-linecap="round" opacity=".95"/>
+  <g fill="url(#paw)">
+    <ellipse cx="43.5" cy="57" rx="4.6" ry="6.4" transform="rotate(-16 43.5 57)"/>
+    <ellipse cx="54" cy="50.5" rx="4.6" ry="6.6" transform="rotate(-5 54 50.5)"/>
+    <ellipse cx="64.5" cy="50.5" rx="4.6" ry="6.6" transform="rotate(5 64.5 50.5)"/>
+    <ellipse cx="74.5" cy="57" rx="4.6" ry="6.4" transform="rotate(16 74.5 57)"/>
+    <path d="M59 62.5c7.6 0 13 5.7 13 11.1 0 4-3 6.4-6.7 6.4-2.3 0-3.9-.9-6.3-.9s-4 .9-6.3.9c-3.7 0-6.7-2.4-6.7-6.4 0-5.4 5.4-11.1 13-11.1Z"/>
+  </g>
+</svg>

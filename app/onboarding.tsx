@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { BrandMark } from '../components/BrandMark';
 import { router } from 'expo-router';
 import { accent, danger, glass, ink, radius } from '../theme/colors';
 import { fonts } from '../theme/fonts';
@@ -19,11 +20,11 @@ const FEATURES: { icon: IconName; title: string; body: string }[] = [
   { icon: 'pill', title: 'Meds and vet visits', body: 'Friendly reminders, so nothing slips.' },
 ];
 
-/** The brand mark: accent-violet rounded square with a white paw. */
+/** The brand mark (Liquid Glass Paw logo) with a soft lift off the aurora. */
 function AppMark({ size = 52 }: { size?: number }) {
   return (
-    <View style={[styles.mark, { width: size, height: size, borderRadius: Math.round(size * 0.31) }]}>
-      <Icon name="paw" size={size * 0.5} color={accent.onAccent} strokeWidth={1.9} />
+    <View style={styles.mark}>
+      <BrandMark size={size} />
     </View>
   );
 }
@@ -261,14 +262,11 @@ const styles = StyleSheet.create({
   },
 
   mark: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: accent.primary,
-    shadowColor: accent.primary,
+    alignSelf: 'flex-start',
+    shadowColor: '#1E1E46',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.28,
+    shadowOpacity: 0.14,
     shadowRadius: 14,
-    elevation: 4,
   },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   brand: { fontSize: 19, fontFamily: fonts.medium, color: ink.primary, letterSpacing: -0.6 },

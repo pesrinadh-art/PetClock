@@ -4,6 +4,7 @@ import { accent, glass, ink, warn } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { Icon, type IconName } from './Icon';
 import { PetAvatar } from './PetAvatar';
+import { BrandMark } from './BrandMark';
 
 /** "Good morning" / "Good afternoon" / "Good evening" / "Late-night check-in" for the header eyebrow. */
 export { greeting } from '../lib/petVoice';
@@ -18,17 +19,24 @@ export function TopNavBar({
   title,
   eyebrow,
   pet,
+  logo = false,
   action,
 }: {
   title: string;
   eyebrow?: string;
   pet?: { id: string; avatarEmoji: string } | null;
+  /** Show the PawClock logo on the left instead of a pet avatar (Today, where the hero already shows the pet). */
+  logo?: boolean;
   /** Optional extra round button before the bell (e.g. "+" to add a pet or a visit). */
   action?: { icon: IconName; label: string; onPress: () => void };
 }) {
   return (
     <View style={styles.container}>
-      {pet ? <PetAvatar pet={pet} size={40} emojiSize={20} style={styles.avatar} /> : null}
+      {logo ? (
+        <BrandMark size={44} />
+      ) : pet ? (
+        <PetAvatar pet={pet} size={40} emojiSize={20} style={styles.avatar} />
+      ) : null}
       <View style={styles.text}>
         {!!eyebrow && (
           <Text style={styles.eyebrow} numberOfLines={1}>

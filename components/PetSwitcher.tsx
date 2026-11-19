@@ -16,6 +16,8 @@ type Props = {
  * Pets tab and the tab bar's + button, so there is no trailing add chip here.
  */
 export function PetSwitcher({ pets, activeId, onSelect }: Props) {
+  // One pet: nothing to switch between, and the header already names the pet.
+  if (pets.length < 2) return null;
   return (
     <ScrollView
       horizontal
