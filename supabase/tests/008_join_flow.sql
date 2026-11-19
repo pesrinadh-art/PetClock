@@ -45,6 +45,15 @@ insert into _tap(line) select ok(
   public.create_household_with_membership('Dave Phone', 'Europe/London') is not null,
   'second phone auto-creates its own household at first launch');
 
+-- Inside one transaction now() is constant, so both memberships would share joined_at and
+-- `order by joined_at limit 1` would pick either one at random (flaky test 4). On a real phone
+-- the auto-created household is minutes older, so make that explicit.
+select tests.become_service();
+update public.household_members
+   set joined_at = joined_at - interval '1 minute'
+ where user_id = 'aaaaaaaa-0000-0000-0000-000000000004';
+select tests.authenticate_as('aaaaaaaa-0000-0000-0000-000000000004');
+
 -- ...then the user redeems. WITHOUT the leave, my_household_id() still points at the empty
 -- one, because it resolves `order by joined_at limit 1` and that membership came first.
 insert into _tap(line) select is(

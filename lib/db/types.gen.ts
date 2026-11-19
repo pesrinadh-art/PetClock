@@ -154,6 +154,76 @@ export type Database = {
           },
         ]
       }
+      care_state: {
+        Row: {
+          anchor_at: string
+          anchor_log_id: string | null
+          buffer_minutes: number
+          due_at: string
+          interval_days: number | null
+          interval_hours: number | null
+          last_notification_id: string | null
+          module: string
+          notify_at: string | null
+          pet_id: string
+          reask_seq: number
+          snoozed_until: string | null
+          updated_at: string
+        }
+        Insert: {
+          anchor_at: string
+          anchor_log_id?: string | null
+          buffer_minutes: number
+          due_at: string
+          interval_days?: number | null
+          interval_hours?: number | null
+          last_notification_id?: string | null
+          module: string
+          notify_at?: string | null
+          pet_id: string
+          reask_seq?: number
+          snoozed_until?: string | null
+          updated_at?: string
+        }
+        Update: {
+          anchor_at?: string
+          anchor_log_id?: string | null
+          buffer_minutes?: number
+          due_at?: string
+          interval_days?: number | null
+          interval_hours?: number | null
+          last_notification_id?: string | null
+          module?: string
+          notify_at?: string | null
+          pet_id?: string
+          reask_seq?: number
+          snoozed_until?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "care_state_anchor_log_id_fkey"
+            columns: ["anchor_log_id"]
+            isOneToOne: false
+            referencedRelation: "logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "care_state_last_notification_id_fkey"
+            columns: ["last_notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "care_state_pet_id_fkey"
+            columns: ["pet_id"]
+            isOneToOne: false
+            referencedRelation: "pets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       feed_times: {
         Row: {
           active: boolean
@@ -547,7 +617,9 @@ export type Database = {
           birthdate: string | null
           breed: string | null
           calibration_started_at: string
+          care_modules: unknown[]
           created_at: string
+          habitat_interval_days: number | null
           household_id: string
           id: string
           name: string
@@ -556,6 +628,7 @@ export type Database = {
           species: Database["public"]["Enums"]["species"]
           updated_at: string
           updated_by: string | null
+          walk_interval_hours: number | null
           weight_kg: number | null
         }
         Insert: {
@@ -564,7 +637,9 @@ export type Database = {
           birthdate?: string | null
           breed?: string | null
           calibration_started_at?: string
+          care_modules?: unknown[]
           created_at?: string
+          habitat_interval_days?: number | null
           household_id: string
           id?: string
           name: string
@@ -573,6 +648,7 @@ export type Database = {
           species?: Database["public"]["Enums"]["species"]
           updated_at?: string
           updated_by?: string | null
+          walk_interval_hours?: number | null
           weight_kg?: number | null
         }
         Update: {
@@ -581,7 +657,9 @@ export type Database = {
           birthdate?: string | null
           breed?: string | null
           calibration_started_at?: string
+          care_modules?: unknown[]
           created_at?: string
+          habitat_interval_days?: number | null
           household_id?: string
           id?: string
           name?: string
@@ -590,6 +668,7 @@ export type Database = {
           species?: Database["public"]["Enums"]["species"]
           updated_at?: string
           updated_by?: string | null
+          walk_interval_hours?: number | null
           weight_kg?: number | null
         }
         Relationships: [
@@ -698,6 +777,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      care_push_tokens: {
+        Args: { p_household_id: string }
+        Returns: {
+          expo_push_token: string
+        }[]
+      }
       check_rate_limit_public: {
         Args: { p_key: string; p_limit: number; p_window_seconds: number }
         Returns: undefined
@@ -778,6 +863,19 @@ export type Database = {
           predicted_at: string
         }[]
       }
+      due_care_items: {
+        Args: never
+        Returns: {
+          care_module: string
+          dedupe_key: string
+          due_at: string
+          household_id: string
+          interval_days: number
+          interval_hours: number
+          pet_id: string
+          pet_name: string
+        }[]
+      }
       due_meals: {
         Args: never
         Returns: {
@@ -814,6 +912,10 @@ export type Database = {
           p_notification_id: string
           p_pet_id: string
         }
+        Returns: undefined
+      }
+      mark_care_dispatched: {
+        Args: { p_module: string; p_notification_id: string; p_pet_id: string }
         Returns: undefined
       }
       mark_receipts_checked: {
@@ -913,6 +1015,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      snooze_care: {
+        Args: {
+          p_minutes?: number
+          p_module: string
+          p_notification_id: string
+          p_pet_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       appt_type: "vet" | "groom" | "vaccine" | "other"
@@ -924,7 +1035,15 @@ export type Database = {
         | "import"
         | "system"
         | "walker"
-      log_type: "pee" | "poo" | "food" | "medication" | "vet" | "other"
+      log_type:
+        | "pee"
+        | "poo"
+        | "food"
+        | "medication"
+        | "vet"
+        | "other"
+        | "walk"
+        | "habitat_clean"
       member_role: "owner" | "member" | "walker"
       notif_kind:
         | "break_prediction"
@@ -933,6 +1052,7 @@ export type Database = {
         | "appointment"
         | "digest"
         | "med_escalation"
+        | "care_due"
       notif_status: "sent" | "actioned" | "dismissed" | "superseded" | "failed"
       species:
         | "dog"
@@ -959,12 +1079,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -988,11 +1108,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1013,11 +1133,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1038,11 +1158,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1055,11 +1175,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1084,7 +1204,16 @@ export const Constants = {
         "system",
         "walker",
       ],
-      log_type: ["pee", "poo", "food", "medication", "vet", "other"],
+      log_type: [
+        "pee",
+        "poo",
+        "food",
+        "medication",
+        "vet",
+        "other",
+        "walk",
+        "habitat_clean",
+      ],
       member_role: ["owner", "member", "walker"],
       notif_kind: [
         "break_prediction",
@@ -1093,6 +1222,7 @@ export const Constants = {
         "appointment",
         "digest",
         "med_escalation",
+        "care_due",
       ],
       notif_status: ["sent", "actioned", "dismissed", "superseded", "failed"],
       species: [
