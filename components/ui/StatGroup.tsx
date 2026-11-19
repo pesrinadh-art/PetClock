@@ -6,14 +6,13 @@ import { fonts } from '../../theme/fonts';
 export type Stat = { value: string; label: string; accent?: string };
 
 /**
- * The stat row that sits under a hero card's divider ("2× Meals/day · 4h Hold
- * time · 1 Medication") and can also stand alone. Two visual variants:
- * `onDark` (white text over the green/charcoal hero, the default) and `onLight`.
- * A stat may carry its own `accent` colour for the value (e.g. red "Overdue").
+ * The stat row under a hero's hairline ("2× Meals/day · 4h Hold time · 1 Medication").
+ * Values are Geist Mono (every number in design v2 is mono). `onLight` is the default
+ * now that heroes are glass; `onDark` stays for any dark surface.
  */
 export function StatGroup({
   stats,
-  variant = 'onDark',
+  variant = 'onLight',
   style,
 }: {
   stats: Stat[];
@@ -22,7 +21,7 @@ export function StatGroup({
 }) {
   const onDark = variant === 'onDark';
   const valColor = onDark ? '#ffffff' : ink.primary;
-  const lblColor = onDark ? 'rgba(255,255,255,0.78)' : ink.faint;
+  const lblColor = onDark ? 'rgba(255,255,255,0.78)' : ink.muted;
   return (
     <View style={[styles.row, style]}>
       {stats.map((s) => (
@@ -40,15 +39,10 @@ export function StatGroup({
 }
 
 const styles = StyleSheet.create({
-  // Redesign v3: stats share the row evenly and labels are sentence case ("Next break").
   row: { flexDirection: 'row', gap: 12 },
   stat: { flex: 1 },
-  value: { fontFamily: fonts.extraBold, fontSize: 20, letterSpacing: -0.2 },
-  label: {
-    fontFamily: fonts.semiBold,
-    fontSize: 12,
-    marginTop: 3,
-  },
+  value: { fontFamily: fonts.mono, fontSize: 16, letterSpacing: -0.3 },
+  label: { fontFamily: fonts.regular, fontSize: 11.5, marginTop: 3 },
 });
 
 export default StatGroup;

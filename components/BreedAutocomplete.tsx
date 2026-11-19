@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { surface, ink, line, radius, shadow } from '../theme/colors';
+import { accent, glass, ink, radius, shadow, surface } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { suggestBreeds, type BreedSpecies } from '../lib/breeds';
 
@@ -58,7 +58,7 @@ export function BreedAutocomplete({ label, value, onChange, placeholder, species
     <View style={[styles.formGroup, style]}>
       {/* zIndex on the wrapper so the absolute dropdown paints above sibling fields on web. */}
       <View style={styles.inputWrap}>
-        <View style={styles.cell}>
+        <View style={[styles.cell, focused && styles.cellFocused]}>
           {label ? <Text style={styles.cellLabel}>{label}</Text> : null}
           <TextInput
             value={value}
@@ -125,25 +125,27 @@ const styles = StyleSheet.create({
   formGroup: { position: 'relative', zIndex: 1000 },
   // Establishes the positioning context and stacking for the absolute dropdown.
   inputWrap: { position: 'relative', zIndex: 1000 },
-  // White card cell (radius 18, soft shadow) matching the design's Name/Breed cells.
+  // Glass input cell (Aurora `.input`): strong glass fill, hairline border, accent when focused.
   cell: {
-    backgroundColor: surface.card,
-    borderRadius: radius.card,
+    minHeight: 48,
+    justifyContent: 'center',
+    backgroundColor: glass.strong,
+    borderWidth: 1,
+    borderColor: glass.border,
+    borderRadius: radius.tile,
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    ...shadow.card,
+    paddingHorizontal: 14,
   },
+  cellFocused: { borderColor: accent.line },
   cellLabel: {
-    fontSize: 10,
-    fontFamily: fonts.bold,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    color: ink.faint2,
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: ink.muted,
     marginBottom: 3,
   },
   input: {
-    fontFamily: fonts.semiBold,
-    fontSize: 14.5,
+    fontFamily: fonts.regular,
+    fontSize: 15,
     color: ink.primary,
     padding: 0,
   },
@@ -155,26 +157,30 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     marginBottom: 6,
-    maxHeight: 240,
-    // SOLID opaque surface — set explicitly so the popover fully occludes the fields behind it.
-    backgroundColor: surface.card,
+    maxHeight: 212,
+    padding: 4,
+    // SOLID opaque surface — glass would let the fields behind it bleed through.
+    backgroundColor: surface.solid,
     borderWidth: 1,
-    borderColor: line.border,
-    borderRadius: radius.card,
+    borderColor: glass.border,
+    borderRadius: radius.sm + 2,
     overflow: 'hidden',
-    // Float above sibling fields: zIndex for web/iOS ordering, elevation for Android.
-    ...shadow.card,
+    // Upward-cast shadow (design: 0 -12px 30px -14px). zIndex/elevation float it above siblings.
+    shadowColor: shadow.card.shadowColor,
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
     zIndex: 1000,
     elevation: 1000,
   },
-  dropdownScroll: { maxHeight: 240 },
+  dropdownScroll: { maxHeight: 202 },
   option: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: line.hairline,
+    minHeight: 40,
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    borderRadius: 10,
   },
-  optionLast: { borderBottomWidth: 0 },
-  optionPressed: { backgroundColor: surface.field },
-  optionText: { fontFamily: fonts.semiBold, fontSize: 14, color: ink.primary },
+  optionLast: {},
+  optionPressed: { backgroundColor: accent.soft },
+  optionText: { fontFamily: fonts.regular, fontSize: 14, color: ink.primary },
 });

@@ -1,17 +1,11 @@
 import { useFonts } from 'expo-font';
-import {
-  Archivo_400Regular,
-  Archivo_500Medium,
-  Archivo_600SemiBold,
-  Archivo_700Bold,
-  Archivo_800ExtraBold,
-} from '@expo-google-fonts/archivo';
-import { DMMono_500Medium } from '@expo-google-fonts/dm-mono';
+import { Geist_400Regular, Geist_500Medium, Geist_600SemiBold } from '@expo-google-fonts/geist';
+import { GeistMono_400Regular, GeistMono_500Medium } from '@expo-google-fonts/geist-mono';
 import { Stack } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Platform, View } from 'react-native';
-import { colors } from '../theme/colors';
+import { aurora, colors } from '../theme/colors';
 import { SessionProvider } from '../context/SessionContext';
 import { PetsProvider } from '../context/PetsContext';
 import { LogsProvider } from '../context/LogsContext';
@@ -30,7 +24,7 @@ import { SnackbarProvider } from '../components/Snackbar';
 function PhoneFrame({ children }: { children: React.ReactNode }) {
   if (Platform.OS !== 'web') return <>{children}</>;
   return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#1c1a17' }}>
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: aurora.page }}>
       <View
         style={{
           width: 390,
@@ -41,8 +35,8 @@ function PhoneFrame({ children }: { children: React.ReactNode }) {
           overflow: 'hidden',
           shadowColor: '#000',
           shadowOffset: { width: 0, height: 20 },
-          shadowOpacity: 0.4,
-          shadowRadius: 60,
+          shadowOpacity: 0.18,
+          shadowRadius: 50,
           elevation: 20,
         }}
       >
@@ -54,12 +48,11 @@ function PhoneFrame({ children }: { children: React.ReactNode }) {
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
-    Archivo_400Regular,
-    Archivo_500Medium,
-    Archivo_600SemiBold,
-    Archivo_700Bold,
-    Archivo_800ExtraBold,
-    DMMono_500Medium,
+    Geist_400Regular,
+    Geist_500Medium,
+    Geist_600SemiBold,
+    GeistMono_400Regular,
+    GeistMono_500Medium,
   });
 
   if (!fontsLoaded) {
@@ -92,7 +85,9 @@ export default function RootLayout() {
                 <OnboardingGate>
                 <PhoneFrame>
                   <AppModalHost>
-                    <Stack screenOptions={{ headerShown: false }}>
+                    {/* Each screen paints its own aurora via <Screen>; this flat lilac is
+                        only the fallback seen during transitions. */}
+                    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: aurora.base } }}>
                       <Stack.Screen name="(tabs)" />
                       <Stack.Screen name="add-appointment" options={{ presentation: 'modal' }} />
                       <Stack.Screen name="add-pet" options={{ presentation: 'modal' }} />

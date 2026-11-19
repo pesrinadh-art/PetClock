@@ -1,9 +1,8 @@
 import { useMemo } from 'react';
 import { petDayTitle, possessive } from '../../lib/petVoice';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { green, ink, logTint, surface, terracotta } from '../../theme/colors';
+import { accent, ink } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { TopNavBar, greeting } from '../../components/TopNavBar';
 import { PetSwitcher } from '../../components/PetSwitcher';
@@ -11,9 +10,8 @@ import { PetCard } from '../../components/PetCard';
 import { MealTimeBanner } from '../../components/MealTimeBanner';
 import { NudgeBanner } from '../../components/NudgeBanner';
 import { UpcomingSection } from '../../components/UpcomingSection';
-import { LogButtons } from '../../components/LogButtons';
 import { EmptyState } from '../../components/EmptyState';
-import { Card, ListRow, SectionLabel } from '../../components/ui';
+import { Card, ListRow, Screen, SectionLabel, TAB_BAR_CLEARANCE } from '../../components/ui';
 import type { IconName } from '../../components/Icon';
 import { usePets } from '../../context/PetsContext';
 import { useLogs } from '../../context/LogsContext';
@@ -41,11 +39,11 @@ function formatRecent(occurredAt: string, now: Date): string {
   return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${clock}`;
 }
 
-/** The three log types the Home "Recent" summary distils to, with their drawn icon + tint. */
-const RECENT_ROWS: { type: LogEntry['type']; label: string; icon: IconName; bg: string; fg: string }[] = [
-  { type: 'pee', label: 'Last pee', icon: 'drop', bg: logTint.peeBg, fg: logTint.peeInk },
-  { type: 'poo', label: 'Last poo', icon: 'poo', bg: logTint.pooBg, fg: logTint.pooInk },
-  { type: 'food', label: 'Last meal', icon: 'bowl', bg: terracotta.tint, fg: terracotta.primary },
+/** The three log types the Home "Recent" summary distils to, with their line icon (accent-soft tile). */
+const RECENT_ROWS: { type: LogEntry['type']; label: string; icon: IconName }[] = [
+  { type: 'pee', label: 'Last pee', icon: 'drop' },
+  { type: 'poo', label: 'Last poo', icon: 'poo' },
+  { type: 'food', label: 'Last meal', icon: 'bowl' },
 ];
 
 export default function HomeScreen() {
@@ -74,26 +72,28 @@ export default function HomeScreen() {
 
   if (!activePet) {
     return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <Screen edges={['top']}>
         <TopNavBar eyebrow={greeting(now)} title="Today" />
         <EmptyState icon="🐾" title="No pets yet" body="Add your first pet to start tracking their day." />
-      </SafeAreaView>
+      </Screen>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <Screen edges={['top']}>
       <TopNavBar pet={activePet} eyebrow={greeting(now)} title={petDayTitle(activePet.name, now)} />
       <PetSwitcher pets={pets} activeId={activePetId} onSelect={setActivePetId} />
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         <PetCard pet={activePet} />
 
-        {/* Quick log: the prediction nudge line (renders only when a break is due) + the
-            Pee / Poo / Both / Fed tiles with their last-logged times. */}
-        <SectionLabel sub="Tap to log now. Press and hold to pick a time.">Did {activePet.name} go?</SectionLabel>
+        {/* Late-break / med nudge (renders only when something is due): Yes / Not yet / Snooze.
+            Logging otherwise lives on the tab bar's "+ Log" button. */}
         <NudgeBanner pet={activePet} />
-        <LogButtons pet={activePet} />
-        {/* Terracotta "meal is due" card — only while a meal is actually due. */}
+        {/* "Meal is due" banner — only while a meal is actually due. */}
         <MealTimeBanner pet={activePet} />
 
         {/* Predicted breaks, next meal and meds (or the "Learning Mochi's rhythm" card). */}
@@ -122,8 +122,6 @@ export default function HomeScreen() {
                 <ListRow
                   key={row.type}
                   icon={row.icon}
-                  iconBg={row.bg}
-                  iconColor={row.fg}
                   iconLarge
                   title={row.label}
                   subtitle={log ? formatRecent(log.occurredAt, now) : 'No logs yet'}
@@ -142,15 +140,14 @@ export default function HomeScreen() {
           </Card>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: surface.app },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 80 },
-  section: { marginTop: 24 },
-  seeAll: { fontSize: 13, fontFamily: fonts.bold, color: green.primary },
-  recentAgo: { fontSize: 12.5, fontFamily: fonts.semiBold, color: ink.muted },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: TAB_BAR_CLEARANCE },
+  section: { marginTop: 26 },
+  seeAll: { fontSize: 13, fontFamily: fonts.medium, color: accent.ink },
+  recentAgo: { fontSize: 12.5, fontFamily: fonts.monoRegular, color: ink.muted, letterSpacing: -0.2 },
 });

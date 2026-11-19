@@ -1,11 +1,11 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, Text, View } from 'react-native';
-import { colors, radius } from '../theme/colors';
+import { glass, ink, radius, shadow, surface } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 
 type Stat = { value: string; label: string };
 
 type Props = {
+  /** @deprecated v3 gradient; ignored in design v2 (glass panel). */
   colorsGradient: [string, string];
   watermark: string;
   title: string;
@@ -13,9 +13,13 @@ type Props = {
   stats: Stat[];
 };
 
-export function HeroCard({ colorsGradient, watermark, title, sub, stats }: Props) {
+/**
+ * Legacy hero (prefer `components/ui/HeroCard`). Design v2: a glass panel with ink text, a
+ * faint watermark glyph, and mono stats under a hairline. Props unchanged for back-compat.
+ */
+export function HeroCard({ watermark, title, sub, stats }: Props) {
   return (
-    <LinearGradient colors={colorsGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+    <View style={styles.hero}>
       <Text style={styles.watermark}>{watermark}</Text>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.sub}>{sub}</Text>
@@ -27,22 +31,32 @@ export function HeroCard({ colorsGradient, watermark, title, sub, stats }: Props
           </View>
         ))}
       </View>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   hero: {
-    borderRadius: radius.lg,
-    padding: 20,
+    borderRadius: radius.hero,
+    padding: 18,
     marginBottom: 16,
     overflow: 'hidden',
+    backgroundColor: surface.card,
+    borderWidth: 1,
+    borderColor: glass.border,
+    ...shadow.hero,
   },
-  watermark: { position: 'absolute', right: 14, top: 10, fontSize: 46, opacity: 0.2 },
-  title: { fontSize: 19, fontFamily: fonts.black, color: colors.white, marginBottom: 4 },
-  sub: { fontSize: 13, color: 'rgba(255,255,255,0.85)', marginBottom: 16 },
-  statsRow: { flexDirection: 'row', gap: 8 },
-  stat: { flex: 1, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 8, alignItems: 'center' },
-  statVal: { fontSize: 18, fontFamily: fonts.extraBold, color: colors.white },
-  statLbl: { fontSize: 10, color: 'rgba(255,255,255,0.8)', marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
+  watermark: { position: 'absolute', right: 14, top: 10, fontSize: 40, opacity: 0.14 },
+  title: { fontSize: 20, fontFamily: fonts.medium, color: ink.primary, letterSpacing: -0.6, marginBottom: 4 },
+  sub: { fontSize: 13, fontFamily: fonts.regular, color: ink.muted, marginBottom: 14 },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: glass.border,
+  },
+  stat: { flex: 1 },
+  statVal: { fontSize: 16, fontFamily: fonts.mono, color: ink.primary, letterSpacing: -0.3 },
+  statLbl: { fontSize: 11.5, fontFamily: fonts.regular, color: ink.muted, marginTop: 3 },
 });

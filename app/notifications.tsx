@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { AppState } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { NudgeActionButtons } from '../components/NudgeBanner';
 import { useLogs } from '../context/LogsContext';
 import { usePets } from '../context/PetsContext';
@@ -15,11 +14,11 @@ import { repos } from '../lib/repo/types';
 import { formatClock, formatTimeUntil } from '../lib/petSchedule';
 import { formatAgo } from '../lib/formatAgo';
 import { gentleLate } from '../lib/petVoice';
-import { amber, green, ink, line, radius, shadow, surface } from '../theme/colors';
+import { accent, glass, ink, radius, warn } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { Icon, type IconName } from '../components/Icon';
 import { PetAvatar } from '../components/PetAvatar';
-import { SectionLabel } from '../components/ui';
+import { Card, Screen, SectionLabel } from '../components/ui';
 
 const KIND_ICON: Record<PendingKind, IconName> = { meal: 'bowl', medication: 'pill', break: 'paw' };
 /** A nudge this far past due reads "Running late". */
@@ -93,7 +92,7 @@ export default function NotificationsScreen() {
       : `${nudges.length} ${nudges.length === 1 ? 'thing needs' : 'things need'} a quick answer`;
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <Screen edges={['top', 'bottom', 'left', 'right']}>
       <View style={styles.titleRow}>
         <Pressable
           style={({ pressed }) => [styles.closeBtn, pressed && styles.pressed]}
@@ -102,23 +101,27 @@ export default function NotificationsScreen() {
           aria-label="Close notifications"
           hitSlop={8}
         >
-          <Icon name="close" size={18} color={ink.primary} strokeWidth={2.2} />
+          <Icon name="close" size={17} color={ink.primary} strokeWidth={1.8} />
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Notifications</Text>
+          <Text style={styles.title} role="heading">
+            Notifications
+          </Text>
           <Text style={styles.headerSub}>{subtitle}</Text>
         </View>
       </View>
 
       {!hasContent ? (
         <View style={styles.empty}>
-          <View style={styles.emptyIcon}>
-            <Icon name="bell" size={26} color={green.primary} strokeWidth={1.9} />
-          </View>
-          <Text style={styles.emptyTitle}>You're all caught up</Text>
-          <Text style={styles.emptyBody}>
-            Reminders for potty breaks, meals, and appointments will show up here.
-          </Text>
+          <Card padded style={styles.emptyCard}>
+            <View style={styles.emptyIcon}>
+              <Icon name="bell" size={18} color={accent.ink} strokeWidth={1.8} />
+            </View>
+            <Text style={styles.emptyTitle}>You're all caught up</Text>
+            <Text style={styles.emptyBody}>
+              Reminders for potty breaks, meals, and appointments will show up here.
+            </Text>
+          </Card>
         </View>
       ) : (
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
@@ -130,41 +133,49 @@ export default function NotificationsScreen() {
                 return (
                   <View key={group.petId} style={styles.group}>
                     <View style={styles.petRow}>
-                      {pet && <PetAvatar pet={pet} size={40} emojiSize={21} style={styles.petAvatar} />}
+                      {pet && <PetAvatar pet={pet} size={32} emojiSize={17} style={styles.petAvatar} />}
                       <Text style={styles.petName}>{pet?.name ?? group.items[0].petName}</Text>
                       <View style={styles.countBadge}>
                         <Text style={styles.countText}>{group.items.length}</Text>
                       </View>
                     </View>
-                    {group.items.map((nudge) => (
-                      <View key={nudge.key} style={styles.card}>
-                        <View style={styles.cardHeader}>
-                          <View style={styles.cardIcon}>
-                            <Icon name={KIND_ICON[nudge.kind]} size={20} color={amber.warnInk} strokeWidth={2} />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.cardTitle}>{nudge.title}</Text>
-                            <Text style={styles.cardSub}>
-                              {nudge.subtitle} · due {nudge.overdueBy < 60_000 ? 'now' : formatAgo(nudge.overdueBy)}
-                            </Text>
-                          </View>
-                          {nudge.overdueBy >= LATE_MS && (
-                            <View style={styles.latePill}>
-                              <Icon name="clock" size={13} color={amber.warnInk} strokeWidth={2.2} />
-                              <Text style={styles.lateText}>
-                                {gentleLate(Math.floor(nudge.overdueBy / 60_000)).replace(/^./, (c) => c.toUpperCase())}
+                    {group.items.map((nudge) => {
+                      const late = nudge.overdueBy >= LATE_MS;
+                      return (
+                        <Card key={nudge.key} padded style={[styles.card, late && styles.cardLate]}>
+                          <View style={styles.cardHeader}>
+                            <View style={[styles.cardIcon, late && styles.cardIconLate]}>
+                              <Icon
+                                name={KIND_ICON[nudge.kind]}
+                                size={18}
+                                color={late ? warn.ink : accent.ink}
+                                strokeWidth={1.8}
+                              />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.cardTitle}>{nudge.title}</Text>
+                              <Text style={styles.cardSub}>
+                                {nudge.subtitle} · due {nudge.overdueBy < 60_000 ? 'now' : formatAgo(nudge.overdueBy)}
                               </Text>
                             </View>
-                          )}
-                        </View>
-                        <NudgeActionButtons
-                          nudge={nudge}
-                          onYes={onYes}
-                          onNotYet={onNotYet}
-                          onSnooze={onSnooze}
-                        />
-                      </View>
-                    ))}
+                            {late && (
+                              <View style={styles.latePill}>
+                                <Icon name="clock" size={12} color={warn.ink} strokeWidth={1.8} />
+                                <Text style={styles.lateText}>
+                                  {gentleLate(Math.floor(nudge.overdueBy / 60_000)).replace(/^./, (c) => c.toUpperCase())}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                          <NudgeActionButtons
+                            nudge={nudge}
+                            onYes={onYes}
+                            onNotYet={onNotYet}
+                            onSnooze={onSnooze}
+                          />
+                        </Card>
+                      );
+                    })}
                   </View>
                 );
               })}
@@ -173,44 +184,47 @@ export default function NotificationsScreen() {
 
           {scheduled.length > 0 && (
             <>
-              <SectionLabel style={{ marginTop: 14 }}>Upcoming reminders</SectionLabel>
-              {scheduled.map((s) => (
-                <View key={s.id} style={styles.row}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.rowTitle}>{s.title}</Text>
-                    {!!s.body && <Text style={styles.rowSub}>{s.body}</Text>}
+              <SectionLabel style={{ marginTop: 18 }}>Upcoming reminders</SectionLabel>
+              <Card>
+                {scheduled.map((s, i) => (
+                  <View key={s.id} style={[styles.row, i < scheduled.length - 1 && styles.rowDivider]}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.rowTitle}>{s.title}</Text>
+                      {!!s.body && <Text style={styles.rowSub}>{s.body}</Text>}
+                    </View>
+                    <View style={styles.whenBadge}>
+                      <Text style={styles.whenText}>{whenLabel(s.fireAt, now)}</Text>
+                      <Text style={styles.whenSub}>{formatTimeUntil(s.fireAt, now)}</Text>
+                    </View>
                   </View>
-                  <View style={styles.whenBadge}>
-                    <Text style={styles.whenText}>{whenLabel(s.fireAt, now)}</Text>
-                    <Text style={styles.whenSub}>{formatTimeUntil(s.fireAt, now)}</Text>
-                  </View>
-                </View>
-              ))}
+                ))}
+              </Card>
             </>
           )}
         </ScrollView>
       )}
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: surface.app },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 12,
     paddingHorizontal: 20,
     paddingTop: 10,
     marginBottom: 18,
   },
-  title: { fontSize: 23, fontFamily: fonts.extraBold, color: ink.primary, letterSpacing: -0.6 },
-  headerSub: { fontSize: 13, fontFamily: fonts.medium, color: ink.muted, marginTop: 1 },
+  title: { fontSize: 22, fontFamily: fonts.medium, color: ink.primary, letterSpacing: -0.7 },
+  headerSub: { fontSize: 13, fontFamily: fonts.regular, color: ink.muted, marginTop: 2 },
   closeBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: surface.chip,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: glass.strong,
+    borderWidth: 1,
+    borderColor: glass.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -221,76 +235,76 @@ const styles = StyleSheet.create({
 
   group: { marginBottom: 8 },
   petRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10, marginTop: 4 },
-  petAvatar: { borderWidth: 2, borderColor: '#ffffff' },
-  petName: { fontSize: 15, fontFamily: fonts.bold, color: ink.primary },
+  petAvatar: { backgroundColor: accent.soft, borderWidth: 1, borderColor: accent.line },
+  petName: { fontSize: 15, fontFamily: fonts.medium, letterSpacing: -0.25, color: ink.primary },
   countBadge: {
     minWidth: 22,
     height: 22,
-    paddingHorizontal: 6,
-    borderRadius: 11,
-    backgroundColor: surface.chip,
+    paddingHorizontal: 7,
+    borderRadius: radius.pill,
+    backgroundColor: accent.soft,
+    borderWidth: 1,
+    borderColor: accent.line,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  countText: { fontSize: 11.5, fontFamily: fonts.bold, color: ink.muted },
+  countText: { fontSize: 10.5, fontFamily: fonts.mono, color: accent.ink },
 
-  card: {
-    backgroundColor: surface.card,
-    borderRadius: radius.card,
-    padding: 16,
-    marginBottom: 12,
-    ...shadow.card,
-  },
+  card: { marginBottom: 10 },
+  cardLate: { borderColor: warn.line },
   cardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 14 },
   cardIcon: {
-    width: 42,
-    height: 42,
+    width: 34,
+    height: 34,
     borderRadius: radius.iconTile,
-    backgroundColor: amber.warnBg,
+    backgroundColor: accent.soft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardTitle: { fontSize: 15.5, fontFamily: fonts.bold, color: ink.primary, marginBottom: 2 },
-  cardSub: { fontSize: 12.5, fontFamily: fonts.medium, color: ink.muted, lineHeight: 17 },
+  cardIconLate: { backgroundColor: warn.soft },
+  cardTitle: { fontSize: 15, fontFamily: fonts.medium, letterSpacing: -0.2, color: ink.primary, marginBottom: 2 },
+  cardSub: { fontSize: 12.5, fontFamily: fonts.regular, color: ink.muted, lineHeight: 17 },
   latePill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: amber.warnBg,
-    borderRadius: 999,
-    paddingVertical: 4,
-    paddingHorizontal: 9,
+    height: 22,
+    backgroundColor: warn.soft,
+    borderWidth: 1,
+    borderColor: warn.line,
+    borderRadius: radius.pill,
+    paddingHorizontal: 8,
   },
-  lateText: { fontSize: 11.5, fontFamily: fonts.bold, color: amber.warnInk },
+  lateText: { fontSize: 10.5, fontFamily: fonts.mono, color: warn.ink },
 
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: surface.card,
-    borderRadius: radius.card,
-    padding: 14,
-    marginBottom: 8,
-    ...shadow.sm,
+    minHeight: 56,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
   },
-  rowTitle: { fontSize: 14, fontFamily: fonts.bold, color: ink.primary },
-  rowSub: { fontSize: 12, fontFamily: fonts.medium, color: ink.muted, marginTop: 2 },
+  rowDivider: { borderBottomWidth: 1, borderBottomColor: glass.border },
+  rowTitle: { fontSize: 14, fontFamily: fonts.medium, color: ink.primary },
+  rowSub: { fontSize: 12, fontFamily: fonts.regular, color: ink.muted, marginTop: 2 },
   whenBadge: { alignItems: 'flex-end' },
-  whenText: { fontSize: 12.5, fontFamily: fonts.bold, color: ink.primary },
-  whenSub: { fontSize: 11.5, color: ink.muted, marginTop: 2 },
+  whenText: { fontSize: 13, fontFamily: fonts.mono, color: ink.primary },
+  whenSub: { fontSize: 11, fontFamily: fonts.monoRegular, color: ink.muted, marginTop: 2 },
 
   // No negative marginTop: it would pull this full-height view up over the title row and (on web)
   // swallow taps on the ✕ close button — which is exactly why closing failed only when empty.
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 8 },
+  empty: { flex: 1, justifyContent: 'center', paddingHorizontal: 20, paddingBottom: 60 },
+  emptyCard: { alignItems: 'center', paddingVertical: 24, paddingHorizontal: 20 },
   emptyIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: green.tint,
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: accent.soft,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
+    marginBottom: 12,
   },
-  emptyTitle: { fontSize: 17, fontFamily: fonts.extraBold, color: ink.primary },
-  emptyBody: { fontSize: 13, fontFamily: fonts.medium, color: ink.muted, textAlign: 'center', lineHeight: 19 },
+  emptyTitle: { fontSize: 15, fontFamily: fonts.medium, letterSpacing: -0.2, color: ink.primary, marginBottom: 4 },
+  emptyBody: { fontSize: 13, fontFamily: fonts.regular, color: ink.muted, textAlign: 'center', lineHeight: 19.5 },
 });

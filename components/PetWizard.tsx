@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { surface, ink, line, green, terracotta, radius, shadow } from '../theme/colors';
+import { accent, danger, glass, ink, radius } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { Icon } from './Icon';
 import { Card, SectionLabel } from './ui';
@@ -107,6 +107,7 @@ export function PetWizard({
     })),
   );
   const [errors, setErrors] = useState<FormErrors>({});
+  const [nameFocused, setNameFocused] = useState(false);
 
   const petName = name.trim() || (isEditing ? editingPet.name : 'your pet');
 
@@ -185,30 +186,32 @@ export function PetWizard({
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      {/* Header */}
+      {/* Header (ph-bar): close/back · title · mono step count */}
       <View style={styles.header}>
         <Pressable
-          style={({ pressed }) => [styles.closeBtn, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}
           onPress={onClose}
           role="button"
           aria-label={closeIcon === 'close' ? 'Close' : 'Back'}
           hitSlop={8}
         >
-          <Icon name={closeIcon} size={18} color={ink.primary} strokeWidth={2.2} />
+          <Icon name={closeIcon} size={18} color={ink.primary} strokeWidth={1.8} />
         </Pressable>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>{isEditing ? `Edit ${editingPet.name}` : 'Welcome a new pet'}</Text>
-          <Text style={styles.headerSub}>
+        <View style={styles.headerText}>
+          <Text style={styles.headerTitle} role="heading" numberOfLines={1}>
+            {isEditing ? `Edit ${editingPet.name}` : 'Welcome a new pet'}
+          </Text>
+          <Text style={styles.headerSub} numberOfLines={2}>
             {isEditing ? 'Change anything, then save.' : 'Three quick steps. Only the name is needed.'}
           </Text>
         </View>
+        <Text style={styles.stepCount} aria-label={`Step ${stepIndex + 1} of ${STEPS.length}`}>
+          {stepIndex + 1}/{STEPS.length}
+        </Text>
       </View>
 
-      {/* Step bar */}
+      {/* Step bar: thin progress segments + mono step labels (each label jumps to its step). */}
       <View style={styles.stepBar}>
-        <Text style={styles.stepCount}>
-          Step {stepIndex + 1} of {STEPS.length}
-        </Text>
         <View style={styles.bars}>
           {STEPS.map((s, i) => (
             <View key={s.key} style={[styles.bar, i <= stepIndex && styles.barOn]} />
@@ -220,15 +223,15 @@ export function PetWizard({
             return (
               <Pressable
                 key={s.key}
-                style={styles.stepLabel}
+                style={[
+                  styles.stepLabel,
+                  i === 0 ? styles.stepLabelStart : i === STEPS.length - 1 ? styles.stepLabelEnd : null,
+                ]}
                 onPress={() => goTo(s.key)}
                 role="tab"
                 aria-selected={active}
                 aria-label={`Step ${i + 1}: ${s.label}`}
               >
-                <View style={[styles.stepNum, active && styles.stepNumOn]}>
-                  <Text style={[styles.stepNumText, active && styles.stepNumTextOn]}>{i + 1}</Text>
-                </View>
                 <Text style={[styles.stepLabelText, active && styles.stepLabelTextOn]}>{s.label}</Text>
               </Pressable>
             );
@@ -242,7 +245,7 @@ export function PetWizard({
             {/* Photo */}
             <View style={styles.photoWrap}>
               <View style={styles.photoRing}>
-                <View style={styles.photoCircle}>
+                <View style={[styles.photoCircle, displayPhoto ? styles.photoCircleSet : null]}>
                   {displayPhoto ? (
                     <Image source={{ uri: displayPhoto }} style={styles.photoImage} />
                   ) : (
@@ -256,7 +259,7 @@ export function PetWizard({
                   aria-label={displayPhoto ? 'Change photo' : 'Add a photo'}
                   hitSlop={6}
                 >
-                  <Icon name="camera" size={18} color="#ffffff" strokeWidth={2} />
+                  <Icon name="camera" size={15} color={accent.ink} strokeWidth={1.8} />
                 </Pressable>
               </View>
               <Text style={styles.sayHello}>{name.trim() ? `Say hello to ${name.trim()}` : 'Say hello'}</Text>
@@ -267,11 +270,12 @@ export function PetWizard({
                   role="button"
                   aria-label={displayPhoto ? 'Change photo' : 'Add a photo'}
                 >
-                  <Icon name="camera" size={17} color={green.primary} strokeWidth={2} />
+                  <Icon name="camera" size={16} color={accent.ink} strokeWidth={1.8} />
                   <Text style={styles.photoBtnText}>{displayPhoto ? 'Change photo' : 'Add a photo'}</Text>
                 </Pressable>
                 {displayPhoto ? (
                   <Pressable
+                    style={({ pressed }) => [styles.removePhotoBtn, pressed && styles.pressed]}
                     onPress={() => {
                       setPhotoUri(null);
                       setPhotoTouched(true);
@@ -296,7 +300,9 @@ export function PetWizard({
               }}
               placeholder="e.g. Biscuit"
               placeholderTextColor={ink.placeholder}
-              style={[styles.input, errors.name ? styles.inputError : null]}
+              onFocus={() => setNameFocused(true)}
+              onBlur={() => setNameFocused(false)}
+              style={[styles.input, nameFocused && styles.inputFocused, errors.name ? styles.inputError : null]}
               aria-label="Pet name"
             />
             {errors.name ? <Text style={styles.errorText}>{errors.name}</Text> : null}
@@ -319,14 +325,16 @@ export function PetWizard({
                   >
                     <Text style={styles.kindEmoji}>{emoji}</Text>
                     <Text style={[styles.kindText, selected && styles.kindTextOn]}>{AVATAR_LABELS[emoji]}</Text>
-                    {selected && <Icon name="check" size={14} color={green.primary} strokeWidth={2.6} />}
+                    {selected && <Icon name="check" size={14} color={accent.ink} strokeWidth={2} />}
                   </Pressable>
                 );
               })}
             </View>
 
             {/* Breed */}
-            <Text style={[styles.fieldLabel, styles.sectionSpacer]}>Breed (optional)</Text>
+            <Text style={[styles.fieldLabel, styles.sectionSpacer]}>
+              Breed <Text style={styles.fieldLabelSoft}>(optional)</Text>
+            </Text>
             <BreedAutocomplete value={breed} onChange={setBreed} placeholder="e.g. Beagle" species={AVATAR_LABELS[avatar]} />
           </>
         )}
@@ -351,12 +359,12 @@ export function PetWizard({
                     aria-label={`Remove meal time ${i + 1}`}
                     hitSlop={8}
                   >
-                    <Icon name="close" size={14} color={ink.faint2} strokeWidth={2.2} />
+                    <Icon name="close" size={14} color={ink.muted} strokeWidth={1.8} />
                   </Pressable>
                 </View>
               ))}
               {feedRows.length < MAX_FEED_TIMES && (
-                <DashedButton
+                <AddButton
                   label="Add a meal time"
                   onPress={() => setFeedRows((prev) => [...prev, { rowId: makeRowId(), time: '' }])}
                 />
@@ -398,18 +406,17 @@ export function PetWizard({
           <>
             <SectionLabel sub={`Only if ${petName} takes regular medicine. Skip it otherwise.`}>Daily meds</SectionLabel>
             {medications.length > 0 && (
-              <Card padded style={{ gap: 10, marginBottom: 10 }}>
+              <Card padded style={{ gap: 10, marginBottom: 12 }}>
                 {medications.map((med) => (
                   <View key={med.rowId} style={styles.medRow}>
-                    <TextInput
+                    <GlassInput
                       value={med.name}
                       onChangeText={(v) =>
                         setMedications((prev) => prev.map((m) => (m.rowId === med.rowId ? { ...m, name: v } : m)))
                       }
                       placeholder="Medicine name"
-                      placeholderTextColor={ink.placeholder}
                       style={styles.medNameInput}
-                      aria-label="Medicine name"
+                      ariaLabel="Medicine name"
                     />
                     <View style={{ flex: 1 }}>
                       <TimePickerField
@@ -427,14 +434,14 @@ export function PetWizard({
                       aria-label={med.name.trim() ? `Remove ${med.name.trim()}` : 'Remove medication'}
                       hitSlop={8}
                     >
-                      <Icon name="close" size={14} color={ink.faint2} strokeWidth={2.2} />
+                      <Icon name="close" size={14} color={ink.muted} strokeWidth={1.8} />
                     </Pressable>
                   </View>
                 ))}
               </Card>
             )}
             {medications.length < MAX_MEDICATIONS && (
-              <DashedButton
+              <AddButton
                 label="Add a medicine"
                 onPress={() => setMedications((prev) => [...prev, { rowId: makeRowId(), name: '', time: '' }])}
               />
@@ -452,7 +459,7 @@ export function PetWizard({
             role="button"
             aria-label="Previous step"
           >
-            <Icon name="chevronLeft" size={20} color={green.primary} strokeWidth={2.3} />
+            <Icon name="chevronLeft" size={19} color={ink.primary} strokeWidth={1.8} />
           </Pressable>
         )}
         {isEditing && !isLast ? (
@@ -473,13 +480,15 @@ export function PetWizard({
         >
           {isLast || isEditing ? (
             <>
-              <Icon name="check" size={18} color="#ffffff" strokeWidth={2.6} />
-              <Text style={styles.primaryText}>{isEditing ? 'Save changes' : `Save ${name.trim() || 'pet'}`}</Text>
+              <Icon name="check" size={17} color={accent.onAccent} strokeWidth={2} />
+              <Text style={styles.primaryText} numberOfLines={1}>
+                {isEditing ? 'Save changes' : `Save ${name.trim() || 'pet'}`}
+              </Text>
             </>
           ) : (
             <>
               <Text style={styles.primaryText}>Next: {next.label}</Text>
-              <Icon name="arrowRight" size={18} color="#ffffff" strokeWidth={2.4} />
+              <Icon name="arrowRight" size={17} color={accent.onAccent} strokeWidth={1.9} />
             </>
           )}
         </Pressable>
@@ -488,12 +497,42 @@ export function PetWizard({
   );
 }
 
-function DashedButton({ label, onPress }: { label: string; onPress: () => void }) {
+/** Ghost pill with a plus — "Add a meal time", "Add a medicine". */
+function AddButton({ label, onPress }: { label: string; onPress: () => void }) {
   return (
-    <Pressable style={({ pressed }) => [styles.dashed, pressed && styles.pressed]} onPress={onPress} role="button" aria-label={label}>
-      <Icon name="plus" size={15} color={green.primary} strokeWidth={2.4} />
-      <Text style={styles.dashedText}>{label}</Text>
+    <Pressable style={({ pressed }) => [styles.addBtn, pressed && styles.pressed]} onPress={onPress} role="button" aria-label={label}>
+      <Icon name="plus" size={15} color={accent.ink} strokeWidth={1.9} />
+      <Text style={styles.addBtnText}>{label}</Text>
     </Pressable>
+  );
+}
+
+/** Glass text input that shows the accent outline while focused. */
+function GlassInput({
+  value,
+  onChangeText,
+  placeholder,
+  style,
+  ariaLabel,
+}: {
+  value: string;
+  onChangeText: (v: string) => void;
+  placeholder?: string;
+  style?: object;
+  ariaLabel?: string;
+}) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <TextInput
+      value={value}
+      onChangeText={onChangeText}
+      placeholder={placeholder}
+      placeholderTextColor={ink.placeholder}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      style={[styles.input, style, focused && styles.inputFocused]}
+      aria-label={ariaLabel}
+    />
   );
 }
 
@@ -510,9 +549,10 @@ function HoldTile({
   placeholder?: string;
   error?: string;
 }) {
+  const [focused, setFocused] = useState(false);
   return (
     <View style={{ flex: 1 }}>
-      <View style={[styles.holdTile, error ? styles.inputError : null]}>
+      <View style={[styles.holdTile, focused && styles.inputFocused, error ? styles.inputError : null]}>
         <Text style={styles.holdLabel}>{label}</Text>
         <TextInput
           value={value}
@@ -520,6 +560,8 @@ function HoldTile({
           placeholder={placeholder}
           placeholderTextColor={ink.placeholder}
           keyboardType="numeric"
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           style={styles.holdInput}
           aria-label={label}
         />
@@ -529,212 +571,210 @@ function HoldTile({
   );
 }
 
+const PRIMARY_SHADOW = {
+  shadowColor: accent.primary,
+  shadowOffset: { width: 0, height: 8 },
+  shadowOpacity: 0.3,
+  shadowRadius: 14,
+  elevation: 4,
+} as const;
+
 const styles = StyleSheet.create({
   pressed: { opacity: 0.7 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 12 },
-  closeBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: surface.chip,
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 6, paddingBottom: 10 },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: glass.border,
+    backgroundColor: glass.fill,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerTitle: { fontSize: 23, fontFamily: fonts.extraBold, color: ink.primary, letterSpacing: -0.6 },
-  headerSub: { fontSize: 13, fontFamily: fonts.medium, color: ink.muted, marginTop: 1 },
+  headerText: { flex: 1 },
+  headerTitle: { fontSize: 20, fontFamily: fonts.medium, color: ink.primary, letterSpacing: -0.6 },
+  headerSub: { fontSize: 12.5, fontFamily: fonts.regular, color: ink.muted, marginTop: 2 },
+  stepCount: { fontSize: 11.5, fontFamily: fonts.monoRegular, color: ink.muted, minWidth: 30, textAlign: 'right' },
 
-  stepBar: { paddingHorizontal: 20, paddingBottom: 6 },
-  stepCount: { fontSize: 12.5, fontFamily: fonts.semiBold, color: ink.muted },
-  bars: { flexDirection: 'row', gap: 8, marginTop: 8 },
-  bar: { flex: 1, height: 5, borderRadius: 3, backgroundColor: '#ece6d9' },
-  barOn: { backgroundColor: green.mid },
-  stepLabels: { flexDirection: 'row', marginTop: 10 },
-  stepLabel: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 7 },
-  stepNum: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: surface.chip,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepNumOn: { backgroundColor: '#ffffff', borderWidth: 1.5, borderColor: green.mid },
-  stepNumText: { fontSize: 11, fontFamily: fonts.bold, color: ink.muted },
-  stepNumTextOn: { color: green.primary },
-  stepLabelText: { fontSize: 13, fontFamily: fonts.semiBold, color: ink.muted },
-  stepLabelTextOn: { fontFamily: fonts.bold, color: green.primary },
+  stepBar: { paddingHorizontal: 18, paddingBottom: 4 },
+  bars: { flexDirection: 'row', gap: 6, marginTop: 4 },
+  bar: { flex: 1, height: 3, borderRadius: 3, backgroundColor: glass.border2 },
+  barOn: { backgroundColor: accent.primary },
+  stepLabels: { flexDirection: 'row', marginTop: 2 },
+  stepLabel: { flex: 1, minHeight: 34, justifyContent: 'center', alignItems: 'center' },
+  stepLabelStart: { alignItems: 'flex-start' },
+  stepLabelEnd: { alignItems: 'flex-end' },
+  stepLabelText: { fontSize: 11.5, fontFamily: fonts.monoRegular, color: ink.muted },
+  stepLabelTextOn: { fontFamily: fonts.mono, color: ink.primary },
 
-  content: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 28 },
-  sectionSpacer: { marginTop: 22 },
+  content: { paddingHorizontal: 18, paddingTop: 12, paddingBottom: 28 },
+  sectionSpacer: { marginTop: 24 },
 
-  photoWrap: { alignItems: 'center', marginBottom: 6 },
-  photoRing: {
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadow.card,
-  },
+  photoWrap: { alignItems: 'center', marginBottom: 4 },
+  photoRing: { width: 104, height: 104, alignItems: 'center', justifyContent: 'center' },
   photoCircle: {
-    width: 136,
-    height: 136,
-    borderRadius: 68,
-    backgroundColor: green.tint,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: accent.soft,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: accent.line,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  photoImage: { width: 136, height: 136, borderRadius: 68 },
-  photoEmoji: { fontSize: 66 },
+  photoCircleSet: { borderStyle: 'solid', borderColor: glass.border },
+  photoImage: { width: 96, height: 96, borderRadius: 48 },
+  photoEmoji: { fontSize: 44 },
   cameraBadge: {
     position: 'absolute',
-    right: 2,
-    bottom: 8,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: green.mid,
-    borderWidth: 3,
-    borderColor: '#ffffff',
+    right: 0,
+    bottom: 2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: glass.strong,
+    borderWidth: 1,
+    borderColor: glass.border2,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sayHello: { fontSize: 20, fontFamily: fonts.extraBold, color: ink.primary, marginTop: 14, letterSpacing: -0.4 },
-  photoActions: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 12 },
+  sayHello: { fontSize: 19, fontFamily: fonts.medium, color: ink.primary, marginTop: 12, letterSpacing: -0.5 },
+  photoActions: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 },
   photoBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: 11,
-    paddingHorizontal: 18,
-    borderRadius: radius.tile,
-    backgroundColor: green.tint,
+    gap: 7,
+    minHeight: 36,
+    paddingHorizontal: 14,
+    borderRadius: radius.pill,
+    backgroundColor: accent.soft,
+    borderWidth: 1,
+    borderColor: accent.line,
   },
-  photoBtnText: { fontSize: 14, fontFamily: fonts.bold, color: green.primary },
-  removePhotoText: { fontSize: 13, fontFamily: fonts.bold, color: terracotta.primary },
+  photoBtnText: { fontSize: 13, fontFamily: fonts.medium, color: accent.ink },
+  removePhotoBtn: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 6 },
+  removePhotoText: { fontSize: 13, fontFamily: fonts.medium, color: danger.primary },
 
-  fieldLabel: { fontSize: 15, fontFamily: fonts.bold, color: ink.primary, marginTop: 18, marginBottom: 8 },
+  fieldLabel: { fontSize: 15, fontFamily: fonts.medium, color: ink.primary, letterSpacing: -0.25, marginTop: 20, marginBottom: 8 },
+  fieldLabelSoft: { fontFamily: fonts.regular, color: ink.muted },
   input: {
-    backgroundColor: surface.card,
-    borderWidth: 1.5,
-    borderColor: line.border,
+    minHeight: 48,
+    backgroundColor: glass.strong,
+    borderWidth: 1,
+    borderColor: glass.border,
     borderRadius: radius.tile,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    fontFamily: fonts.semiBold,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    fontFamily: fonts.regular,
     fontSize: 15,
     color: ink.primary,
   },
-  inputError: { borderColor: terracotta.primary, borderWidth: 1.5 },
-  errorText: { fontSize: 12, fontFamily: fonts.semiBold, color: terracotta.primary, marginTop: 5, marginLeft: 4 },
+  inputFocused: { borderColor: accent.line },
+  inputError: { borderColor: danger.primary },
+  errorText: { fontSize: 12, fontFamily: fonts.regular, color: danger.primary, marginTop: 6, marginLeft: 2 },
 
-  kindGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  kindGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   kindChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: radius.tile,
-    borderWidth: 1.5,
-    borderColor: line.border,
-    backgroundColor: surface.card,
+    minHeight: 38,
+    paddingHorizontal: 13,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: glass.border,
+    backgroundColor: glass.fill,
   },
-  kindChipOn: { backgroundColor: green.tint, borderColor: green.mid },
-  kindEmoji: { fontSize: 18 },
-  kindText: { fontSize: 14, fontFamily: fonts.bold, color: ink.primary },
-  kindTextOn: { color: green.primary },
+  kindChipOn: { backgroundColor: accent.soft, borderColor: accent.line },
+  kindEmoji: { fontSize: 16 },
+  kindText: { fontSize: 13, fontFamily: fonts.regular, color: ink.primary },
+  kindTextOn: { fontFamily: fonts.medium, color: accent.ink },
 
   feedRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-end', marginBottom: 10 },
   removeChip: {
-    width: 38,
-    height: 44,
-    borderRadius: radius.tile,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: line.dashed,
+    width: 34,
+    height: 34,
+    marginBottom: 5,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: glass.border,
+    backgroundColor: glass.fill,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dashed: {
+  addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    alignSelf: 'flex-start',
     gap: 7,
-    paddingVertical: 13,
-    borderRadius: radius.tile,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: line.dashed,
+    minHeight: 36,
+    paddingHorizontal: 13,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: glass.border2,
+    backgroundColor: 'transparent',
   },
-  dashedText: { fontSize: 13.5, fontFamily: fonts.bold, color: green.primary },
+  addBtnText: { fontSize: 13, fontFamily: fonts.medium, color: accent.ink },
 
   holdRow: { flexDirection: 'row', gap: 10 },
   holdTile: {
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: radius.tile,
-    backgroundColor: surface.card,
-    borderWidth: 1.5,
-    borderColor: line.border,
+    backgroundColor: glass.strong,
+    borderWidth: 1,
+    borderColor: glass.border,
   },
-  holdLabel: { fontSize: 12, fontFamily: fonts.semiBold, color: ink.muted },
-  holdInput: { fontFamily: fonts.bold, fontSize: 16, color: ink.primary, padding: 0, marginTop: 4 },
+  holdLabel: { fontSize: 12, fontFamily: fonts.regular, color: ink.muted },
+  holdInput: { fontFamily: fonts.mono, fontSize: 17, color: ink.primary, padding: 0, marginTop: 4 },
 
   medRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  medNameInput: {
-    flex: 1.4,
-    backgroundColor: surface.field,
-    borderRadius: radius.tile,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    fontFamily: fonts.semiBold,
-    fontSize: 14,
-    color: ink.primary,
-  },
+  medNameInput: { flex: 1.4, minHeight: 44, paddingVertical: 10, paddingHorizontal: 12, fontSize: 14 },
 
   footer: {
     flexDirection: 'row',
     gap: 10,
-    paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingHorizontal: 18,
+    paddingTop: 10,
     paddingBottom: 12,
-    borderTopWidth: 1,
-    borderTopColor: line.border,
-    backgroundColor: surface.app,
   },
   backBtn: {
-    width: 54,
-    borderRadius: radius.card,
-    borderWidth: 1.5,
-    borderColor: line.border,
-    backgroundColor: surface.card,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: glass.border2,
+    backgroundColor: glass.strong,
     alignItems: 'center',
     justifyContent: 'center',
   },
   secondaryBtn: {
-    paddingHorizontal: 18,
-    borderRadius: radius.card,
-    borderWidth: 1.5,
-    borderColor: line.border,
-    backgroundColor: surface.card,
+    minHeight: 50,
+    paddingHorizontal: 20,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: glass.border2,
+    backgroundColor: glass.strong,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  secondaryBtnText: { fontSize: 15, fontFamily: fonts.bold, color: green.primary },
+  secondaryBtnText: { fontSize: 15, fontFamily: fonts.medium, color: ink.primary },
   primaryBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingVertical: 16,
-    borderRadius: radius.card,
-    backgroundColor: green.mid,
-    ...shadow.fab,
+    minHeight: 50,
+    paddingHorizontal: 16,
+    borderRadius: radius.pill,
+    backgroundColor: accent.primary,
+    ...PRIMARY_SHADOW,
   },
-  primaryPressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
-  primaryText: { fontSize: 16, fontFamily: fonts.bold, color: '#ffffff' },
+  primaryPressed: { opacity: 0.92, transform: [{ scale: 0.98 }] },
+  primaryText: { flexShrink: 1, fontSize: 15, fontFamily: fonts.medium, color: accent.onAccent },
 });

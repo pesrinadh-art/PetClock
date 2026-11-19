@@ -1,7 +1,7 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { possessive } from '../lib/petVoice';
 import { router } from 'expo-router';
-import { amber, category, green, ink, logTint, radius, shadow, surface, terracotta } from '../theme/colors';
+import { accent, glass, ink, radius, shadow, surface, warn } from '../theme/colors';
 import { gentleLate } from '../lib/petVoice';
 import { fonts } from '../theme/fonts';
 import { SectionLabel } from './ui';
@@ -19,35 +19,38 @@ import {
 import { useLogs } from '../context/LogsContext';
 import { usePets } from '../context/PetsContext';
 
-/** Drawn-icon + tint per upcoming-item type (mirrors Timeline's TYPE_STYLE). */
-const ITEM_STYLE: Record<UpcomingItem['type'], { icon: IconName; bg: string; fg: string }> = {
-  pee: { icon: 'drop', bg: logTint.peeBg, fg: logTint.peeInk },
-  poo: { icon: 'poo', bg: logTint.pooBg, fg: logTint.pooInk },
-  food: { icon: 'bowl', bg: terracotta.tint, fg: terracotta.primary },
-  medication: { icon: 'pill', bg: category.medBg, fg: category.medInk },
+/** Line icon per upcoming-item type (one accent; late items switch to warn). */
+const ITEM_ICON: Record<UpcomingItem['type'], IconName> = {
+  pee: 'drop',
+  poo: 'poo',
+  food: 'bowl',
+  medication: 'pill',
 };
 
 /**
- * One upcoming reminder as its own card: tinted drawn-icon tile, label, time
- * range, and a relative "when" sub. A late item reads gently ("a little late ·
- * 20m", "running late · 2h") with a soft amber accent — never red "Overdue".
+ * One upcoming reminder as a glass strip item (design v2 `.strip-item`): a line icon, the
+ * time range in Geist Mono, the label, and a relative "when" sub. A late item reads gently
+ * ("a little late · 20m", "running late · 2h") in warn — never red "Overdue".
  */
 function UpcomingCard({ item, now }: { item: UpcomingItem; now: Date }) {
-  const s = ITEM_STYLE[item.type];
   const overdue = item.kind === 'overdue';
   const sub = overdue
     ? `${gentleLate(Math.floor(item.overdueBy / 60_000))} · ${formatTimeUntilCompact(new Date(now.getTime() + item.overdueBy), now)}`
     : formatTimeUntil(item.timeStart, now);
   return (
-    <View style={[styles.card, overdue && styles.cardOverdue]}>
-      <View style={[styles.typeTile, { backgroundColor: overdue ? amber.warnBg : s.bg }]}>
-        <Icon name={s.icon} size={16} color={overdue ? amber.warnInk : s.fg} strokeWidth={2} />
-      </View>
-      <Text numberOfLines={1} style={styles.cardLabel}>
-        {item.label}
-      </Text>
+    <View style={styles.card}>
+      <Icon
+        name={ITEM_ICON[item.type]}
+        size={18}
+        color={overdue ? warn.ink : accent.ink}
+        strokeWidth={1.8}
+        style={styles.cardIcon}
+      />
       <Text numberOfLines={1} style={[styles.time, overdue && styles.timeOverdue]}>
         {formatTimeRange(item.timeStart, item.timeEnd)}
+      </Text>
+      <Text numberOfLines={1} style={styles.cardLabel}>
+        {item.label}
       </Text>
       <Text numberOfLines={1} style={[styles.cardSub, overdue && styles.timeOverdue]}>
         {sub}
@@ -94,23 +97,21 @@ export function UpcomingSection({ pet }: { pet: Pet }) {
         {heading}
         <View style={styles.learnCard}>
           <View style={styles.learnIcon}>
-            <Icon name="sparkle" size={18} color={green.primary} strokeWidth={1.9} />
+            <Icon name="sparkle" size={18} color={accent.ink} strokeWidth={1.8} />
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.learnTitle}>Learning {possessive(pet.name)} rhythm</Text>
-            <Text style={styles.noticeBody}>
-              Day {status.day} of 3. Log a few pees, poos and meals and we'll start predicting the next break.
-            </Text>
-            <Pressable
-              style={({ pressed }) => [styles.noticeLink, pressed && styles.noticePressed]}
-              onPress={editRoutine}
-              role="button"
-              aria-label={`Add ${possessive(pet.name)} schedule now`}
-              hitSlop={4}
-            >
-              <Text style={styles.noticeLinkText}>Add schedule now instead</Text>
-            </Pressable>
-          </View>
+          <Text style={styles.learnTitle}>Learning {possessive(pet.name)} rhythm</Text>
+          <Text style={styles.noticeBody}>
+            Day {status.day} of 3. Log a few pees, poos and meals and we'll start predicting the next break.
+          </Text>
+          <Pressable
+            style={({ pressed }) => [styles.noticeLink, pressed && styles.noticePressed]}
+            onPress={editRoutine}
+            role="button"
+            aria-label={`Add ${possessive(pet.name)} schedule now`}
+            hitSlop={4}
+          >
+            <Text style={styles.noticeLinkText}>Add schedule now instead</Text>
+          </Pressable>
         </View>
         <UpcomingList items={medicationItems} now={now} />
       </View>
@@ -123,9 +124,9 @@ export function UpcomingSection({ pet }: { pet: Pet }) {
         {heading}
         <Pressable onPress={editRoutine} role="button" aria-label={`Set up ${possessive(pet.name)} schedule`}>
           {({ pressed }) => (
-            <View style={[styles.learnCard, pressed && styles.noticePressed]}>
-              <View style={styles.learnIcon}>
-                <Icon name="calendar" size={17} color={green.primary} strokeWidth={2} />
+            <View style={[styles.learnCard, styles.learnRow, pressed && styles.noticePressed]}>
+              <View style={[styles.learnIcon, styles.learnIconInline]}>
+                <Icon name="calendar" size={18} color={accent.ink} strokeWidth={1.8} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.learnTitle}>Set up {possessive(pet.name)} routine</Text>
@@ -133,7 +134,7 @@ export function UpcomingSection({ pet }: { pet: Pet }) {
                   We still don't have feeding & potty info. Fill it in to get real upcoming reminders.
                 </Text>
               </View>
-              <Icon name="chevronRight" size={16} color={green.primary} strokeWidth={2.2} />
+              <Icon name="chevronRight" size={15} color={ink.placeholder} strokeWidth={2} />
             </View>
           )}
         </Pressable>
@@ -161,59 +162,52 @@ export function UpcomingSection({ pet }: { pet: Pet }) {
 }
 
 const styles = StyleSheet.create({
-  section: { marginTop: 24 },
+  section: { marginTop: 26 },
 
-  // "Learning Mochi's rhythm" — green-tint card with a white sparkle tile.
+  // "Learning Mochi's rhythm" — design v2 `.card.glass` with an accent-soft icon tile.
   learnCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    backgroundColor: green.tint,
+    backgroundColor: surface.card,
     borderWidth: 1,
-    borderColor: green.tintBorder,
+    borderColor: glass.border,
     borderRadius: radius.card,
     padding: 16,
-  },
-  learnIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: radius.iconTile,
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  learnTitle: { fontSize: 15, fontFamily: fonts.bold, color: green.primary, marginBottom: 3 },
-
-  // Horizontal strip of individual upcoming cards.
-  strip: { flexGrow: 0, flexShrink: 0, marginHorizontal: -2, marginTop: 10 },
-  stripContent: { gap: 10, paddingVertical: 4, paddingHorizontal: 2 },
-  card: {
-    minWidth: 150,
-    maxWidth: 220,
-    backgroundColor: surface.card,
-    borderRadius: radius.card,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderTopWidth: 3,
-    borderTopColor: 'transparent',
     ...shadow.card,
   },
-  cardOverdue: { borderTopColor: amber.primary },
-  typeTile: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.iconTileSm,
+  learnRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  learnIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: accent.soft,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
-  cardLabel: { fontSize: 13.5, fontFamily: fonts.bold, color: ink.primary, marginBottom: 3 },
-  cardSub: { fontSize: 11.5, fontFamily: fonts.medium, color: ink.muted, marginTop: 2 },
+  learnIconInline: { marginBottom: 0 },
+  learnTitle: { fontSize: 15, fontFamily: fonts.medium, color: ink.primary, letterSpacing: -0.2, marginBottom: 4 },
 
-  time: { fontSize: 13, fontFamily: fonts.extraBold, color: ink.primary },
-  timeOverdue: { color: amber.warnInk },
+  // Horizontal strip of individual upcoming cards.
+  strip: { flexGrow: 0, flexShrink: 0, marginHorizontal: -16, marginTop: 2 },
+  stripContent: { gap: 8, paddingVertical: 4, paddingHorizontal: 16 },
+  card: {
+    minWidth: 128,
+    maxWidth: 220,
+    backgroundColor: surface.card,
+    borderWidth: 1,
+    borderColor: glass.border,
+    borderRadius: radius.tile,
+    paddingVertical: 12,
+    paddingHorizontal: 13,
+    gap: 2,
+  },
+  cardIcon: { marginBottom: 8 },
+  time: { fontSize: 15, fontFamily: fonts.mono, color: ink.primary, letterSpacing: -0.3 },
+  timeOverdue: { color: warn.ink },
+  cardLabel: { fontSize: 12.5, fontFamily: fonts.medium, color: ink.primary },
+  cardSub: { fontSize: 12, fontFamily: fonts.regular, color: ink.muted },
+
   noticePressed: { opacity: 0.8 },
-  noticeBody: { fontSize: 12.5, fontFamily: fonts.medium, color: ink.muted, lineHeight: 18 },
-  noticeLink: { marginTop: 10, alignSelf: 'flex-start' },
-  noticeLinkText: { fontSize: 13, fontFamily: fonts.bold, color: green.primary },
+  noticeBody: { fontSize: 13, fontFamily: fonts.regular, color: ink.muted, lineHeight: 19 },
+  noticeLink: { marginTop: 12, alignSelf: 'flex-start', minHeight: 32, justifyContent: 'center' },
+  noticeLinkText: { fontSize: 13, fontFamily: fonts.medium, color: accent.ink },
 });

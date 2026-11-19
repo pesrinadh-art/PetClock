@@ -1,6 +1,6 @@
 import { Image, StyleSheet, Text, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { colors } from '../theme/colors';
+import { accent } from '../theme/colors';
 import { usePetPhoto } from '../lib/petPhotos';
 
 type Props = {
@@ -16,7 +16,7 @@ type Props = {
 
 /**
  * Presentational pet avatar: shows the device-local photo (round, cropped) when one is set
- * for this pet, otherwise the emoji on a round sagePale circle.
+ * for this pet, otherwise the emoji on a round accent-soft circle.
  *
  * This is a COMPONENT (not a helper) on purpose: `usePetPhoto` is a hook, so screens that
  * render many pets must render one <PetAvatar> per item rather than calling the hook inside a
@@ -43,7 +43,7 @@ export function PetAvatar({ pet, size = 48, emojiSize, style }: Props) {
 
 const styles = StyleSheet.create({
   base: {
-    backgroundColor: colors.sagePale,
+    backgroundColor: accent.soft,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',

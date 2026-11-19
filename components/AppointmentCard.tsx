@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { amber, green, ink, line, radius, shadow, surface, terracotta } from '../theme/colors';
+import { accent, danger, glass, ink, radius, shadow, surface, warn } from '../theme/colors';
 import { fonts } from '../theme/fonts';
-import { Pill } from './ui';
 import { Icon } from './Icon';
 import { AppModal } from './AppModal';
 import { PetAvatar } from './PetAvatar';
@@ -16,10 +15,11 @@ import type { Appointment } from '../data/mockData';
 import { allDayToHasTime } from '../lib/db/models';
 
 /**
- * A visit card (redesign v3): a date tile (SEP / 15 / Tue), the type ("Vaccine") with its icon,
- * the title, a status pill, and "For Peanut" with the pets' avatars. Tapping opens the visit
- * details; the trash icon deletes after a confirm. A visit whose date has passed carries
- * "Needs a new date" plus two quick actions: pick a new date, or mark it done.
+ * A visit card (design v2): a glass panel with an accent-soft date tile (SEP / 15 / Tue in Geist
+ * Mono), the type ("Vaccine") with its line icon, the title, a mono status pill, and "For Peanut"
+ * with the pets' avatars. Tapping opens the visit details; the trash icon deletes after a confirm.
+ * A visit whose date has passed carries "Needs a new date" plus two quick actions: pick a new
+ * date, or mark it done.
  */
 export function AppointmentCard({ appt }: { appt: Appointment }) {
   const { updateAppointment, removeAppointment } = useAppointments();
@@ -30,6 +30,7 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
   const cd = computeCountdown(appt.startsAt);
   const hasTime = allDayToHasTime(appt.allDay);
   const d = new Date(appt.startsAt);
+  const soon = cd.kind === 'soon';
 
   const apptPets = appt.petIds
     .map((id) => pets.find((p) => p.id === id))
@@ -38,6 +39,8 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
   const openDetails = () => router.push({ pathname: '/visit/[id]', params: { id: appt.id } });
   const reschedule = () => router.push({ pathname: '/add-appointment', params: { apptId: appt.id } });
   const markDone = () => updateAppointment(appt.id, { completedAt: new Date().toISOString() });
+
+  const tileInk = overdue ? warn.ink : accent.ink;
 
   return (
     <View style={styles.card}>
@@ -49,36 +52,34 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
         accessibilityHint="Opens the visit details."
       >
         <View style={[styles.dateTile, overdue && styles.dateTileLate]}>
-          <Text style={styles.dateMonth}>{d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase()}</Text>
-          <Text style={styles.dateDay}>{d.getDate()}</Text>
-          <Text style={styles.dateWeekday}>{d.toLocaleDateString('en-US', { weekday: 'short' })}</Text>
+          <Text style={[styles.dateMonth, { color: tileInk }]}>
+            {d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase()}
+          </Text>
+          <Text style={[styles.dateDay, { color: tileInk }]}>{d.getDate()}</Text>
+          <Text style={[styles.dateWeekday, { color: tileInk }]}>
+            {d.toLocaleDateString('en-US', { weekday: 'short' })}
+          </Text>
         </View>
 
         <View style={styles.main}>
           <View style={styles.typeRow}>
-            <Icon name={meta.icon} size={15} color={meta.ink} strokeWidth={2} />
-            <Text style={[styles.typeLabel, { color: meta.ink }]}>{meta.label}</Text>
+            <Icon name={meta.icon} size={14} color={accent.ink} strokeWidth={1.8} />
+            <Text style={styles.typeLabel}>{meta.label}</Text>
           </View>
           <Text numberOfLines={2} style={styles.title}>
             {appt.title}
           </Text>
           {overdue ? (
-            <Pill
-              label="Needs a new date"
-              bg={amber.warnBg}
-              color={amber.warnInk}
-              size="sm"
-              icon={<Icon name="info" size={12} color={amber.warnInk} strokeWidth={2.4} />}
-              style={styles.pill}
-            />
+            <View style={[styles.pill, styles.pillWarn]}>
+              <Icon name="info" size={11} color={warn.ink} strokeWidth={2} />
+              <Text style={[styles.pillText, { color: warn.ink }]}>Needs a new date</Text>
+            </View>
           ) : (
-            <Pill
-              label={hasTime ? `${cd.label} · ${formatApptTime(appt.startsAt)}` : `${cd.label} · All day`}
-              bg={cd.kind === 'soon' ? amber.warnBg : green.tint}
-              color={cd.kind === 'soon' ? amber.warnInk : green.primary}
-              size="sm"
-              style={styles.pill}
-            />
+            <View style={[styles.pill, soon ? styles.pillWarn : styles.pillAccent]}>
+              <Text style={[styles.pillText, { color: soon ? warn.ink : accent.ink }]}>
+                {hasTime ? `${cd.label} · ${formatApptTime(appt.startsAt)}` : `${cd.label} · All day`}
+              </Text>
+            </View>
           )}
         </View>
       </Pressable>
@@ -91,14 +92,14 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
         aria-label={`Delete ${appt.title}`}
         hitSlop={8}
       >
-        <Icon name="trash" size={19} color={ink.primary} strokeWidth={2} />
+        <Icon name="trash" size={17} color={ink.muted} strokeWidth={1.8} />
       </Pressable>
 
       {apptPets.length > 0 && (
         <View style={styles.forRow}>
           <View style={styles.avatars}>
             {apptPets.slice(0, 4).map((p, i) => (
-              <PetAvatar key={p.id} pet={p} size={26} emojiSize={14} style={[styles.forAvatar, i > 0 && { marginLeft: -8 }]} />
+              <PetAvatar key={p.id} pet={p} size={24} emojiSize={13} style={[styles.forAvatar, i > 0 && { marginLeft: -7 }]} />
             ))}
           </View>
           <Text numberOfLines={1} style={styles.forText}>
@@ -115,7 +116,7 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
             role="button"
             aria-label={`Pick a new date for ${appt.title}`}
           >
-            <Icon name="calendar" size={15} color="#ffffff" strokeWidth={2.2} />
+            <Icon name="calendar" size={15} color={ink.onDark} strokeWidth={1.9} />
             <Text style={styles.actionPrimaryText}>Pick a new date</Text>
           </Pressable>
           <Pressable
@@ -124,7 +125,7 @@ export function AppointmentCard({ appt }: { appt: Appointment }) {
             role="button"
             aria-label={`Mark ${appt.title} as done`}
           >
-            <Icon name="check" size={15} color={green.primary} strokeWidth={2.6} />
+            <Icon name="check" size={15} color={ink.primary} strokeWidth={2} />
             <Text style={styles.actionSecondaryText}>Mark as done</Text>
           </Pressable>
         </View>
@@ -167,29 +168,44 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: surface.card,
     borderRadius: radius.card,
-    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: glass.border,
+    marginBottom: 10,
     ...shadow.card,
   },
-  cardPressed: { opacity: 0.85 },
+  cardPressed: { opacity: 0.7 },
   body: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, padding: 16, paddingRight: 48 },
   dateTile: {
-    width: 62,
-    paddingVertical: 10,
+    width: 58,
+    paddingVertical: 9,
     borderRadius: 14,
-    backgroundColor: '#e9f4f1',
+    backgroundColor: accent.soft,
     borderWidth: 1,
-    borderColor: '#cfe5de',
+    borderColor: accent.line,
     alignItems: 'center',
   },
-  dateTileLate: { backgroundColor: '#eef4f2' },
-  dateMonth: { fontSize: 11, fontFamily: fonts.bold, color: green.primary, letterSpacing: 1 },
-  dateDay: { fontSize: 25, fontFamily: fonts.extraBold, color: green.primary, lineHeight: 30 },
-  dateWeekday: { fontSize: 11.5, fontFamily: fonts.semiBold, color: green.primary },
+  dateTileLate: { backgroundColor: warn.soft, borderColor: warn.line },
+  dateMonth: { fontSize: 10.5, fontFamily: fonts.mono, letterSpacing: 0.8 },
+  dateDay: { fontSize: 22, fontFamily: fonts.mono, lineHeight: 28, letterSpacing: -0.5 },
+  dateWeekday: { fontSize: 11, fontFamily: fonts.monoRegular },
   main: { flex: 1 },
   typeRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  typeLabel: { fontSize: 12.5, fontFamily: fonts.bold },
-  title: { fontSize: 17, fontFamily: fonts.extraBold, color: ink.primary, letterSpacing: -0.3, marginTop: 3 },
-  pill: { alignSelf: 'flex-start', marginTop: 8 },
+  typeLabel: { fontSize: 12, fontFamily: fonts.regular, color: accent.ink },
+  title: { fontSize: 16, fontFamily: fonts.medium, color: ink.primary, letterSpacing: -0.35, marginTop: 3, lineHeight: 21 },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    alignSelf: 'flex-start',
+    height: 24,
+    paddingHorizontal: 9,
+    marginTop: 8,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+  },
+  pillAccent: { backgroundColor: accent.soft, borderColor: accent.line },
+  pillWarn: { backgroundColor: warn.soft, borderColor: warn.line },
+  pillText: { fontSize: 11, fontFamily: fonts.mono },
   trash: { position: 'absolute', top: 10, right: 10, width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
 
   forRow: {
@@ -197,39 +213,50 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 9,
     marginHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 14,
+    paddingTop: 11,
+    paddingBottom: 13,
     borderTopWidth: 1,
-    borderTopColor: line.hairline,
+    borderTopColor: glass.border,
   },
   avatars: { flexDirection: 'row' },
-  forAvatar: { backgroundColor: green.tint, borderWidth: 2, borderColor: '#ffffff' },
-  forText: { flex: 1, fontSize: 13, fontFamily: fonts.bold, color: ink.primary },
+  forAvatar: { backgroundColor: accent.soft, borderWidth: 1.5, borderColor: glass.strong },
+  forText: { flex: 1, fontSize: 12.5, fontFamily: fonts.regular, color: ink.muted },
 
-  actions: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 16 },
+  actions: { flexDirection: 'row', gap: 6, paddingHorizontal: 16, paddingBottom: 16 },
   actionBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 11,
-    borderRadius: radius.tile,
+    minHeight: 38,
+    paddingHorizontal: 10,
+    borderRadius: radius.pill,
+    borderWidth: 1,
   },
-  actionPrimary: { backgroundColor: green.mid },
-  actionPrimaryText: { fontSize: 13, fontFamily: fonts.bold, color: '#ffffff' },
-  actionSecondary: { backgroundColor: surface.card, borderWidth: 1.5, borderColor: line.border },
-  actionSecondaryText: { fontSize: 13, fontFamily: fonts.bold, color: green.primary },
-  pressed: { opacity: 0.75 },
+  actionPrimary: { backgroundColor: ink.primary, borderColor: 'transparent' },
+  actionPrimaryText: { fontSize: 13, fontFamily: fonts.medium, color: ink.onDark },
+  actionSecondary: { backgroundColor: glass.strong, borderColor: glass.border2 },
+  actionSecondaryText: { fontSize: 13, fontFamily: fonts.medium, color: ink.primary },
+  pressed: { opacity: 0.7 },
 
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  dialog: { width: '100%', maxWidth: 320, backgroundColor: surface.card, borderRadius: radius.card, padding: 20 },
-  dialogTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: ink.primary, marginBottom: 8 },
-  dialogBody: { fontSize: 13, color: ink.muted, lineHeight: 19, marginBottom: 18 },
-  dialogActions: { flexDirection: 'row', gap: 10 },
-  dialogBtn: { flex: 1, borderRadius: radius.tile, paddingVertical: 12, alignItems: 'center' },
-  cancelBtn: { backgroundColor: green.tint },
-  cancelBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: green.primary },
-  deleteBtn: { backgroundColor: terracotta.primary },
-  deleteBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: ink.onDark },
+  overlay: { flex: 1, backgroundColor: glass.scrimDark, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  dialog: {
+    width: '100%',
+    maxWidth: 320,
+    backgroundColor: surface.solid,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: glass.border,
+    padding: 20,
+    ...shadow.hero,
+  },
+  dialogTitle: { fontSize: 17, fontFamily: fonts.medium, color: ink.primary, letterSpacing: -0.4, marginBottom: 6 },
+  dialogBody: { fontSize: 13, fontFamily: fonts.regular, color: ink.muted, lineHeight: 19, marginBottom: 18 },
+  dialogActions: { flexDirection: 'row', gap: 8 },
+  dialogBtn: { flex: 1, borderRadius: radius.pill, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  cancelBtn: { backgroundColor: glass.strong, borderColor: glass.border2 },
+  cancelBtnText: { fontSize: 14, fontFamily: fonts.medium, color: ink.primary },
+  deleteBtn: { backgroundColor: danger.primary, borderColor: 'transparent' },
+  deleteBtnText: { fontSize: 14, fontFamily: fonts.medium, color: ink.onDark },
 });

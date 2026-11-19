@@ -10,10 +10,10 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { green, ink, line, radius, shadow, surface, terracotta } from '../../theme/colors';
+import { accent, danger, glass, ink, radius } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { Icon } from '../Icon';
+import { Screen } from '../ui';
 import { useSession } from '../../context/SessionContext';
 import { accountErrorMessage } from '../../lib/auth/account';
 
@@ -30,7 +30,7 @@ import { accountErrorMessage } from '../../lib/auth/account';
  *
  * Passwordless and mandatory by product decision: no password, no OAuth, no skip. The design
  * mockup's password/Apple/Google/Skip affordances are intentionally omitted. Styling follows
- * `docs/DESIGN_SYSTEM.md` tokens + the drawn `Icon` set.
+ * Aurora Minimal (design v2): aurora field, glass inputs, one violet accent, mono code digits.
  *
  * Delivery failures never crash: `EMAIL_SEND_FAILED` shows a readable retry message (BE SMTP
  * may not be configured yet — see the task report / DEV bypass).
@@ -52,6 +52,7 @@ export function AuthFlow() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
+  const [focus, setFocus] = useState<'name' | 'email' | 'code' | null>(null);
 
   const codeInputRef = useRef<TextInput>(null);
 
@@ -141,7 +142,7 @@ export function AuthFlow() {
   }, []);
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <Screen edges={['top', 'bottom', 'left', 'right']}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -153,23 +154,27 @@ export function AuthFlow() {
         >
           {/* Brand lockup (shared by both steps) */}
           <View style={styles.brand}>
-            <View style={styles.logoTile}>
-              <Icon name="paw" size={40} color={green.primary} strokeWidth={2} />
+            <View style={styles.mark}>
+              <Icon name="paw" size={26} color={accent.onAccent} strokeWidth={1.9} />
             </View>
-            <Text style={styles.wordmark}>PawClock</Text>
-            <Text style={styles.tagline}>Never miss a break, meal or med.</Text>
+            <View style={styles.brandText}>
+              <Text style={styles.wordmark}>PawClock</Text>
+              <Text style={styles.tagline}>Never miss a break, meal or med.</Text>
+            </View>
           </View>
 
           {step === 'email' ? (
-            <View style={styles.card}>
-              <Text style={styles.heading}>Verify your email</Text>
+            <View>
+              <Text style={styles.heading} role="heading">
+                Verify your email
+              </Text>
               <Text style={styles.body}>
                 We&apos;ll send a 6-digit code to confirm it&apos;s you. No password needed.
               </Text>
 
               <Text style={styles.label}>Your name</Text>
-              <View style={[styles.field, name.length > 0 && styles.fieldActive]}>
-                <Icon name="user" size={18} color={ink.faint} strokeWidth={2} />
+              <View style={[styles.field, focus === 'name' && styles.fieldFocused]}>
+                <Icon name="user" size={18} color={ink.placeholder} strokeWidth={1.8} />
                 <TextInput
                   value={name}
                   onChangeText={setName}
@@ -180,6 +185,8 @@ export function AuthFlow() {
                   autoComplete="name"
                   textContentType="name"
                   returnKeyType="next"
+                  onFocus={() => setFocus('name')}
+                  onBlur={() => setFocus(null)}
                   style={styles.fieldInput}
                   editable={!busy}
                 />
@@ -187,9 +194,13 @@ export function AuthFlow() {
 
               <Text style={styles.label}>Email</Text>
               <View
-                style={[styles.field, email.length > 0 && styles.fieldActive, error && styles.fieldError]}
+                style={[
+                  styles.field,
+                  focus === 'email' && styles.fieldFocused,
+                  error ? styles.fieldError : null,
+                ]}
               >
-                <Icon name="mail" size={18} color={ink.faint} strokeWidth={2} />
+                <Icon name="mail" size={18} color={ink.placeholder} strokeWidth={1.8} />
                 <TextInput
                   value={email}
                   onChangeText={(v) => {
@@ -205,6 +216,8 @@ export function AuthFlow() {
                   textContentType="emailAddress"
                   returnKeyType="go"
                   onSubmitEditing={() => void onSendCode()}
+                  onFocus={() => setFocus('email')}
+                  onBlur={() => setFocus(null)}
                   style={styles.fieldInput}
                   editable={!busy}
                 />
@@ -224,15 +237,17 @@ export function AuthFlow() {
                 ]}
               >
                 {busy ? (
-                  <ActivityIndicator color={ink.onDark} />
+                  <ActivityIndicator color={accent.onAccent} />
                 ) : (
                   <Text style={styles.primaryBtnText}>Continue</Text>
                 )}
               </Pressable>
             </View>
           ) : (
-            <View style={styles.card}>
-              <Text style={styles.heading}>Enter the code</Text>
+            <View>
+              <Text style={styles.heading} role="heading">
+                Enter the code
+              </Text>
               <Text style={styles.body}>
                 We sent a 6-digit code to <Text style={styles.bodyStrong}>{email}</Text>.
               </Text>
@@ -245,7 +260,9 @@ export function AuthFlow() {
               >
                 {Array.from({ length: CODE_LENGTH }).map((_, i) => {
                   const char = code[i] ?? '';
-                  const active = i === code.length || (code.length === CODE_LENGTH && i === CODE_LENGTH - 1);
+                  const active =
+                    focus === 'code' &&
+                    (i === code.length || (code.length === CODE_LENGTH && i === CODE_LENGTH - 1));
                   return (
                     <View
                       key={i}
@@ -253,7 +270,7 @@ export function AuthFlow() {
                         styles.cell,
                         char !== '' && styles.cellFilled,
                         active && styles.cellActive,
-                        error && styles.cellError,
+                        error ? styles.cellError : null,
                       ]}
                     >
                       <Text style={styles.cellText}>{char}</Text>
@@ -270,6 +287,8 @@ export function AuthFlow() {
                   textContentType="oneTimeCode"
                   caretHidden
                   editable={!busy}
+                  onFocus={() => setFocus('code')}
+                  onBlur={() => setFocus(null)}
                   style={styles.hiddenInput}
                   accessibilityLabel="Verification code"
                 />
@@ -290,7 +309,7 @@ export function AuthFlow() {
                 ]}
               >
                 {busy ? (
-                  <ActivityIndicator color={ink.onDark} />
+                  <ActivityIndicator color={accent.onAccent} />
                 ) : (
                   <Text style={styles.primaryBtnText}>Verify</Text>
                 )}
@@ -298,132 +317,163 @@ export function AuthFlow() {
 
               <View style={styles.resendRow}>
                 {cooldown > 0 ? (
-                  <Text style={styles.resendMuted}>Resend code in {cooldown}s</Text>
+                  <Text style={styles.resendMuted}>
+                    Resend code in <Text style={styles.mono}>{cooldown}s</Text>
+                  </Text>
                 ) : (
-                  <Pressable onPress={() => void onResend()} disabled={busy} role="button" aria-label="Resend code">
+                  <Pressable
+                    onPress={() => void onResend()}
+                    disabled={busy}
+                    role="button"
+                    aria-label="Resend code"
+                    style={styles.linkBtn}
+                  >
                     <Text style={styles.resendLink}>Didn&apos;t get it? Resend code</Text>
                   </Pressable>
                 )}
               </View>
 
-              <Pressable onPress={editEmail} disabled={busy} role="button" aria-label="Use a different email" style={styles.backBtn}>
-                <Icon name="chevronLeft" size={16} color={ink.muted} strokeWidth={2} />
+              <Pressable
+                onPress={editEmail}
+                disabled={busy}
+                role="button"
+                aria-label="Use a different email"
+                style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}
+              >
+                <Icon name="chevronLeft" size={16} color={ink.muted} strokeWidth={1.8} />
                 <Text style={styles.backText}>Use a different email</Text>
               </Pressable>
             </View>
           )}
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 function ErrorRow({ message }: { message: string }) {
   return (
     <View style={styles.errorRow}>
-      <Icon name="alert" size={16} color={terracotta.primary} strokeWidth={2} />
+      <Icon name="alert" size={15} color={danger.primary} strokeWidth={1.9} />
       <Text style={styles.errorText}>{message}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: surface.app },
   flex: { flex: 1 },
-  content: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 28, paddingVertical: 40 },
+  pressed: { opacity: 0.7 },
+  content: { flexGrow: 1, paddingHorizontal: 22, paddingTop: 28, paddingBottom: 40 },
 
-  brand: { alignItems: 'center', marginBottom: 28 },
-  logoTile: {
-    width: 76,
-    height: 76,
-    borderRadius: radius.hero,
-    backgroundColor: green.tint,
-    borderWidth: 1,
-    borderColor: green.tintBorder,
+  // Brand mark: accent-violet rounded square with a white paw.
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 34 },
+  mark: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: accent.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
+    shadowColor: accent.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 4,
   },
-  wordmark: { fontSize: 30, fontFamily: fonts.black, color: ink.primary, letterSpacing: -0.5 },
-  tagline: { fontSize: 14.5, fontFamily: fonts.medium, color: ink.muted, marginTop: 4 },
+  brandText: { flex: 1 },
+  wordmark: { fontSize: 19, fontFamily: fonts.medium, color: ink.primary, letterSpacing: -0.6 },
+  tagline: { fontSize: 13, fontFamily: fonts.regular, color: ink.muted, marginTop: 2 },
 
-  card: {
-    backgroundColor: surface.card,
-    borderRadius: radius.card,
-    padding: 22,
-    ...shadow.card,
+  heading: {
+    fontSize: 24,
+    fontFamily: fonts.medium,
+    color: ink.primary,
+    letterSpacing: -0.85,
+    lineHeight: 27,
   },
-  heading: { fontSize: 21, fontFamily: fonts.black, color: ink.primary, letterSpacing: -0.4 },
-  body: { fontSize: 14.5, fontFamily: fonts.regular, color: ink.muted, lineHeight: 21, marginTop: 6 },
-  bodyStrong: { fontFamily: fonts.bold, color: ink.primary },
+  body: { fontSize: 13.5, fontFamily: fonts.regular, color: ink.muted, lineHeight: 21, marginTop: 6 },
+  bodyStrong: { fontFamily: fonts.medium, color: ink.primary },
 
   label: {
-    fontSize: 10.5,
-    fontFamily: fonts.bold,
-    textTransform: 'uppercase',
-    letterSpacing: 1.4,
-    color: ink.faint,
-    marginTop: 20,
-    marginBottom: 8,
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: ink.muted,
+    marginTop: 18,
+    marginBottom: 6,
+    marginHorizontal: 2,
   },
   field: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: surface.field,
-    borderWidth: 1.5,
-    borderColor: line.border,
+    minHeight: 48,
+    backgroundColor: glass.strong,
+    borderWidth: 1,
+    borderColor: glass.border,
     borderRadius: radius.tile,
     paddingHorizontal: 14,
-    paddingVertical: 13,
+    paddingVertical: 12,
   },
-  fieldActive: { borderColor: green.tintBorder, backgroundColor: surface.card },
-  fieldError: { borderColor: terracotta.primary },
-  fieldInput: { flex: 1, fontFamily: fonts.semiBold, fontSize: 15.5, color: ink.primary, padding: 0 },
+  fieldFocused: { borderColor: accent.line },
+  fieldError: { borderColor: danger.primary },
+  fieldInput: { flex: 1, fontFamily: fonts.regular, fontSize: 15, color: ink.primary, padding: 0 },
 
-  // Segmented code input
-  codeRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginTop: 22 },
+  // Segmented code input — mono digits in glass cells.
+  codeRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 22 },
   cell: {
     flex: 1,
-    aspectRatio: 0.82,
-    maxWidth: 52,
-    borderRadius: radius.tile,
-    backgroundColor: surface.field,
-    borderWidth: 1.5,
-    borderColor: line.border,
+    maxWidth: 48,
+    height: 56,
+    borderRadius: radius.sm,
+    backgroundColor: glass.strong,
+    borderWidth: 1,
+    borderColor: glass.border2,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cellFilled: { backgroundColor: surface.card, borderColor: green.tintBorder },
-  cellActive: { borderColor: green.mid, backgroundColor: surface.card },
-  cellError: { borderColor: terracotta.primary },
-  cellText: { fontSize: 24, fontFamily: fonts.black, color: ink.primary },
+  cellFilled: { borderColor: accent.line },
+  cellActive: { borderColor: accent.primary, borderWidth: 1.5 },
+  cellError: { borderColor: danger.primary },
+  cellText: { fontSize: 22, fontFamily: fonts.mono, color: ink.primary },
   hiddenInput: { position: 'absolute', width: '100%', height: '100%', opacity: 0 },
 
-  errorRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 12 },
-  errorText: { flex: 1, fontSize: 13, fontFamily: fonts.semiBold, color: terracotta.primary, lineHeight: 18 },
-  notice: { fontSize: 13, fontFamily: fonts.semiBold, color: green.primary, marginTop: 12 },
+  errorRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 10, marginHorizontal: 2 },
+  errorText: { flex: 1, fontSize: 12.5, fontFamily: fonts.regular, color: danger.primary, lineHeight: 18 },
+  notice: { fontSize: 12.5, fontFamily: fonts.medium, color: accent.ink, marginTop: 10, textAlign: 'center' },
 
   primaryBtn: {
-    backgroundColor: green.mid,
-    borderRadius: radius.tile,
-    paddingVertical: 16,
+    backgroundColor: accent.primary,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 22,
-    minHeight: 54,
-    ...shadow.fab,
+    minHeight: 50,
+    paddingHorizontal: 16,
+    shadowColor: accent.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 14,
+    elevation: 4,
   },
-  primaryBtnPressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
-  primaryBtnDisabled: { opacity: 0.55 },
-  primaryBtnText: { color: ink.onDark, fontSize: 15.5, fontFamily: fonts.extraBold, letterSpacing: 0.2 },
+  primaryBtnPressed: { opacity: 0.92, transform: [{ scale: 0.98 }] },
+  primaryBtnDisabled: { opacity: 0.4 },
+  primaryBtnText: { color: accent.onAccent, fontSize: 15, fontFamily: fonts.medium },
 
-  resendRow: { alignItems: 'center', marginTop: 18 },
-  resendMuted: { fontSize: 13.5, fontFamily: fonts.medium, color: ink.faint },
-  resendLink: { fontSize: 13.5, fontFamily: fonts.bold, color: green.primary },
+  resendRow: { alignItems: 'center', marginTop: 14 },
+  linkBtn: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 4 },
+  resendMuted: { fontSize: 13, fontFamily: fonts.regular, color: ink.muted, paddingVertical: 9 },
+  mono: { fontFamily: fonts.monoRegular },
+  resendLink: { fontSize: 13, fontFamily: fonts.medium, color: accent.ink },
 
-  backBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, marginTop: 16 },
-  backText: { fontSize: 13.5, fontFamily: fonts.semiBold, color: ink.muted },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    minHeight: 36,
+    marginTop: 4,
+  },
+  backText: { fontSize: 13, fontFamily: fonts.regular, color: ink.muted },
 });
 
 export default AuthFlow;

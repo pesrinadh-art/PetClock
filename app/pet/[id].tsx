@@ -2,11 +2,10 @@ import { useState } from 'react';
 import { possessive } from '../../lib/petVoice';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { surface, green, ink, line, category, radius, shadow } from '../../theme/colors';
+import { accent, glass, ink, category, radius, shadow, surface } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { Icon, type IconName } from '../../components/Icon';
-import { Card, HeroAvatar, HeroCard, ListRow, SectionLabel, Pill, type Stat } from '../../components/ui';
+import { Card, HeroAvatar, HeroCard, ListRow, Screen, SectionLabel, Pill, type Stat } from '../../components/ui';
 import { AppModal } from '../../components/AppModal';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { EmptyActionCard } from '../../components/EmptyActionCard';
@@ -19,7 +18,7 @@ import { useNow } from '../../hooks/useNow';
 
 const HOUR_MS = 60 * 60 * 1000;
 
-/** Maps a derived meal-slot name to a drawn icon + its role tint (design: sun=breakfast, moon=dinner). */
+/** Maps a derived meal-slot name to a drawn line icon (sun = daytime meals, moon = dinner). */
 function mealVisual(name: string): { icon: IconName; bg: string; color: string } {
   switch (name) {
     case 'Dinner':
@@ -47,14 +46,16 @@ export default function PetDetailScreen() {
 
   if (!pet) {
     return (
-      <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <Screen edges={['top', 'bottom']}>
         <ScreenHeader title="Pet" fallback="/(tabs)/pets" />
         <View style={styles.empty}>
-          <Icon name="paw" size={40} color={ink.faint} />
+          <View style={styles.emptyIcon}>
+            <Icon name="paw" size={24} color={accent.ink} strokeWidth={1.8} />
+          </View>
           <Text style={styles.emptyTitle}>Pet not found</Text>
           <Text style={styles.emptyBody}>This pet may have been removed.</Text>
         </View>
-      </SafeAreaView>
+      </Screen>
     );
   }
 
@@ -80,10 +81,10 @@ export default function PetDetailScreen() {
   );
   const upcomingVaccine = vaccineAppts.some((a) => new Date(a.startsAt).getTime() > now.getTime());
   const vaccine = upcomingVaccine
-    ? { label: 'Scheduled', color: green.primary }
+    ? { label: 'Scheduled', color: accent.ink }
     : vaccineAppts.length > 0
       ? { label: 'On file', color: ink.muted }
-      : { label: 'None yet', color: ink.faint };
+      : { label: 'None yet', color: ink.muted };
 
   // Edit opens the 3-step wizard pre-filled; `step` jumps straight to the relevant step.
   const editPet = (step?: 'about' | 'routine' | 'meds') =>
@@ -121,7 +122,7 @@ export default function PetDetailScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <Screen edges={['top', 'bottom']}>
       <ScreenHeader
         title={pet.name}
         subtitle={`${possessive(pet.name)} profile`}
@@ -135,18 +136,25 @@ export default function PetDetailScreen() {
           title={pet.name}
           subtitle={pet.breed || 'No details yet'}
           stats={stats}
-          leading={<HeroAvatar pet={pet} size={96} />}
+          leading={<HeroAvatar pet={pet} size={84} />}
         >
           {kind && (
-            <View style={styles.kindChip}>
-              <Text style={styles.kindText}>{kind}</Text>
-            </View>
+            <Pill
+              label={kind}
+              bg={accent.soft}
+              color={accent.ink}
+              size="sm"
+              style={styles.kindChip}
+            />
           )}
         </HeroCard>
 
         {/* ── Meals ── */}
         <View style={styles.section}>
-          <SectionLabel right={seeAll('Meal plan', openMealPlan, `Open ${possessive(pet.name)} meal plan`)}>
+          <SectionLabel
+            sub="Today"
+            right={seeAll('Meal plan', openMealPlan, `Open ${possessive(pet.name)} meal plan`)}
+          >
             {possessive(pet.name)} meals
           </SectionLabel>
           {meals.length > 0 ? (
@@ -164,14 +172,17 @@ export default function PetDetailScreen() {
                       iconLarge
                       title={meal.name}
                       subtitle={formatClock(meal.time)}
+                      subtitleMono
                       divider={i < meals.length - 1}
                       right={
                         done ? (
                           <Pill
                             label="Done"
-                            bg={green.tint}
-                            color={green.primary}
-                            icon={<Icon name="check" size={12} color={green.primary} strokeWidth={3.2} />}
+                            size="sm"
+                            bg={accent.soft}
+                            color={accent.ink}
+                            style={styles.accentPill}
+                            icon={<Icon name="check" size={12} color={accent.ink} strokeWidth={2.4} />}
                           />
                         ) : (
                           <Pressable
@@ -183,9 +194,9 @@ export default function PetDetailScreen() {
                             {({ pressed }) => (
                               <Pill
                                 label="Log"
-                                bg={green.mid}
-                                color={ink.onDark}
-                                style={pressed ? { opacity: 0.8 } : undefined}
+                                bg={accent.primary}
+                                color={accent.onAccent}
+                                style={pressed ? styles.logPillPressed : styles.logPill}
                               />
                             )}
                           </Pressable>
@@ -195,7 +206,7 @@ export default function PetDetailScreen() {
                   );
                 })}
               </Card>
-              <DashedAction icon="clock" label="Edit meal times" onPress={() => editPet('routine')} />
+              <QuietAction icon="clock" label="Edit meal times" onPress={() => editPet('routine')} />
             </>
           ) : (
             <EmptyActionCard
@@ -233,7 +244,7 @@ export default function PetDetailScreen() {
               })}
             </Card>
           )}
-          <DashedAction icon="plus" label="Add medication" onPress={() => editPet('meds')} />
+          <QuietAction icon="plus" label="Add medication" onPress={() => editPet('meds')} />
         </View>
 
         {/* ── Records: the care diary (logs + vet visits) and vaccinations ── */}
@@ -242,8 +253,6 @@ export default function PetDetailScreen() {
           <Card>
             <ListRow
               icon="clock"
-              iconBg={green.tint}
-              iconColor={green.primary}
               iconLarge
               title={`${possessive(pet.name)} diary`}
               right={<Text style={styles.recordValue}>{activeLogs.length} moments</Text>}
@@ -273,7 +282,7 @@ export default function PetDetailScreen() {
           role="button"
           aria-label={`Edit ${possessive(pet.name)} routine`}
         >
-          <Icon name="pencil" size={18} color={green.primary} strokeWidth={2.2} />
+          <Icon name="pencil" size={17} color={accent.onAccent} strokeWidth={1.9} />
           <Text style={styles.footerText}>Edit {possessive(pet.name)} routine</Text>
         </Pressable>
       </View>
@@ -309,87 +318,75 @@ export default function PetDetailScreen() {
           </Pressable>
         </Pressable>
       </AppModal>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
-/** The dashed "Edit meal times" / "Add medication" affordance. */
-function DashedAction({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
+/** The quiet accent "Edit meal times" / "Add medication" affordance (design `.btn.quiet.sm`). */
+function QuietAction({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
   return (
     <Pressable
-      style={({ pressed }) => [styles.dashed, pressed && styles.dashedPressed]}
+      style={({ pressed }) => [styles.quiet, pressed && styles.quietPressed]}
       onPress={onPress}
       role="button"
       aria-label={label}
+      hitSlop={4}
     >
-      <Icon name={icon} size={15} color={ink.muted} strokeWidth={2} />
-      <Text style={styles.dashedText}>{label}</Text>
+      <Icon name={icon} size={16} color={accent.ink} strokeWidth={1.9} />
+      <Text style={styles.quietText}>{label}</Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: surface.app },
-  pressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
+  pressed: { opacity: 0.8, transform: [{ scale: 0.97 }] },
 
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 32 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 32 },
 
-  kindChip: {
-    alignSelf: 'center',
-    marginTop: 12,
-    paddingVertical: 5,
-    paddingHorizontal: 14,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-  kindText: { fontSize: 12.5, fontFamily: fonts.bold, color: '#ffffff' },
+  kindChip: { alignSelf: 'center', marginTop: 8, borderWidth: 1, borderColor: accent.line },
 
-  section: { marginTop: 26 },
-  seeAll: { fontSize: 13, fontFamily: fonts.bold, color: green.primary },
-  recordValue: { fontSize: 12.5, fontFamily: fonts.semiBold, color: ink.faint2 },
+  section: { marginTop: 24 },
+  seeAll: { fontSize: 13, fontFamily: fonts.regular, color: accent.ink },
+  recordValue: { fontSize: 12, fontFamily: fonts.monoRegular, color: ink.muted },
 
-  dashed: {
+  accentPill: { borderWidth: 1, borderColor: accent.line },
+  logPill: { paddingHorizontal: 14 },
+  logPillPressed: { paddingHorizontal: 14, opacity: 0.8 },
+
+  quiet: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    alignSelf: 'flex-start',
     gap: 7,
-    marginTop: 10,
-    paddingVertical: 12,
-    borderRadius: radius.card,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: line.dashed,
+    marginTop: 6,
+    minHeight: 36,
+    paddingHorizontal: 8,
   },
-  dashedPressed: { opacity: 0.6 },
-  dashedText: { fontSize: 13, fontFamily: fonts.semiBold, color: ink.muted },
+  quietPressed: { opacity: 0.6 },
+  quietText: { fontSize: 13, fontFamily: fonts.medium, color: accent.ink },
 
   footer: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingHorizontal: 16,
+    paddingTop: 10,
     paddingBottom: 12,
-    borderTopWidth: 1,
-    borderTopColor: line.border,
-    backgroundColor: surface.app,
   },
   footerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 16,
-    borderRadius: radius.card,
-    borderWidth: 1.5,
-    borderColor: line.border,
-    backgroundColor: surface.card,
-    ...shadow.sm,
+    gap: 8,
+    minHeight: 50,
+    borderRadius: radius.pill,
+    backgroundColor: accent.primary,
+    ...shadow.fab,
   },
-  footerText: { fontSize: 16, fontFamily: fonts.bold, color: green.primary },
+  footerText: { fontSize: 15, fontFamily: fonts.medium, color: accent.onAccent },
 
   // Early-feeding confirm dialog.
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: glass.scrimDark,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
@@ -397,20 +394,32 @@ const styles = StyleSheet.create({
   dialog: {
     width: '100%',
     maxWidth: 320,
-    backgroundColor: surface.card,
+    backgroundColor: surface.solid,
     borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: glass.border,
     padding: 20,
+    ...shadow.hero,
   },
-  dialogTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: ink.primary, marginBottom: 8 },
-  dialogBody: { fontSize: 13, color: ink.muted, lineHeight: 19, marginBottom: 18 },
-  dialogActions: { flexDirection: 'row', gap: 10 },
-  dialogBtn: { flex: 1, borderRadius: radius.sm, paddingVertical: 12, alignItems: 'center' },
-  cancelBtn: { backgroundColor: green.tint },
-  cancelBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: green.primary },
-  confirmBtn: { backgroundColor: green.mid },
-  confirmBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: ink.onDark },
+  dialogTitle: { fontSize: 17, fontFamily: fonts.medium, color: ink.primary, letterSpacing: -0.35, marginBottom: 8 },
+  dialogBody: { fontSize: 13.5, fontFamily: fonts.regular, color: ink.muted, lineHeight: 20, marginBottom: 18 },
+  dialogActions: { flexDirection: 'row', gap: 8 },
+  dialogBtn: { flex: 1, minHeight: 44, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+  cancelBtn: { backgroundColor: glass.strong, borderWidth: 1, borderColor: glass.border2 },
+  cancelBtnText: { fontSize: 14, fontFamily: fonts.medium, color: ink.primary },
+  confirmBtn: { backgroundColor: accent.primary },
+  confirmBtnText: { fontSize: 14, fontFamily: fonts.medium, color: accent.onAccent },
 
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 8 },
-  emptyTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: ink.primary },
-  emptyBody: { fontSize: 13, color: ink.muted, textAlign: 'center', lineHeight: 19 },
+  emptyIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: accent.soft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  emptyTitle: { fontSize: 17, fontFamily: fonts.medium, color: ink.primary, letterSpacing: -0.35 },
+  emptyBody: { fontSize: 13, fontFamily: fonts.regular, color: ink.muted, textAlign: 'center', lineHeight: 19 },
 });

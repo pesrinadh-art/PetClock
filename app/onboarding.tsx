@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { category, green, ink, line, logTint, radius, shadow, surface, terracotta } from '../theme/colors';
+import { accent, danger, glass, ink, radius } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { Icon, type IconName } from '../components/Icon';
+import { Card, ListRow, Screen } from '../components/ui';
 import { PetWizard } from '../components/PetWizard';
 import { completeOnboarding } from '../lib/onboarding';
 import { requestNotificationPermission } from '../lib/notifications/permissions';
@@ -14,34 +13,39 @@ import { householdErrorMessage } from '../lib/household/invites';
 
 type Step = 'welcome' | 'pet' | 'join' | 'notify';
 
-const FEATURES: { icon: IconName; bg: string; fg: string; title: string; body: string }[] = [
-  { icon: 'drop', bg: logTint.peeBg, fg: logTint.peeInk, title: 'Potty breaks, predicted', body: 'A heads-up before they need to go.' },
-  { icon: 'bowl', bg: terracotta.tint, fg: terracotta.primary, title: 'Meals on time', body: 'Log breakfast and dinner in one tap.' },
-  { icon: 'pill', bg: category.medBg, fg: category.medInk, title: 'Meds and vet visits', body: 'Friendly reminders, so nothing slips.' },
+const FEATURES: { icon: IconName; title: string; body: string }[] = [
+  { icon: 'drop', title: 'Potty breaks, predicted', body: 'A heads-up before they need to go.' },
+  { icon: 'bowl', title: 'Meals on time', body: 'Log breakfast and dinner in one tap.' },
+  { icon: 'pill', title: 'Meds and vet visits', body: 'Friendly reminders, so nothing slips.' },
 ];
 
-/** The green rounded-square app mark with a paw. */
-function AppMark({ size = 88 }: { size?: number }) {
+/** The brand mark: accent-violet rounded square with a white paw. */
+function AppMark({ size = 52 }: { size?: number }) {
   return (
-    <LinearGradient
-      colors={[green.gradientFrom, green.gradientTo]}
-      start={{ x: 0.1, y: 0 }}
-      end={{ x: 0.9, y: 1 }}
-      style={[styles.mark, { width: size, height: size, borderRadius: size * 0.27 }]}
-    >
-      <Icon name="paw" size={size * 0.5} color="#ffffff" strokeWidth={1.9} />
-    </LinearGradient>
+    <View style={[styles.mark, { width: size, height: size, borderRadius: Math.round(size * 0.31) }]}>
+      <Icon name="paw" size={size * 0.5} color={accent.onAccent} strokeWidth={1.9} />
+    </View>
+  );
+}
+
+/** A soft accent tile for a step's line icon (key, bell). */
+function StepMark({ icon }: { icon: IconName }) {
+  return (
+    <View style={styles.stepMark}>
+      <Icon name={icon} size={24} color={accent.ink} strokeWidth={1.8} />
+    </View>
   );
 }
 
 /**
- * First run (redesign v3): welcome → "Welcome a new pet" wizard (About / Routine / Meds) →
+ * First run (Aurora Minimal): welcome → "Welcome a new pet" wizard (About / Routine / Meds) →
  * turn on reminders. Any outcome of the permission prompt finishes onboarding.
  */
 export default function OnboardingScreen() {
   const [step, setStep] = useState<Step>('welcome');
   const { join } = useSession();
   const [code, setCode] = useState('');
+  const [codeFocused, setCodeFocused] = useState(false);
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
 
@@ -72,28 +76,45 @@ export default function OnboardingScreen() {
 
   if (step === 'pet') {
     return (
-      <SafeAreaView style={styles.safe}>
+      <Screen edges={['top', 'bottom', 'left', 'right']}>
         <PetWizard closeIcon="chevronLeft" onClose={() => setStep('welcome')} onSaved={() => setStep('notify')} />
-      </SafeAreaView>
+      </Screen>
     );
   }
 
   if (step === 'join') {
     // A second caregiver joins an existing household with its invite code, skipping the
     // "add a pet" wizard — the household they join already has the pets.
+    const canJoin = !!code.trim() && !joining;
     return (
-      <SafeAreaView style={styles.safe}>
-        <ScrollView contentContainerStyle={styles.center} keyboardShouldPersistTaps="handled">
-          <View style={styles.bellCircle}>
-            <Icon name="key" size={38} color={green.primary} strokeWidth={1.8} />
-          </View>
-          <Text style={styles.headline}>Join a household</Text>
+      <Screen edges={['top', 'bottom', 'left', 'right']}>
+        <View style={styles.phBar}>
+          <Pressable
+            style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}
+            onPress={() => setStep('welcome')}
+            role="button"
+            aria-label="Back"
+            hitSlop={6}
+          >
+            <Icon name="chevronLeft" size={18} color={ink.primary} strokeWidth={1.8} />
+          </Pressable>
+        </View>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <StepMark icon="key" />
+          <Text style={styles.headline} role="heading">
+            Join a household
+          </Text>
           <Text style={styles.lede}>
             Enter the invite code from the person who set up PawClock. You'll share their pets and
             reminders.
           </Text>
+          <Text style={styles.fieldLabel}>Invite code</Text>
           <TextInput
-            style={styles.codeInput}
+            style={[
+              styles.codeInput,
+              codeFocused && styles.inputFocused,
+              joinError ? styles.inputError : null,
+            ]}
             value={code}
             onChangeText={(t) => {
               setCode(t.toUpperCase());
@@ -106,45 +127,39 @@ export default function OnboardingScreen() {
             autoFocus
             maxLength={12}
             accessibilityLabel="Invite code"
+            onFocus={() => setCodeFocused(true)}
+            onBlur={() => setCodeFocused(false)}
             onSubmitEditing={() => void submitJoin()}
           />
           {joinError ? <Text style={styles.errorText}>{joinError}</Text> : null}
         </ScrollView>
         <View style={styles.footer}>
           <Pressable
-            style={({ pressed }) => [
-              styles.primaryBtn,
-              (!code.trim() || joining) && styles.disabled,
-              pressed && styles.primaryPressed,
-            ]}
+            style={({ pressed }) => [styles.primaryBtn, !canJoin && styles.disabled, pressed && styles.primaryPressed]}
             onPress={() => void submitJoin()}
-            disabled={!code.trim() || joining}
+            disabled={!canJoin}
             role="button"
             aria-label="Join household"
           >
-            {joining ? <ActivityIndicator color="#ffffff" /> : <Text style={styles.primaryText}>Join household</Text>}
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.skipBtn, pressed && styles.pressed]}
-            onPress={() => setStep('welcome')}
-            role="button"
-            aria-label="Back"
-          >
-            <Text style={styles.skipText}>Back</Text>
+            {joining ? (
+              <ActivityIndicator color={accent.onAccent} />
+            ) : (
+              <Text style={styles.primaryText}>Join household</Text>
+            )}
           </Pressable>
         </View>
-      </SafeAreaView>
+      </Screen>
     );
   }
 
   if (step === 'notify') {
     return (
-      <SafeAreaView style={styles.safe}>
-        <ScrollView contentContainerStyle={styles.center}>
-          <View style={styles.bellCircle}>
-            <Icon name="bell" size={40} color={green.primary} strokeWidth={1.8} />
-          </View>
-          <Text style={styles.headline}>Turn on reminders</Text>
+      <Screen edges={['top', 'bottom', 'left', 'right']}>
+        <ScrollView contentContainerStyle={[styles.content, styles.contentTop]}>
+          <StepMark icon="bell" />
+          <Text style={styles.headline} role="heading">
+            Turn on reminders
+          </Text>
           <Text style={styles.lede}>
             PawClock's whole point is a tap-to-log nudge at the predicted break time — even with the app
             closed. Allow notifications to get them.
@@ -157,38 +172,49 @@ export default function OnboardingScreen() {
             role="button"
             aria-label="Turn on reminders"
           >
-            <Icon name="bell" size={18} color="#ffffff" strokeWidth={2.2} />
+            <Icon name="bell" size={17} color={accent.onAccent} strokeWidth={1.9} />
             <Text style={styles.primaryText}>Turn on reminders</Text>
           </Pressable>
-          <Pressable style={({ pressed }) => [styles.skipBtn, pressed && styles.pressed]} onPress={() => void finish()} role="button" aria-label="Not now">
-            <Text style={styles.skipText}>Not now</Text>
+          <Pressable
+            style={({ pressed }) => [styles.linkBtn, pressed && styles.pressed]}
+            onPress={() => void finish()}
+            role="button"
+            aria-label="Not now"
+          >
+            <Text style={styles.mutedLink}>Not now</Text>
           </Pressable>
         </View>
-      </SafeAreaView>
+      </Screen>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.center}>
-        <AppMark />
-        <Text style={styles.brand}>PawClock</Text>
-        <Text style={styles.headline}>Never miss a potty break again</Text>
-        <Text style={styles.lede}>PawClock learns your pet's rhythm and gives you a gentle nudge at just the right time.</Text>
-
-        <View style={styles.features}>
-          {FEATURES.map((f, i) => (
-            <View key={f.title} style={[styles.featureRow, i < FEATURES.length - 1 && styles.featureDivider]}>
-              <View style={[styles.featureIcon, { backgroundColor: f.bg }]}>
-                <Icon name={f.icon} size={20} color={f.fg} strokeWidth={2} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.featureTitle}>{f.title}</Text>
-                <Text style={styles.featureBody}>{f.body}</Text>
-              </View>
-            </View>
-          ))}
+    <Screen edges={['top', 'bottom', 'left', 'right']}>
+      <ScrollView contentContainerStyle={[styles.content, styles.contentTop]}>
+        <View style={styles.brandRow}>
+          <AppMark />
+          <Text style={styles.brand}>PawClock</Text>
         </View>
+        <Text style={styles.headline} role="heading">
+          Never miss a potty break again
+        </Text>
+        <Text style={styles.lede}>
+          PawClock learns your pet's rhythm and gives you a gentle nudge at just the right time.
+        </Text>
+
+        <Card style={styles.features}>
+          {FEATURES.map((f, i) => (
+            <ListRow
+              key={f.title}
+              icon={f.icon}
+              iconLarge
+              title={f.title}
+              subtitle={f.body}
+              showChevron={false}
+              divider={i < FEATURES.length - 1}
+            />
+          ))}
+        </Card>
       </ScrollView>
 
       <View style={styles.footer}>
@@ -199,11 +225,11 @@ export default function OnboardingScreen() {
           aria-label="Let's meet your pet"
         >
           <Text style={styles.primaryText}>Let's meet your pet</Text>
-          <Icon name="arrowRight" size={18} color="#ffffff" strokeWidth={2.4} />
+          <Icon name="arrowRight" size={17} color={accent.onAccent} strokeWidth={1.9} />
         </Pressable>
         <Text style={styles.caption}>Takes less than a minute</Text>
         <Pressable
-          style={({ pressed }) => [styles.skipBtn, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.linkBtn, pressed && styles.pressed]}
           onPress={() => setStep('join')}
           role="button"
           aria-label="Join a household with an invite code"
@@ -213,92 +239,105 @@ export default function OnboardingScreen() {
           </Text>
         </Pressable>
       </View>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: surface.app },
-  center: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 32 },
   pressed: { opacity: 0.7 },
+  content: { flexGrow: 1, paddingHorizontal: 22, paddingTop: 8, paddingBottom: 28 },
+  contentTop: { paddingTop: 28 },
 
-  mark: { alignItems: 'center', justifyContent: 'center', ...shadow.hero },
-  brand: { fontSize: 17, fontFamily: fonts.extraBold, color: green.primary, marginTop: 12 },
-  headline: {
-    fontSize: 30,
-    fontFamily: fonts.extraBold,
-    color: ink.primary,
-    letterSpacing: -0.9,
-    textAlign: 'center',
-    lineHeight: 34,
-    marginTop: 26,
-  },
-  lede: { fontSize: 15, fontFamily: fonts.medium, color: ink.muted, textAlign: 'center', lineHeight: 22, marginTop: 10 },
-
-  features: {
-    alignSelf: 'stretch',
-    marginTop: 26,
-    paddingHorizontal: 16,
-    borderRadius: radius.card,
-    backgroundColor: surface.card,
-    ...shadow.card,
-  },
-  featureRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 15 },
-  featureDivider: { borderBottomWidth: 1, borderBottomColor: line.hairline },
-  featureIcon: { width: 44, height: 44, borderRadius: radius.iconTile, alignItems: 'center', justifyContent: 'center' },
-  featureTitle: { fontSize: 15, fontFamily: fonts.bold, color: ink.primary },
-  featureBody: { fontSize: 13, fontFamily: fonts.medium, color: ink.muted, marginTop: 2 },
-
-  bellCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: green.tint,
+  phBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingTop: 4, paddingBottom: 6 },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: glass.border,
+    backgroundColor: glass.fill,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
-  footer: {
-    paddingHorizontal: 20,
-    paddingTop: 14,
-    paddingBottom: 14,
-    borderTopWidth: 1,
-    borderTopColor: line.border,
-    alignItems: 'stretch',
+  mark: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: accent.primary,
+    shadowColor: accent.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 4,
   },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  brand: { fontSize: 19, fontFamily: fonts.medium, color: ink.primary, letterSpacing: -0.6 },
+  stepMark: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: accent.soft,
+    borderWidth: 1,
+    borderColor: accent.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+  },
+
+  headline: {
+    fontSize: 24,
+    fontFamily: fonts.medium,
+    color: ink.primary,
+    letterSpacing: -0.85,
+    lineHeight: 27,
+    marginTop: 22,
+  },
+  lede: { fontSize: 13.5, fontFamily: fonts.regular, color: ink.muted, lineHeight: 21, marginTop: 8 },
+
+  features: { marginTop: 24 },
+
+  footer: { paddingHorizontal: 22, paddingTop: 10, paddingBottom: 14, alignItems: 'stretch' },
   primaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 17,
-    borderRadius: radius.card,
-    backgroundColor: green.mid,
-    ...shadow.fab,
+    gap: 8,
+    minHeight: 50,
+    paddingHorizontal: 16,
+    borderRadius: radius.pill,
+    backgroundColor: accent.primary,
+    shadowColor: accent.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 14,
+    elevation: 4,
   },
-  primaryPressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
-  primaryText: { fontSize: 16, fontFamily: fonts.bold, color: '#ffffff' },
-  caption: { fontSize: 12.5, fontFamily: fonts.medium, color: ink.muted, textAlign: 'center', marginTop: 10 },
-  skipBtn: { paddingVertical: 12, alignItems: 'center', marginTop: 4 },
-  skipText: { fontSize: 14, fontFamily: fonts.bold, color: ink.muted },
-  joinText: { fontSize: 14, fontFamily: fonts.medium, color: ink.muted, textAlign: 'center' },
-  joinStrong: { fontFamily: fonts.bold, color: green.primary },
-  disabled: { opacity: 0.5 },
+  primaryPressed: { opacity: 0.92, transform: [{ scale: 0.98 }] },
+  primaryText: { fontSize: 15, fontFamily: fonts.medium, color: accent.onAccent },
+  caption: { fontSize: 12, fontFamily: fonts.regular, color: ink.muted, textAlign: 'center', marginTop: 10 },
+  linkBtn: { minHeight: 40, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  mutedLink: { fontSize: 13.5, fontFamily: fonts.medium, color: ink.muted },
+  joinText: { fontSize: 13, fontFamily: fonts.regular, color: ink.muted, textAlign: 'center' },
+  joinStrong: { fontFamily: fonts.medium, color: accent.ink },
+  disabled: { opacity: 0.4 },
+
+  fieldLabel: { fontSize: 12, fontFamily: fonts.regular, color: ink.muted, marginTop: 24, marginBottom: 6, marginHorizontal: 2 },
   codeInput: {
     alignSelf: 'stretch',
-    marginTop: 26,
-    paddingVertical: 16,
-    paddingHorizontal: 18,
-    borderRadius: radius.card,
-    backgroundColor: surface.card,
+    minHeight: 54,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: radius.tile,
+    backgroundColor: glass.strong,
     borderWidth: 1,
-    borderColor: line.border,
-    fontSize: 22,
-    fontFamily: fonts.extraBold,
-    letterSpacing: 4,
+    borderColor: glass.border,
+    fontSize: 19,
+    fontFamily: fonts.mono,
+    letterSpacing: 3,
     textAlign: 'center',
     color: ink.primary,
-    ...shadow.card,
   },
-  errorText: { fontSize: 13.5, fontFamily: fonts.semiBold, color: terracotta.ink, textAlign: 'center', marginTop: 12 },
+  inputFocused: { borderColor: accent.line },
+  inputError: { borderColor: danger.primary },
+  errorText: { fontSize: 12.5, fontFamily: fonts.regular, color: danger.primary, marginTop: 8, marginHorizontal: 2, lineHeight: 18 },
 });

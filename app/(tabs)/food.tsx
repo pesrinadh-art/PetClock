@@ -5,15 +5,14 @@ import { possessive } from '../../lib/petVoice';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { category, green, ink, radius, surface } from '../../theme/colors';
+import { accent, category, glass, ink, radius, shadow, surface } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { TopNavBar, greeting } from '../../components/TopNavBar';
 import { PetSwitcher } from '../../components/PetSwitcher';
 import { EmptyState } from '../../components/EmptyState';
 import { EmptyActionCard } from '../../components/EmptyActionCard';
 import { AppModal } from '../../components/AppModal';
-import { Card, HeroAvatar, HeroCard, ListRow, Pill, SectionLabel } from '../../components/ui';
+import { Card, HeroAvatar, HeroCard, ListRow, Pill, Screen, SectionLabel, TAB_BAR_CLEARANCE } from '../../components/ui';
 import { Icon, type IconName } from '../../components/Icon';
 import { usePets } from '../../context/PetsContext';
 import { useLogs } from '../../context/LogsContext';
@@ -29,6 +28,27 @@ function mealVisual(name: string): { icon: IconName; bg: string; color: string }
   return { icon: 'bowl', bg: category.otherBg, color: category.otherInk };
 }
 
+/** Status pills (design `.pill` / `.pill.accent` / `.pill.solid`). */
+function DonePill({ label }: { label: string }) {
+  return (
+    <Pill
+      label={label}
+      size="sm"
+      bg={accent.soft}
+      color={accent.ink}
+      style={styles.accentPill}
+      icon={<Icon name="check" size={12} color={accent.ink} strokeWidth={2.4} />}
+    />
+  );
+}
+function StatusPill({ due }: { due: boolean }) {
+  return due ? (
+    <Pill label="Due" size="sm" bg={ink.primary} color={ink.onDark} />
+  ) : (
+    <Pill label="Later" size="sm" bg="transparent" color={ink.muted} style={styles.mutedPill} />
+  );
+}
+
 export default function FoodScreen() {
   const { pets, activePet, activePetId, setActivePetId, getFeedTimesForPet, getMedicationsForPet } = usePets();
   const { getLogsForPet, addLog } = useLogs();
@@ -38,10 +58,10 @@ export default function FoodScreen() {
 
   if (!activePet) {
     return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <Screen edges={['top']}>
         <TopNavBar eyebrow={greeting(now)} title="Meals" />
         <EmptyState icon="🍽️" title="No pets yet" body="Add a pet to plan their meals and medications." />
-      </SafeAreaView>
+      </Screen>
     );
   }
 
@@ -74,14 +94,14 @@ export default function FoodScreen() {
   ].filter(Boolean);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <Screen edges={['top']}>
       <TopNavBar pet={activePet} eyebrow={greeting(now)} title={`${possessive(activePet.name)} meals`} />
       <PetSwitcher pets={pets} activeId={activePetId} onSelect={setActivePetId} />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <HeroCard
           title={`${possessive(activePet.name)} meal plan`}
           subtitle={subtitleBits.join(' · ')}
-          leading={<HeroAvatar pet={activePet} size={60} />}
+          leading={<HeroAvatar pet={activePet} size={56} />}
           stats={[
             { value: meals.length > 0 ? String(meals.length) : '—', label: 'Meals a day' },
             { value: meds.length > 0 ? String(meds.length) : '—', label: 'Meds today' },
@@ -111,20 +131,10 @@ export default function FoodScreen() {
                   iconLarge
                   title={meal.name}
                   subtitle={formatClock(meal.time)}
+                      subtitleMono
                   onPress={done ? undefined : () => handleMarkDone(meal)}
                   divider={i < meals.length - 1}
-                  right={
-                    done ? (
-                      <Pill
-                        label="Done"
-                        bg={green.tint}
-                        color={green.primary}
-                        icon={<Icon name="check" size={12} color={green.primary} strokeWidth={3.2} />}
-                      />
-                    ) : (
-                      <Pill label={meal.status === 'due' ? 'Due' : 'Later'} bg={surface.chip} color={ink.muted} />
-                    )
-                  }
+                  right={done ? <DonePill label="Done" /> : <StatusPill due={meal.status === 'due'} />}
                 />
               );
             })}
@@ -135,13 +145,14 @@ export default function FoodScreen() {
           <SectionLabel>{possessive(activePet.name)} meds</SectionLabel>
           {meds.length === 0 ? (
             <Pressable
-              style={({ pressed }) => [styles.dashed, pressed && styles.pressed]}
+              style={({ pressed }) => [styles.quiet, pressed && styles.pressed]}
               onPress={() => editRoutine('meds')}
               role="button"
               aria-label="Add medication"
+              hitSlop={4}
             >
-              <Icon name="plus" size={15} color={ink.muted} strokeWidth={2.2} />
-              <Text style={styles.dashedText}>Add medication</Text>
+              <Icon name="plus" size={16} color={accent.ink} strokeWidth={1.9} />
+              <Text style={styles.quietText}>Add medication</Text>
             </Pressable>
           ) : (
             <Card>
@@ -167,13 +178,7 @@ export default function FoodScreen() {
                     onPress={() => editRoutine('meds')}
                     divider={i < meds.length - 1}
                     showChevron={false}
-                    right={
-                      given ? (
-                        <Pill label="Given" bg={green.tint} color={green.primary} />
-                      ) : (
-                        <Pill label={due ? 'Due' : 'Later'} bg={surface.chip} color={ink.muted} />
-                      )
-                    }
+                    right={given ? <DonePill label="Given" /> : <StatusPill due={due} />}
                   />
                 );
               })}
@@ -213,37 +218,44 @@ export default function FoodScreen() {
           </Pressable>
         </Pressable>
       </AppModal>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: surface.app },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 80 },
-  hero: { marginBottom: 22 },
-  section: { marginTop: 26 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: TAB_BAR_CLEARANCE },
+  hero: { marginBottom: 24 },
+  section: { marginTop: 24 },
   pressed: { opacity: 0.7 },
-  dashed: {
+  accentPill: { borderWidth: 1, borderColor: accent.line },
+  mutedPill: { borderWidth: 1, borderColor: glass.border2 },
+  quiet: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    alignSelf: 'flex-start',
     gap: 7,
-    paddingVertical: 14,
-    borderRadius: radius.card,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: '#d8d1c2',
+    minHeight: 36,
+    paddingHorizontal: 8,
   },
-  dashedText: { fontSize: 13, fontFamily: fonts.semiBold, color: ink.muted },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  dialog: { width: '100%', maxWidth: 320, backgroundColor: surface.card, borderRadius: radius.lg, padding: 20 },
-  dialogTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: ink.primary, marginBottom: 8 },
-  dialogBody: { fontSize: 13, color: ink.muted, lineHeight: 19, marginBottom: 18 },
-  dialogActions: { flexDirection: 'row', gap: 10 },
-  dialogBtn: { flex: 1, borderRadius: radius.sm, paddingVertical: 12, alignItems: 'center' },
-  cancelBtn: { backgroundColor: green.tint },
-  cancelBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: green.primary },
-  confirmBtn: { backgroundColor: green.mid },
-  confirmBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: ink.onDark },
+  quietText: { fontSize: 13, fontFamily: fonts.medium, color: accent.ink },
+  overlay: { flex: 1, backgroundColor: glass.scrimDark, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  dialog: {
+    width: '100%',
+    maxWidth: 320,
+    backgroundColor: surface.solid,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: glass.border,
+    padding: 20,
+    ...shadow.hero,
+  },
+  dialogTitle: { fontSize: 17, fontFamily: fonts.medium, color: ink.primary, letterSpacing: -0.35, marginBottom: 8 },
+  dialogBody: { fontSize: 13.5, fontFamily: fonts.regular, color: ink.muted, lineHeight: 20, marginBottom: 18 },
+  dialogActions: { flexDirection: 'row', gap: 8 },
+  dialogBtn: { flex: 1, minHeight: 44, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+  cancelBtn: { backgroundColor: glass.strong, borderWidth: 1, borderColor: glass.border2 },
+  cancelBtnText: { fontSize: 14, fontFamily: fonts.medium, color: ink.primary },
+  confirmBtn: { backgroundColor: accent.primary },
+  confirmBtnText: { fontSize: 14, fontFamily: fonts.medium, color: accent.onAccent },
 });

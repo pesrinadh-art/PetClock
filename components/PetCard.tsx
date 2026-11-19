@@ -13,9 +13,9 @@ import { HeroAvatar, HeroCard, type Stat } from './ui';
 import { petMeta } from '../lib/petVoice';
 
 /**
- * The green gradient hero at the top of Home (screen 2a): a progress ring with a
- * paw at its centre, the pet's name + "breed · Nh hold time", and a divider with
- * three stats — Next break / Logs today / Meals. Built on the shared
+ * The glass hero at the top of Home (design v2): a violet progress ring with a
+ * paw at its centre, the pet's name + "breed · Nh hold time", and a hairline with
+ * three mono stats — Next break / Logs today / Meals. Built on the shared
  * {@link HeroCard}. All the numbers come from the same schedule helpers the old
  * card used; only the presentation changed.
  */
@@ -83,5 +83,5 @@ export function PetCard({ pet }: { pet: Pet }) {
 }
 
 const styles = StyleSheet.create({
-  hero: { marginBottom: 22 },
+  hero: { marginTop: 4, marginBottom: 2 },
 });

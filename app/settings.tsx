@@ -9,12 +9,10 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { surface, ink, line, green, amber, terracotta, category, radius, shadow } from '../theme/colors';
+import { accent, danger, glass, ink, radius, shadow, surface, warn } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { Icon } from '../components/Icon';
-import { Card, SectionLabel, Pill } from '../components/ui';
+import { Card, Screen, SectionLabel, Pill } from '../components/ui';
 import { Toggle } from '../components/Toggle';
 import { PetAvatar } from '../components/PetAvatar';
 import { TimePickerField } from '../components/TimePickerField';
@@ -51,7 +49,7 @@ export default function SettingsScreen() {
   const quietOn = !!prefs.quietHoursStart && !!prefs.quietHoursEnd;
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <Screen edges={['top', 'bottom', 'left', 'right']}>
       <ScreenHeader
         title="Settings"
         subtitle={pets.length > 0 ? `Reminders and account for ${joinPetNames(pets.map((p) => p.name))}` : 'Reminders and account'}
@@ -63,16 +61,17 @@ export default function SettingsScreen() {
         <Card padded>
           <View style={styles.qhTop}>
             <View style={styles.qhIcon}>
-              <Icon name="moon" size={19} color={ink.muted} strokeWidth={2} />
+              <Icon name="moon" size={17} color={accent.ink} strokeWidth={1.8} />
             </View>
             <View style={{ flex: 1 }}>
               <View style={styles.qhTitleRow}>
                 <Text style={styles.qhTitle}>Pause overnight</Text>
                 <Pill
                   label={quietOn ? 'On' : 'Off'}
-                  bg={quietOn ? green.tint : surface.chip}
-                  color={quietOn ? green.primary : ink.muted}
+                  bg={quietOn ? accent.soft : 'transparent'}
+                  color={quietOn ? accent.ink : ink.muted}
                   size="sm"
+                  style={{ borderWidth: 1, borderColor: quietOn ? accent.line : glass.border2 }}
                 />
               </View>
               <Text style={styles.qhDesc}>Pick a start and end time to pause potty and meal nudges.</Text>
@@ -98,7 +97,7 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.qhNote}>
             <View style={styles.qhNoteIcon}>
-              <Icon name="pill" size={15} color={category.medInk} strokeWidth={2} />
+              <Icon name="pill" size={15} color={accent.ink} strokeWidth={1.8} />
             </View>
             <Text style={styles.qhNoteText}>Meds and appointment reminders always come through.</Text>
           </View>
@@ -117,7 +116,7 @@ export default function SettingsScreen() {
               return (
                 <View key={pet.id}>
                   <View style={styles.muteRow}>
-                    <PetAvatar pet={pet} size={44} emojiSize={23} style={styles.muteAvatar} />
+                    <PetAvatar pet={pet} size={40} emojiSize={21} style={styles.muteAvatar} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.muteName} numberOfLines={1}>
                         {pet.name}
@@ -140,7 +139,7 @@ export default function SettingsScreen() {
         {/* ACCOUNTS. Renders nothing in local mode — there's no server account to secure. */}
         <AccountSection />
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
@@ -224,10 +223,11 @@ function AccountSection() {
           <Card padded>
             <Pill
               label="Not secured"
-              bg={amber.warnBg}
-              color={amber.warnInk}
+              bg={warn.soft}
+              color={warn.ink}
               size="sm"
-              icon={<Icon name="alert" size={11} color={amber.warnInk} strokeWidth={2.4} />}
+              style={{ borderWidth: 1, borderColor: warn.line }}
+              icon={<Icon name="alert" size={11} color={warn.ink} strokeWidth={2} />}
             />
             <Text style={[accountStyles.cardBody, accountStyles.cardBodyTop]}>
               You’re signed in anonymously — add an email so you never lose your pets’ history.
@@ -260,7 +260,7 @@ function AccountSection() {
                 <ActivityIndicator color={ink.onDark} />
               ) : (
                 <>
-                  <Icon name="lock" size={15} color={ink.onDark} strokeWidth={2.2} />
+                  <Icon name="lock" size={15} color={accent.onAccent} strokeWidth={1.8} />
                   <Text style={accountStyles.primaryBtnText}>Secure account</Text>
                 </>
               )}
@@ -271,10 +271,11 @@ function AccountSection() {
         <Card padded>
           <Pill
             label="Secured"
-            bg={green.tint}
-            color={green.primary}
+            bg={accent.soft}
+            color={accent.ink}
             size="sm"
-            icon={<Icon name="lock" size={11} color={green.primary} strokeWidth={2.4} />}
+            style={{ borderWidth: 1, borderColor: accent.line }}
+            icon={<Icon name="lock" size={11} color={accent.ink} strokeWidth={2} />}
           />
           <Text style={[accountStyles.cardBody, accountStyles.cardBodyTop]}>
             Secured as {email ?? 'your email'}. Your history is recoverable — sign in with this
@@ -298,14 +299,14 @@ function AccountSection() {
             role="button"
             aria-label="Sign in with email"
           >
-            <View style={[styles.dataIcon, { backgroundColor: category.medBg }]}>
-              <Icon name="mail" size={16} color={category.medInk} strokeWidth={2} />
+            <View style={styles.dataIcon}>
+              <Icon name="mail" size={17} color={accent.ink} strokeWidth={1.8} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.dataLabel}>Sign in with email</Text>
               <Text style={styles.dataSub}>Recover an existing account onto this device.</Text>
             </View>
-            <Icon name="chevronRight" size={15} color="#c0b8a8" strokeWidth={2.3} />
+            <Icon name="chevronRight" size={15} color={ink.placeholder} strokeWidth={2} />
           </Pressable>
         </Card>
       )}
@@ -359,7 +360,7 @@ function AccountSection() {
                 aria-label="Send sign-in link"
               >
                 {recovering ? (
-                  <ActivityIndicator color={ink.onDark} />
+                  <ActivityIndicator color={accent.onAccent} />
                 ) : (
                   <Text style={styles.confirmBtnText}>Send link</Text>
                 )}
@@ -373,77 +374,67 @@ function AccountSection() {
 }
 
 const accountStyles = StyleSheet.create({
-  cardTitle: { fontSize: 14, fontFamily: fonts.bold, color: ink.primary, marginBottom: 6 },
-  cardBody: { fontSize: 12.5, fontFamily: fonts.medium, color: ink.muted, lineHeight: 19, marginBottom: 12 },
-  cardBodyTop: { marginTop: 9 },
+  cardTitle: { fontSize: 15, fontFamily: fonts.medium, letterSpacing: -0.2, color: ink.primary, marginBottom: 6 },
+  cardBody: { fontSize: 13, fontFamily: fonts.regular, color: ink.muted, lineHeight: 19.5, marginBottom: 12 },
+  cardBodyTop: { marginTop: 10 },
   input: {
-    backgroundColor: surface.field,
+    backgroundColor: glass.strong,
+    borderWidth: 1,
+    borderColor: glass.border2,
     borderRadius: radius.tile,
+    minHeight: 46,
     paddingVertical: 12,
     paddingHorizontal: 14,
-    fontFamily: fonts.semiBold,
-    fontSize: 14,
+    fontFamily: fonts.regular,
+    fontSize: 15,
     color: ink.primary,
     marginBottom: 10,
   },
-  errorText: { fontSize: 12, fontFamily: fonts.semiBold, color: terracotta.primary, lineHeight: 17, marginBottom: 10 },
+  errorText: { fontSize: 12.5, fontFamily: fonts.regular, color: danger.primary, lineHeight: 17, marginBottom: 10 },
   primaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: green.mid,
-    borderRadius: radius.tile,
-    paddingVertical: 13,
+    backgroundColor: accent.primary,
+    borderRadius: radius.pill,
+    minHeight: 46,
+    shadowColor: accent.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 14,
+    elevation: 4,
   },
-  primaryBtnText: { fontSize: 14, fontFamily: fonts.bold, color: ink.onDark },
-  linkText: { fontSize: 13, fontFamily: fonts.bold, color: green.primary },
-  message: { fontSize: 12, fontFamily: fonts.medium, color: green.primary, lineHeight: 17, marginTop: 8, paddingHorizontal: 2 },
+  primaryBtnText: { fontSize: 14.5, fontFamily: fonts.medium, color: accent.onAccent },
+  linkText: { fontSize: 13.5, fontFamily: fonts.medium, color: accent.ink },
+  message: { fontSize: 13, fontFamily: fonts.regular, color: accent.ink, lineHeight: 18, marginTop: 10, paddingHorizontal: 2 },
   disabled: { opacity: 0.5 },
   pressed: { opacity: 0.7 },
 });
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: surface.app },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 12,
-  },
-  title: { fontSize: 19, fontFamily: fonts.black, color: ink.primary, letterSpacing: -0.4 },
-  backBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: surface.chipAlt,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   pressed: { opacity: 0.7 },
   rowPressed: { opacity: 0.6 },
 
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 40 },
-  sectionSpacer: { marginTop: 20 },
-  helperText: { fontSize: 12, fontFamily: fonts.medium, color: ink.muted, lineHeight: 17 },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 40 },
+  sectionSpacer: { marginTop: 24 },
+  helperText: { fontSize: 13, fontFamily: fonts.regular, color: ink.muted, lineHeight: 18 },
 
   // Quiet hours
   qhTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   qhIcon: {
-    width: 42,
-    height: 42,
+    width: 34,
+    height: 34,
     borderRadius: radius.iconTile,
-    backgroundColor: surface.chip,
+    backgroundColor: accent.soft,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
   qhTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  qhTitle: { fontSize: 15, fontFamily: fonts.bold, color: ink.primary },
-  qhDesc: { fontSize: 12.5, fontFamily: fonts.medium, color: ink.muted, lineHeight: 18, marginTop: 3 },
+  qhTitle: { fontSize: 14.5, fontFamily: fonts.medium, color: ink.primary },
+  qhDesc: { fontSize: 13, fontFamily: fonts.regular, color: ink.muted, lineHeight: 18.5, marginTop: 3 },
   qhRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
   qhNote: {
     flexDirection: 'row',
@@ -452,61 +443,64 @@ const styles = StyleSheet.create({
     marginTop: 14,
     paddingTop: 14,
     borderTopWidth: 1,
-    borderTopColor: line.hairline,
+    borderTopColor: glass.border,
   },
   qhNoteIcon: {
     width: 30,
     height: 30,
     borderRadius: radius.iconTileSm,
-    backgroundColor: category.medBg,
+    backgroundColor: accent.soft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  qhNoteText: { flex: 1, fontSize: 12.5, fontFamily: fonts.medium, color: ink.muted, lineHeight: 18 },
+  qhNoteText: { flex: 1, fontSize: 12.5, fontFamily: fonts.regular, color: ink.muted, lineHeight: 18 },
 
   // Per-pet mute rows
-  muteRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 16 },
-  muteAvatar: { backgroundColor: green.tint, borderWidth: 2, borderColor: '#ffffff' },
-  muteName: { fontSize: 15, fontFamily: fonts.bold, color: ink.primary },
-  muteSub: { fontSize: 12.5, fontFamily: fonts.medium, color: ink.muted, marginTop: 2 },
-  divider: { height: 1, backgroundColor: line.hairline, marginLeft: 72, marginRight: 16 },
+  muteRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, paddingVertical: 10, paddingHorizontal: 14 },
+  muteAvatar: { backgroundColor: accent.soft, borderWidth: 1, borderColor: accent.line },
+  muteName: { fontSize: 14.5, fontFamily: fonts.medium, color: ink.primary },
+  muteSub: { fontSize: 12.5, fontFamily: fonts.regular, color: ink.muted, marginTop: 2 },
+  divider: { height: 1, backgroundColor: glass.border, marginLeft: 66, marginRight: 14 },
 
-  // Generic action rows (data, recover)
-  rowCardSpacer: { marginTop: 8 },
-  dataRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 16 },
+  // Generic action rows (recover)
+  rowCardSpacer: { marginTop: 10 },
+  dataRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 10, paddingHorizontal: 14 },
   dataIcon: {
     width: 34,
     height: 34,
     borderRadius: radius.iconTile,
+    backgroundColor: accent.soft,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
-  dataLabel: { fontSize: 14, fontFamily: fonts.bold, color: ink.primary },
-  dataSub: { fontSize: 12, fontFamily: fonts.medium, color: ink.muted, marginTop: 2, lineHeight: 16 },
+  dataLabel: { fontSize: 14, fontFamily: fonts.medium, color: ink.primary },
+  dataSub: { fontSize: 12, fontFamily: fonts.regular, color: ink.muted, marginTop: 2, lineHeight: 16 },
 
   // Dialogs
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(42,39,36,0.5)',
+    backgroundColor: glass.scrimDark,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
   },
   dialog: {
     width: '100%',
-    maxWidth: 320,
-    backgroundColor: surface.card,
+    maxWidth: 340,
+    backgroundColor: surface.solid,
     borderRadius: radius.sheet,
-    padding: 20,
-    ...shadow.card,
+    borderWidth: 1,
+    borderColor: glass.border,
+    padding: 22,
+    ...shadow.hero,
   },
-  dialogTitle: { fontSize: 16, fontFamily: fonts.bold, color: ink.primary, marginBottom: 8 },
-  dialogBody: { fontSize: 13, fontFamily: fonts.medium, color: ink.muted, lineHeight: 19, marginBottom: 18 },
-  dialogActions: { flexDirection: 'row', gap: 10 },
-  dialogBtn: { flex: 1, borderRadius: radius.tile, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
-  cancelBtn: { backgroundColor: surface.field },
-  cancelBtnText: { fontSize: 13, fontFamily: fonts.bold, color: ink.muted },
-  confirmBtn: { backgroundColor: green.mid },
-  confirmBtnText: { fontSize: 13, fontFamily: fonts.bold, color: ink.onDark },
+  dialogTitle: { fontSize: 18, fontFamily: fonts.medium, letterSpacing: -0.45, color: ink.primary, marginBottom: 8 },
+  dialogBody: { fontSize: 13.5, fontFamily: fonts.regular, color: ink.muted, lineHeight: 20, marginBottom: 16 },
+  dialogActions: { flexDirection: 'row', gap: 10, marginTop: 6 },
+  dialogBtn: { flex: 1, borderRadius: radius.pill, minHeight: 46, alignItems: 'center', justifyContent: 'center' },
+  cancelBtn: { backgroundColor: glass.strong, borderWidth: 1, borderColor: glass.border2 },
+  cancelBtnText: { fontSize: 14, fontFamily: fonts.medium, color: ink.primary },
+  confirmBtn: { backgroundColor: accent.primary },
+  confirmBtnText: { fontSize: 14, fontFamily: fonts.medium, color: accent.onAccent },
 });

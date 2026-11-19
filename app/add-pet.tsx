@@ -1,7 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { StyleSheet } from 'react-native';
-import { surface } from '../theme/colors';
+import { Screen } from '../components/ui';
 import { PetWizard, type WizardStep } from '../components/PetWizard';
 
 const STEPS: WizardStep[] = ['about', 'routine', 'meds'];
@@ -17,12 +15,8 @@ export default function AddPetScreen() {
   const close = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)'));
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <Screen edges={['top', 'bottom', 'left', 'right']}>
       <PetWizard petId={petId} initialStep={initialStep} onClose={close} onSaved={close} />
-    </SafeAreaView>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: surface.app },
-});

@@ -1,11 +1,13 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { ink, line, radius, surface, terracotta } from '../theme/colors';
+import { accent, glass, ink, radius, surface } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { Icon, type IconName } from './Icon';
 
 /**
- * Dashed empty-state card (redesign v3): a tinted icon circle, a bold title, a muted body and
- * a soft tinted action button — "No meal times for Mochi yet · Set meal times".
+ * Empty-state glass card (design v2 `.card.glass`, dashed hairline): an accent-soft icon
+ * tile, a weight-500 title, a muted body and a soft accent action pill —
+ * "No meal times for Mochi yet · Set meal times". `tint` / `ink` still override the
+ * tile + action colours for older call sites.
  */
 export function EmptyActionCard({
   title,
@@ -14,8 +16,8 @@ export function EmptyActionCard({
   onAction,
   icon = 'bowl',
   actionIcon = 'plus',
-  tint = terracotta.tint,
-  ink: accent = terracotta.primary,
+  tint = accent.soft,
+  ink: tone = accent.ink,
 }: {
   title: string;
   body: string;
@@ -29,7 +31,7 @@ export function EmptyActionCard({
   return (
     <View style={styles.card}>
       <View style={[styles.icon, { backgroundColor: tint }]}>
-        <Icon name={icon} size={20} color={accent} strokeWidth={2} />
+        <Icon name={icon} size={18} color={tone} strokeWidth={1.8} />
       </View>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.body}>{body}</Text>
@@ -39,8 +41,8 @@ export function EmptyActionCard({
         role="button"
         aria-label={actionLabel}
       >
-        <Icon name={actionIcon} size={17} color={accent} strokeWidth={2.3} />
-        <Text style={[styles.btnText, { color: accent }]}>{actionLabel}</Text>
+        <Icon name={actionIcon} size={16} color={tone} strokeWidth={2} />
+        <Text style={[styles.btnText, { color: tone }]}>{actionLabel}</Text>
       </Pressable>
     </View>
   );
@@ -52,23 +54,29 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
     paddingHorizontal: 20,
     borderRadius: radius.card,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: line.dashed,
+    borderColor: glass.border2,
     backgroundColor: surface.card,
   },
   icon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
   },
-  title: { fontSize: 15, fontFamily: fonts.bold, color: ink.primary, textAlign: 'center' },
+  title: {
+    fontSize: 15,
+    fontFamily: fonts.medium,
+    color: ink.primary,
+    letterSpacing: -0.2,
+    textAlign: 'center',
+  },
   body: {
     fontSize: 13,
-    fontFamily: fonts.medium,
+    fontFamily: fonts.regular,
     color: ink.muted,
     textAlign: 'center',
     lineHeight: 19,
@@ -79,10 +87,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginTop: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: radius.tile,
+    minHeight: 40,
+    paddingHorizontal: 18,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: accent.line,
   },
-  btnText: { fontSize: 14, fontFamily: fonts.bold },
-  pressed: { opacity: 0.75 },
+  btnText: { fontSize: 13.5, fontFamily: fonts.medium },
+  pressed: { opacity: 0.75, transform: [{ scale: 0.97 }] },
 });

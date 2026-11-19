@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { TopNavBar } from '../../components/TopNavBar';
-import { Card, HeroCard, SectionLabel } from '../../components/ui';
+import { Card, HeroCard, Screen, SectionLabel, TAB_BAR_CLEARANCE } from '../../components/ui';
 import { Icon, type IconName } from '../../components/Icon';
 import { HouseholdSection } from '../../components/HouseholdSection';
 import { useSession } from '../../context/SessionContext';
@@ -12,12 +11,12 @@ import { getSupabaseClient } from '../../lib/db/client';
 import { getHouseholdName, type Member } from '../../lib/household/invites';
 import { joinPetNames } from '../../lib/petNames';
 import { possessive as possessiveOf } from '../../lib/petVoice';
-import { amber, green, ink, radius, surface } from '../../theme/colors';
+import { accent, glass, ink, radius, warn } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 
 /**
- * FAMILY tab (redesign v3; was "Shared") — the household-sharing flagship. Green hero like every
- * other tab, plus a "How sharing works" explainer.
+ * FAMILY tab (Aurora Minimal v2; was "Shared") — the household-sharing flagship. Glass hero like
+ * every other tab, plus a "How sharing works" explainer.
  *
  * The whole product rests on two caregivers, one dog, one shared prediction. This screen is
  * where that household is created and grown: a green hero summarising who's caring for the
@@ -65,7 +64,7 @@ export default function SharedScreen() {
   const possessive = pets.length > 0 ? possessiveOf(names) : "your pets'";
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <Screen edges={['top']}>
       <TopNavBar pet={activePet} eyebrow="Care team" title="Family" />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         {isShared ? (
@@ -79,8 +78,6 @@ export default function SharedScreen() {
                 { value: String(logsToday), label: 'Logs today' },
               ]}
             />
-
-            <View style={{ height: 20 }} />
 
             <Text style={styles.blurb}>
               Share this household so every caregiver gets the same reminders. Whoever answers
@@ -98,7 +95,9 @@ export default function SharedScreen() {
             />
 
             <View style={styles.notice}>
-              <Icon name="lock" size={22} color={amber.warnInk} strokeWidth={2} />
+              <View style={styles.noticeIcon}>
+                <Icon name="lock" size={17} color={warn.ink} strokeWidth={1.8} />
+              </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.noticeTitle}>Sharing needs sync turned on</Text>
                 <Text style={styles.noticeBody}>
@@ -112,7 +111,7 @@ export default function SharedScreen() {
 
         <View style={styles.section}>
           <SectionLabel>How sharing works</SectionLabel>
-          <Card padded style={styles.how}>
+          <Card style={styles.how}>
             <HowRow
               icon="userPlus"
               title="Invite a helper"
@@ -127,19 +126,30 @@ export default function SharedScreen() {
               icon="check"
               title="First one to answer logs it"
               body="The other phones update on their own. No double logging."
+              last
             />
           </Card>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
-function HowRow({ icon, title, body }: { icon: IconName; title: string; body: string }) {
+function HowRow({
+  icon,
+  title,
+  body,
+  last = false,
+}: {
+  icon: IconName;
+  title: string;
+  body: string;
+  last?: boolean;
+}) {
   return (
-    <View style={styles.howRow}>
+    <View style={[styles.howRow, !last && styles.howDivider]}>
       <View style={styles.howIcon}>
-        <Icon name={icon} size={19} color={green.primary} strokeWidth={2} />
+        <Icon name={icon} size={17} color={accent.ink} strokeWidth={1.8} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.howTitle}>{title}</Text>
@@ -150,40 +160,56 @@ function HowRow({ icon, title, body }: { icon: IconName; title: string; body: st
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: surface.app },
   scroll: { flex: 1 },
-  content: { paddingHorizontal: 20, paddingBottom: 80 },
+  content: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: TAB_BAR_CLEARANCE },
   blurb: {
-    fontFamily: fonts.medium,
-    fontSize: 12.5,
+    fontFamily: fonts.regular,
+    fontSize: 13,
     color: ink.muted,
-    lineHeight: 18,
-    marginBottom: 16,
+    lineHeight: 19,
+    marginTop: 16,
+    marginBottom: 18,
+    paddingHorizontal: 2,
   },
   notice: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 14,
-    marginTop: 20,
-    padding: 18,
+    gap: 12,
+    marginTop: 14,
+    padding: 16,
     borderRadius: radius.card,
-    backgroundColor: amber.warnBg,
+    backgroundColor: warn.soft,
     borderWidth: 1,
-    borderColor: '#f3dfb9',
+    borderColor: warn.line,
   },
-  noticeTitle: { fontFamily: fonts.bold, fontSize: 15.5, color: ink.primary, marginBottom: 4 },
-  noticeBody: { fontFamily: fonts.medium, fontSize: 13, color: ink.muted, lineHeight: 19 },
-  section: { marginTop: 26 },
-  how: { gap: 18, paddingVertical: 18 },
-  howRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
-  howIcon: {
-    width: 42,
-    height: 42,
+  noticeIcon: {
+    width: 34,
+    height: 34,
     borderRadius: radius.iconTile,
-    backgroundColor: green.tint,
+    backgroundColor: glass.strong,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  howTitle: { fontFamily: fonts.bold, fontSize: 15, color: ink.primary },
-  howBody: { fontFamily: fonts.medium, fontSize: 13, color: ink.muted, lineHeight: 19, marginTop: 2 },
+  noticeTitle: {
+    fontFamily: fonts.medium,
+    fontSize: 15,
+    letterSpacing: -0.2,
+    color: ink.primary,
+    marginBottom: 3,
+  },
+  noticeBody: { fontFamily: fonts.regular, fontSize: 13, color: ink.muted, lineHeight: 19 },
+  section: { marginTop: 26 },
+  how: { paddingHorizontal: 16 },
+  howRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 14 },
+  howDivider: { borderBottomWidth: 1, borderBottomColor: glass.border },
+  howIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.iconTile,
+    backgroundColor: accent.soft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  howTitle: { fontFamily: fonts.medium, fontSize: 14, letterSpacing: -0.15, color: ink.primary },
+  howBody: { fontFamily: fonts.regular, fontSize: 13, color: ink.muted, lineHeight: 19, marginTop: 2 },
 });

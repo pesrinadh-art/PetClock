@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { category, green, ink, line, logTint, radius, terracotta } from '../theme/colors';
+import { accent, category, danger, glass, ink, line, logTint, radius, terracotta } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import type { FeedTime, LogEntry, LogType } from '../data/mockData';
 import { useLogs } from '../context/LogsContext';
@@ -12,10 +12,10 @@ import { Icon, type IconName } from './Icon';
 const TYPE_STYLE: Record<LogType, { icon: IconName; bg: string; fg: string }> = {
   pee: { icon: 'drop', bg: logTint.peeBg, fg: logTint.peeInk },
   poo: { icon: 'poo', bg: logTint.pooBg, fg: logTint.pooInk },
-  food: { icon: 'bowl', bg: terracotta.tint, fg: terracotta.primary },
+  food: { icon: 'bowl', bg: terracotta.tint, fg: terracotta.ink },
   medication: { icon: 'pill', bg: category.medBg, fg: category.medInk },
   vet: { icon: 'vet', bg: category.vetBg, fg: category.vetInk },
-  other: { icon: 'paw', bg: green.tint, fg: green.primary },
+  other: { icon: 'paw', bg: accent.soft, fg: accent.ink },
 };
 
 /** "by you" / "by a caregiver" — attribution derived from the log's author id. */
@@ -65,7 +65,7 @@ export function Timeline({
               onPress={() => setExpandedId(expanded ? null : e.id)}
             >
               <View style={[styles.tile, { backgroundColor: ts.bg }]}>
-                <Icon name={ts.icon} size={14} color={ts.fg} strokeWidth={2} />
+                <Icon name={ts.icon} size={16} color={ts.fg} strokeWidth={1.8} />
               </View>
               <View style={styles.text}>
                 <Text style={styles.label} numberOfLines={1}>{label}</Text>
@@ -114,33 +114,45 @@ export function Timeline({
 
 const styles = StyleSheet.create({
   card: { marginBottom: 12 },
+  // Design v2 diary row: 34px accent-soft tile · title + subtitle · mono time on the right.
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 11,
+    gap: 12,
+    minHeight: 54,
     paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
   },
-  tile: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  text: { flex: 1 },
-  label: { fontSize: 13.5, fontFamily: fonts.bold, color: ink.primary },
-  sub: { fontSize: 11.5, fontFamily: fonts.medium, color: ink.faint2, marginTop: 1 },
-  time: { fontSize: 12, fontFamily: fonts.bold, color: ink.muted },
-  divider: { height: 1, backgroundColor: line.hairline, marginHorizontal: 16 },
+  tile: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.iconTile,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  text: { flex: 1, minWidth: 0 },
+  label: { fontSize: 14, fontFamily: fonts.medium, color: ink.primary },
+  sub: { fontSize: 12, fontFamily: fonts.regular, color: ink.muted, marginTop: 2 },
+  time: { fontSize: 12, fontFamily: fonts.monoRegular, color: ink.muted, flexShrink: 0 },
+  divider: { height: 1, backgroundColor: line.hairline, marginHorizontal: 14 },
   actions: {
     flexDirection: 'row',
     gap: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingBottom: 12,
   },
   actionBtn: {
     flex: 1,
-    paddingVertical: 8,
-    borderRadius: radius.iconTile,
-    backgroundColor: green.tint,
+    minHeight: 36,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: glass.border2,
+    backgroundColor: glass.strong,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  actionText: { fontSize: 12, fontFamily: fonts.bold, color: green.primary },
-  deleteBtn: { backgroundColor: terracotta.tint },
-  deleteText: { color: terracotta.primary },
+  actionText: { fontSize: 12.5, fontFamily: fonts.mono, color: ink.primary },
+  deleteBtn: { backgroundColor: 'transparent', borderColor: danger.primary },
+  deleteText: { fontFamily: fonts.medium, color: danger.primary },
 });

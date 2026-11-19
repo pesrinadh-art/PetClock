@@ -1,18 +1,16 @@
-// PawClock redesign type system — Archivo (weights 400/500/600/700/800).
-// The design uses tight tracking on headings (-.02em) and uppercase tracked
-// section labels (.14em); those are applied at the component level (SectionLabel).
+// PawClock type system — Aurora Minimal: Geist (400/500/600) + Geist Mono.
+// The design never goes above 600: headings are 500 with tight tracking
+// (≈ -0.035em), emphasis is 600. Every time, date and number is Geist Mono.
 //
-// Back-compat: every key the app already imports (regular/semiBold/bold/
-// extraBold/black/mono) still resolves. `medium` is new. DM Mono stays only
-// because history.tsx / Timeline / HouseholdSection still render monospaced
-// timestamps — screen agents can migrate those later.
+// Back-compat: every key the app already imports still resolves. bold/extraBold/
+// black all map to 600 — the heaviest weight the design uses.
 export const fonts = {
-  regular: 'Archivo_400Regular',
-  medium: 'Archivo_500Medium',
-  semiBold: 'Archivo_600SemiBold',
-  bold: 'Archivo_700Bold',
-  // The design's heaviest weight is 800; extraBold and black both map to it.
-  extraBold: 'Archivo_800ExtraBold',
-  black: 'Archivo_800ExtraBold',
-  mono: 'DMMono_500Medium',
+  regular: 'Geist_400Regular',
+  medium: 'Geist_500Medium',
+  semiBold: 'Geist_600SemiBold',
+  bold: 'Geist_600SemiBold',
+  extraBold: 'Geist_600SemiBold',
+  black: 'Geist_600SemiBold',
+  mono: 'GeistMono_500Medium',
+  monoRegular: 'GeistMono_400Regular',
 } as const;

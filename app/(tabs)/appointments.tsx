@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { amber, green, ink, radius, surface } from '../../theme/colors';
+import { accent, glass, ink, radius, warn } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { TopNavBar } from '../../components/TopNavBar';
-import { HeroAvatar, HeroCard, SectionLabel } from '../../components/ui';
+import { HeroCard, Screen, SectionLabel, TAB_BAR_CLEARANCE } from '../../components/ui';
 import { Icon, type IconName } from '../../components/Icon';
 import { ApptTabs, type ApptFilter } from '../../components/ApptTabs';
 import { AppointmentCard } from '../../components/AppointmentCard';
@@ -20,12 +19,15 @@ import { allDayToHasTime } from '../../lib/db/models';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Translucent info chip on the hero ("In 2 days", "Tue, Sep 29 · 10:00 AM", "City Vet Clinic"). */
-function HeroChip({ icon, label }: { icon: IconName; label: string }) {
+const planVisit = () => router.push('/add-appointment');
+
+/** Mono info pill on the hero ("Tue, Sep 29 · 10:00 AM", "City Vet Clinic"); `accent` tints it. */
+function HeroChip({ icon, label, tone = 'plain' }: { icon: IconName; label: string; tone?: 'plain' | 'accent' }) {
+  const on = tone === 'accent';
   return (
-    <View style={styles.heroChip}>
-      <Icon name={icon} size={15} color="#ffffff" strokeWidth={2.2} />
-      <Text style={styles.heroChipText} numberOfLines={1}>
+    <View style={[styles.heroChip, on && styles.heroChipAccent]}>
+      <Icon name={icon} size={13} color={on ? accent.ink : ink.muted} strokeWidth={1.8} />
+      <Text style={[styles.heroChipText, { color: on ? accent.ink : ink.muted }]} numberOfLines={1}>
         {label}
       </Text>
     </View>
@@ -33,9 +35,9 @@ function HeroChip({ icon, label }: { icon: IconName; label: string }) {
 }
 
 /**
- * Visits tab (redesign v3): the hero features the next visit with a "See visit details" button;
- * visits whose day passed without being marked done sit under "Needs a new date"; upcoming ones
- * under "Coming up". Filter chips narrow by type.
+ * Visits tab (design v2): a round glass + in the header plans a visit; the glass hero features
+ * the next visit with a "See visit details" button; visits whose day passed without being marked
+ * done sit under "Needs a new date"; upcoming ones under "Coming up". Filter chips narrow by type.
  */
 export default function AppointmentsScreen() {
   const { appointments } = useAppointments();
@@ -68,37 +70,31 @@ export default function AppointmentsScreen() {
   const stats = [
     { value: String(thisWeek), label: 'This week' },
     { value: String(thisMonth), label: 'This month' },
-    { value: String(lateCount), label: 'New date needed', accent: lateCount > 0 ? '#f3d27a' : undefined },
+    { value: String(lateCount), label: 'New date needed', accent: lateCount > 0 ? warn.ink : undefined },
   ];
 
   const nextPets = next ? pets.filter((p) => next.petIds.includes(p.id)) : [];
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <Screen edges={['top']}>
       <TopNavBar
         pet={activePet}
         eyebrow={pets.length > 0 ? `For ${joinPetNames(pets.map((p) => p.name))}` : undefined}
         title="Family visits"
+        action={{ icon: 'plus', label: 'Add visit', onPress: planVisit }}
       />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <View style={styles.pad}>
           {next ? (
             <HeroCard
+              eyebrow={`Next visit · ${computeCountdown(next.startsAt, nowMs).label}`}
               title={next.title}
               subtitle={[joinPetNames(nextPets.map((p) => p.name)), VISIT_META[next.type].label].filter(Boolean).join(' · ')}
-              leading={nextPets[0] ? <HeroAvatar pet={nextPets[0]} size={60} /> : undefined}
               stats={stats}
             >
               <View style={styles.heroChips}>
-                <HeroChip icon="clock" label={computeCountdown(next.startsAt, nowMs).label} />
-                <HeroChip
-                  icon="calendar"
-                  label={
-                    allDayToHasTime(next.allDay)
-                      ? `${formatApptDate(next.startsAt)} · ${formatApptTime(next.startsAt)}`
-                      : `${formatApptDate(next.startsAt)} · All day`
-                  }
-                />
+                <HeroChip icon="calendar" tone="accent" label={formatApptDate(next.startsAt)} />
+                <HeroChip icon="clock" label={allDayToHasTime(next.allDay) ? formatApptTime(next.startsAt) : 'All day'} />
                 {!!next.location && <HeroChip icon="mapPin" label={next.location} />}
               </View>
               <Pressable
@@ -107,19 +103,29 @@ export default function AppointmentsScreen() {
                 role="button"
                 aria-label={`See details for ${next.title}`}
               >
-                <Icon name="arrowRight" size={18} color={green.primary} strokeWidth={2.4} />
                 <Text style={styles.detailsText}>See visit details</Text>
+                <Icon name="chevronRight" size={16} color={ink.primary} strokeWidth={1.9} />
               </Pressable>
             </HeroCard>
           ) : (
-            <HeroCard eyebrow="Nothing planned" title="No visits coming up" subtitle="Tap + to plan a vet visit, vaccine or grooming." stats={stats} />
+            <HeroCard eyebrow="Nothing planned" title="No visits coming up" subtitle="Plan a vet visit, vaccine or grooming with the + up top." stats={stats}>
+              {active.length > 0 && (
+                <Pressable
+                  style={({ pressed }) => [styles.planBtn, pressed && styles.pressed]}
+                  onPress={planVisit}
+                  role="button"
+                  aria-label="Plan a visit"
+                >
+                  <Icon name="plus" size={16} color={accent.onAccent} strokeWidth={2} />
+                  <Text style={styles.planText}>Plan a visit</Text>
+                </Pressable>
+              )}
+            </HeroCard>
           )}
 
           {lateCount > 0 && (
             <View style={styles.banner}>
-              <View style={styles.bannerIcon}>
-                <Icon name="calendar" size={18} color={amber.warnInk} strokeWidth={2} />
-              </View>
+              <Icon name="calendar" size={18} color={warn.ink} strokeWidth={1.8} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.bannerTitle}>
                   {lateCount === 1 ? 'One visit needs a new date' : `${lateCount} visits need a new date`}
@@ -144,9 +150,9 @@ export default function AppointmentsScreen() {
                 title="No visits yet"
                 body="Vet visits, vaccines and grooming will show up here once you add them."
                 actionLabel="Plan a visit"
-                onAction={() => router.push('/add-appointment')}
-                tint={green.tint}
-                ink={green.primary}
+                onAction={planVisit}
+                tint={accent.soft}
+                ink={accent.ink}
               />
             </View>
           ) : (
@@ -174,64 +180,75 @@ export default function AppointmentsScreen() {
           )}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: surface.app },
   scroll: { flex: 1 },
-  scrollContent: { paddingBottom: 80 },
+  scrollContent: { paddingTop: 4, paddingBottom: TAB_BAR_CLEARANCE },
   pad: { paddingHorizontal: 20 },
-  pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
+  pressed: { opacity: 0.8, transform: [{ scale: 0.98 }] },
 
-  heroChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
+  heroChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 14 },
   heroChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 5,
     maxWidth: '100%',
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    height: 26,
+    paddingHorizontal: 10,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: glass.border2,
+    backgroundColor: glass.strong,
   },
-  heroChipText: { flexShrink: 1, fontSize: 13, fontFamily: fonts.bold, color: '#ffffff' },
+  heroChipAccent: { backgroundColor: accent.soft, borderColor: accent.line },
+  heroChipText: { flexShrink: 1, fontSize: 11.5, fontFamily: fonts.mono },
   detailsBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    alignSelf: 'flex-start',
+    gap: 6,
     marginTop: 16,
-    paddingVertical: 14,
-    borderRadius: radius.tile,
-    backgroundColor: '#ffffff',
+    minHeight: 38,
+    paddingHorizontal: 14,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: glass.border2,
+    backgroundColor: glass.strong,
   },
-  detailsText: { fontSize: 15, fontFamily: fonts.bold, color: green.primary },
+  detailsText: { fontSize: 13, fontFamily: fonts.medium, color: ink.primary },
+  planBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    marginTop: 14,
+    minHeight: 38,
+    paddingHorizontal: 14,
+    borderRadius: radius.pill,
+    backgroundColor: accent.primary,
+  },
+  planText: { fontSize: 13, fontFamily: fonts.medium, color: accent.onAccent },
 
   banner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
-    marginTop: 16,
+    gap: 10,
+    marginTop: 14,
     padding: 14,
-    borderRadius: radius.card,
-    backgroundColor: amber.warnBg,
+    borderRadius: radius.tile,
+    backgroundColor: warn.soft,
     borderWidth: 1,
-    borderColor: '#f3dfb9',
+    borderColor: warn.line,
   },
-  bannerIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: radius.iconTile,
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bannerTitle: { fontSize: 15, fontFamily: fonts.bold, color: amber.warnInk },
-  bannerBody: { fontSize: 12.5, fontFamily: fonts.medium, color: ink.muted, marginTop: 2, lineHeight: 18 },
+  bannerTitle: { fontSize: 14, fontFamily: fonts.medium, color: ink.primary, lineHeight: 18 },
+  bannerBody: { fontSize: 12.5, fontFamily: fonts.regular, color: ink.muted, marginTop: 2, lineHeight: 18 },
 
   chips: { marginTop: 20 },
   section: { marginTop: 22 },
-  noneText: { marginTop: 22, fontSize: 13, fontFamily: fonts.medium, color: ink.muted, textAlign: 'center' },
+  noneText: { marginTop: 22, fontSize: 12.5, fontFamily: fonts.regular, color: ink.muted, textAlign: 'center' },
 });

@@ -1,22 +1,21 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { ink, radius, terracotta } from '../theme/colors';
+import { accent, glass, ink, radius, shadow } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import type { Pet } from '../data/mockData';
 import { useLogs } from '../context/LogsContext';
 import { usePets } from '../context/PetsContext';
 import { nudgeKey, useNudges } from '../context/NudgesContext';
 import { getTodaysMeals } from '../lib/petSchedule';
-import { Card } from './ui';
 import { Icon } from './Icon';
 
 const SNOOZE_MS = 30 * 60 * 1000;
 
 /**
- * The meal "attention" card (screen 2a): a white card with a terracotta left
- * border — a bowl icon tile, "<Meal> time", "Tell us once <pet> has eaten", and a
- * terracotta "Done" button. It prompts for exactly one meal at a time — whichever
- * is actually due right now — so there's no way to mark a later meal done early.
- * "Done" logs the slot by feedTimeId (Δ1); a subtle "Snooze" defers it 30 min.
+ * The meal "attention" banner (design v2 `.banner`): an accent-soft panel with a bowl line
+ * icon, "<Meal> time", "Tell us once <pet> has eaten", and a violet "Done" pill beside a glass
+ * "Snooze". It prompts for exactly one meal at a time — whichever is actually due right now —
+ * so there's no way to mark a later meal done early. "Done" logs the slot by feedTimeId (Δ1);
+ * "Snooze" defers it 30 min.
  */
 export function MealTimeBanner({ pet }: { pet: Pet }) {
   const { getLogsForPet, addLog } = useLogs();
@@ -41,62 +40,64 @@ export function MealTimeBanner({ pet }: { pet: Pet }) {
   };
 
   return (
-    <Card padded style={styles.card}>
-      <View style={styles.row}>
-        <View style={styles.tile}>
-          <Icon name="bowl" size={19} color={terracotta.primary} strokeWidth={2} />
-        </View>
+    <View style={styles.banner}>
+      <View style={styles.top}>
+        <Icon name="bowl" size={18} color={accent.ink} strokeWidth={1.8} />
         <View style={styles.text}>
           <Text style={styles.title} numberOfLines={1}>{dueMeal.name} time</Text>
           <Text style={styles.sub} numberOfLines={1}>Tell us once {pet.name} has eaten</Text>
         </View>
+      </View>
+      <View style={styles.actions}>
         <Pressable
-          onPress={handleSnooze}
-          role="button"
-          aria-label="Remind me in 30 minutes"
-          hitSlop={8}
-        >
-          <Text style={styles.snooze}>Snooze</Text>
-        </Pressable>
-        <Pressable
-          style={({ pressed }) => [styles.doneBtn, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.btn, styles.doneBtn, pressed && styles.pressed]}
           onPress={handleDoneFeeding}
           role="button"
           aria-label={`Log ${dueMeal.name} as fed for ${pet.name}`}
         >
-          <Text style={styles.doneText}>Done</Text>
+          <Text style={[styles.btnText, styles.doneText]}>Done</Text>
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [styles.btn, pressed && styles.pressed]}
+          onPress={handleSnooze}
+          role="button"
+          aria-label="Remind me in 30 minutes"
+          hitSlop={4}
+        >
+          <Text style={styles.btnText}>Snooze</Text>
         </Pressable>
       </View>
-    </Card>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
+  banner: {
     marginTop: 10,
-    borderWidth: 1.5,
-    borderColor: '#f3cfc0',
+    padding: 14,
+    borderRadius: radius.tile,
+    borderWidth: 1,
+    borderColor: accent.line,
+    backgroundColor: accent.soft,
   },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 11 },
-  tile: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: terracotta.tint,
+  top: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  text: { flex: 1 },
+  title: { fontSize: 14, fontFamily: fonts.medium, color: ink.primary, lineHeight: 18 },
+  sub: { fontSize: 12, fontFamily: fonts.regular, color: ink.muted, marginTop: 2 },
+  actions: { flexDirection: 'row', gap: 6, marginTop: 12 },
+  btn: {
+    flex: 1,
+    minHeight: 36,
+    paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    flexShrink: 0,
-  },
-  text: { flex: 1 },
-  title: { fontSize: 14.5, fontFamily: fonts.bold, color: ink.primary },
-  sub: { fontSize: 12, fontFamily: fonts.medium, color: ink.muted, marginTop: 1 },
-  snooze: { fontSize: 12.5, fontFamily: fonts.semiBold, color: ink.muted },
-  doneBtn: {
-    paddingVertical: 9,
-    paddingHorizontal: 16,
     borderRadius: radius.pill,
-    backgroundColor: terracotta.primary,
+    borderWidth: 1,
+    borderColor: glass.border2,
+    backgroundColor: glass.strong,
   },
-  pressed: { opacity: 0.8 },
-  doneText: { fontSize: 12.5, fontFamily: fonts.bold, color: '#ffffff' },
+  doneBtn: { backgroundColor: accent.primary, borderColor: 'transparent', ...shadow.fab, shadowOpacity: 0.3 },
+  pressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
+  btnText: { fontSize: 13, fontFamily: fonts.medium, color: ink.primary },
+  doneText: { color: accent.onAccent },
 });

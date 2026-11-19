@@ -1,57 +1,46 @@
 import * as React from 'react';
-import { Platform, StyleSheet, View, type ViewStyle } from 'react-native';
+import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { BlurView } from 'expo-blur';
+import { glass } from '../../theme/colors';
 
 /**
- * The "liquid glass" building block. Phase-2 screen agents apply this to the
- * tab bar, sticky headers and bottom sheets.
+ * The glass building block (tab bar, sticky headers, sheets, dialogs).
  *
- * Real backdrop blur only reads well on iOS, so this uses `expo-blur`'s
- * `BlurView` there and falls back to a solid (near-opaque) surface on Android
- * and web, where blur is weak/janky. Pass `fallbackColor` — the design's glass
- * chrome sits on `#fffdf8` (tab bar) — plus an optional `fallbackOpacity`.
+ * iOS gets a real backdrop blur under a translucent white wash; Android and web,
+ * where blur is weak or janky, get a near-opaque white panel. Either way the panel
+ * has the design's hairline border. Give it a `borderRadius` in `style`.
  *
- * Always give it a `borderRadius` (and set `overflow:'hidden'` via style) if
- * you want the blur clipped to rounded corners.
+ * `fallbackColor` is the panel colour off iOS. `fallbackOpacity` is kept for older
+ * call sites and is ignored — applying opacity to the container faded its children.
  */
 export function GlassSurface({
   intensity = 40,
   tint = 'light',
-  fallbackColor = '#fffdf8',
-  fallbackOpacity = 0.94,
+  fallbackColor = glass.strong,
   style,
   children,
 }: {
   intensity?: number;
   tint?: 'light' | 'dark' | 'default';
   fallbackColor?: string;
+  /** @deprecated ignored */
   fallbackOpacity?: number;
-  style?: ViewStyle | ViewStyle[];
+  style?: StyleProp<ViewStyle>;
   children?: React.ReactNode;
 }) {
-  // iOS gets true backdrop blur; everywhere else a graceful solid fallback.
   if (Platform.OS === 'ios') {
     return (
-      <BlurView intensity={intensity} tint={tint} style={[styles.base, style]}>
+      <BlurView intensity={intensity} tint={tint} style={[styles.base, styles.iosWash, style]}>
         {children}
       </BlurView>
     );
   }
-  return (
-    <View
-      style={[
-        styles.base,
-        { backgroundColor: fallbackColor, opacity: fallbackOpacity },
-        style,
-      ]}
-    >
-      {children}
-    </View>
-  );
+  return <View style={[styles.base, { backgroundColor: fallbackColor }, style]}>{children}</View>;
 }
 
 const styles = StyleSheet.create({
-  base: { overflow: 'hidden' },
+  base: { overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: glass.border },
+  iosWash: { backgroundColor: 'rgba(255,255,255,0.55)' },
 });
 
 export default GlassSurface;
