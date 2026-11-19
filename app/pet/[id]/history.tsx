@@ -14,6 +14,7 @@ import { describeLog, formatClock } from '../../../lib/petSchedule';
 import { useNow } from '../../../hooks/useNow';
 import type { Appointment, ApptType, FeedTime, LogEntry } from '../../../lib/db/models';
 import { presentLogType } from '../../../lib/care/logTypes';
+import { REGISTRY } from '../../../lib/care/registry';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -60,6 +61,15 @@ type Moment = {
   allDay?: boolean;
 };
 
+/**
+ * The day-summary bucket for a log type, by the care module that owns it: meals logs are
+ * "meal", potty logs are "potty", everything else (meds, vet, other, unknown) is "other".
+ */
+function bucketOf(type: string): Moment['bucket'] {
+  const owner = REGISTRY.find((m) => (m.logTypes as readonly string[]).includes(type))?.id;
+  return owner === 'meals' ? 'meal' : owner === 'potty' ? 'potty' : 'other';
+}
+
 function toMoments(logs: LogEntry[], appts: Appointment[], feedTimes: FeedTime[], now: Date): Moment[] {
   const fromLogs: Moment[] = logs
     .filter((l) => !l.deletedAt)
@@ -69,7 +79,7 @@ function toMoments(logs: LogEntry[], appts: Appointment[], feedTimes: FeedTime[]
       label: l.type === 'food' ? 'Meal' : describeLog(l, feedTimes, now).label,
       note: l.note ?? null,
       visual: presentLogType(l.type),
-      bucket: l.type === 'food' ? 'meal' : l.type === 'pee' || l.type === 'poo' ? 'potty' : 'other',
+      bucket: bucketOf(l.type),
     }));
   // Visits join the diary once they've happened (or were marked done).
   const fromAppts: Moment[] = appts

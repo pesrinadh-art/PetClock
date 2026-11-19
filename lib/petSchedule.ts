@@ -1,4 +1,5 @@
 import type { FeedTime, LogEntry, Medication, Pet } from './db/models';
+import { bufferMsFor, nextRepeating } from './care/engines/rhythm';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
@@ -246,26 +247,9 @@ export type UpcomingItem = {
   overdueBy: number;
 };
 
-export type RepeatingPrediction = { predicted: Date; overdueBy: number };
-
-/**
- * Finds the next occurrence of an event repeating every `intervalHours`, anchored to `anchor`.
- * Steps at most one interval past the anchor — a prediction whose time has already passed stays
- * put and reports `overdueBy` (ms past predicted, 0 when still ahead) rather than silently
- * rolling forward to the following interval and masking the miss.
- */
-function nextRepeating(anchor: Date, intervalHours: number, now: Date): RepeatingPrediction {
-  const intervalMs = intervalHours * HOUR_MS;
-  const predicted =
-    anchor.getTime() > now.getTime() ? new Date(anchor) : new Date(anchor.getTime() + intervalMs);
-  return { predicted, overdueBy: Math.max(0, now.getTime() - predicted.getTime()) };
-}
-
-/** Uncertainty window around a predicted hold-time break: ~15% of the hold duration, clamped to 10-45 min. */
-function bufferMsFor(holdHours: number): number {
-  const minutes = Math.min(45, Math.max(10, Math.round(holdHours * 60 * 0.15)));
-  return minutes * 60 * 1000;
-}
+// The rhythm engine (lib/care/engines/rhythm.ts) owns nextRepeating/bufferMsFor; they were
+// extracted verbatim and are imported back here, so every existing caller is unchanged.
+export type { RepeatingPrediction } from './care/engines/rhythm';
 
 function mostRecentLog(logs: LogEntry[], type: 'pee' | 'poo'): LogEntry | null {
   const matches = liveLogsOfType(logs, type);

@@ -38,7 +38,12 @@ import type { EntityRepo, NewLogInput, PawclockRepos } from './types';
 type Client = SupabaseClient<Database>;
 type Row = Record<string, any>;
 
-type PetInsert = Database['public']['Tables']['pets']['Insert'];
+/**
+ * `care_modules` arrives with 0019_care_modules.sql. It is added here by hand until
+ * types.gen.ts is regenerated against a project that has 0019 (never hand-edit that file).
+ */
+type GenPetInsert = Database['public']['Tables']['pets']['Insert'];
+type PetInsert = GenPetInsert & { care_modules?: string[] };
 type LogInsert = Database['public']['Tables']['logs']['Insert'];
 type FeedTimeInsert = Database['public']['Tables']['feed_times']['Insert'];
 type MedicationInsert = Database['public']['Tables']['medications']['Insert'];
@@ -207,10 +212,20 @@ function petToInsert(p: Pet, householdId: string): PetInsert {
     pee_hold_hours: p.peeHoldHours,
     poop_hold_hours: p.poopHoldHours,
     calibration_started_at: p.calibrationStartedAt,
+    care_modules: [...p.careModules],
     archived_at: p.archivedAt,
     created_at: p.createdAt,
     updated_at: p.updatedAt,
   };
+}
+
+/** PostgREST's "unknown column" error for pets.care_modules (a DB without 0019). */
+function isMissingCareModulesColumn(error: { code?: string; message?: string }): boolean {
+  return (
+    (error.code === 'PGRST204' || error.code === '42703') &&
+    typeof error.message === 'string' &&
+    error.message.includes('care_modules')
+  );
 }
 
 function feedTimeToInsert(f: FeedTime): FeedTimeInsert {
@@ -323,7 +338,15 @@ export function createSyncedRepos(
 
   // ---- pets writes ----
   const upsertPet = async (pet: Pet): Promise<Pet> => {
-    const { error } = await client.from('pets').upsert(petToInsert(pet, householdId));
+    const row = petToInsert(pet, householdId);
+    // Cast: the generated Insert type predates 0019 (see PetInsert).
+    let { error } = await client.from('pets').upsert(row as GenPetInsert);
+    if (error && isMissingCareModulesColumn(error)) {
+      // A project where 0019 is not applied yet: write everything else. The column's default
+      // ({potty,meals,meds,visits}) is what this pet gets once the migration lands.
+      const { care_modules: _omit, ...legacyRow } = row;
+      ({ error } = await client.from('pets').upsert(legacyRow));
+    }
     fail(error);
     petsEmitter.notify();
     return pet;

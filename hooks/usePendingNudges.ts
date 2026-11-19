@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { FeedTime, LogEntry, Medication, Pet } from '../lib/db/models';
 import { logYes, REASK_NO_MS, snoozeNudge, SNOOZE_15_MS } from '../lib/notifications/actions';
-import { computePendingNudges, type PendingNudge } from '../lib/notifications/pending';
+import type { PendingNudge } from '../lib/notifications/pending';
+// Nudges come from each pet's care plan (enabled modules only).
+import { carePendingNudges } from '../lib/care/household';
 import { getActiveSnoozes, type SnoozeMap } from '../lib/notifications/snoozeStore';
 
 /**
@@ -39,7 +41,7 @@ export function usePendingNudges(
     refreshSnoozes();
   }, [refreshSnoozes, now]);
 
-  const nudges = computePendingNudges(pets, feedTimes, medications, logs, now, snoozes);
+  const nudges = carePendingNudges(pets, feedTimes, medications, logs, now, snoozes);
 
   const onYes = useCallback(
     (nudge: PendingNudge) => {

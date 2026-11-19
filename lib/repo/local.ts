@@ -6,7 +6,7 @@ import {
   pets as demoPets,
   timeline as demoTimeline,
 } from '../../data/mockData';
-import type { Appointment, FeedTime, LogEntry, Medication, Pet } from '../db/models';
+import { narrowCareModules, type Appointment, type FeedTime, type LogEntry, type Medication, type Pet } from '../db/models';
 import { newId } from '../id';
 import { LOCAL_HOUSEHOLD_ID } from '../localHousehold';
 import type { EntityRepo, NewLogInput, PawclockRepos } from './types';
@@ -21,6 +21,11 @@ const KEY_APPOINTMENTS = 'pawclock:appointments';
 const KEY_SEEDED = 'pawclock:seeded';
 
 type Listener = () => void;
+
+/** A pet as read back from AsyncStorage: older builds wrote no `careModules`. */
+function normalizeStoredPet(p: Pet): Pet {
+  return { ...p, careModules: narrowCareModules((p as Partial<Pet>).careModules) };
+}
 
 /**
  * In-memory cache with write-through persistence. `list()` returns the cache
@@ -41,6 +46,8 @@ class LocalCollection<T extends { id: string }> {
     private readonly storageKey: string,
     private readonly ensureSeeded: () => Promise<void>,
     private readonly sort?: (a: T, b: T) => number,
+    /** Upgrades a stored item written by an older build (applied once, on hydrate). */
+    private readonly normalize?: (item: T) => T,
   ) {}
 
   private applySort(list: T[]): T[] {
@@ -54,7 +61,7 @@ class LocalCollection<T extends { id: string }> {
         await this.ensureSeeded();
         const raw = await AsyncStorage.getItem(this.storageKey);
         const parsed = raw ? (JSON.parse(raw) as T[]) : [];
-        this.cache = this.applySort(parsed);
+        this.cache = this.applySort(this.normalize ? parsed.map(this.normalize) : parsed);
         this.hydrated = true;
       })();
     }
@@ -150,7 +157,9 @@ export function createLocalRepos(): PawclockRepos {
     return seededPromise;
   };
 
-  const petsCol = new LocalCollection<Pet>(KEY_PETS, ensureSeeded);
+  // Pets stored before care modules existed have no `careModules`: they map to today's
+  // behaviour (potty, meals, meds, visits), exactly like toPet() does for a DB without 0019.
+  const petsCol = new LocalCollection<Pet>(KEY_PETS, ensureSeeded, undefined, normalizeStoredPet);
   const feedTimesCol = new LocalCollection<FeedTime>(KEY_FEED_TIMES, ensureSeeded);
   const medicationsCol = new LocalCollection<Medication>(KEY_MEDICATIONS, ensureSeeded);
   const logsCol = new LocalCollection<LogEntry>(KEY_LOGS, ensureSeeded);

@@ -28,6 +28,20 @@ export type BreakType = 'pee' | 'poo';
 
 export type MemberRole = 'owner' | 'member' | 'walker';
 
+/**
+ * A kind of care a pet gets help with (docs/CARE_MODULES_PLAN.md). Mirrors the Postgres text
+ * domain `public.care_module` (0019_care_modules.sql). `walks` and `habitat` are reserved for
+ * Phase 2: the type and the domain already accept them, but no module implements them yet.
+ */
+export type CareModuleId = 'potty' | 'walks' | 'meds' | 'meals' | 'habitat' | 'visits';
+
+/**
+ * What every pet that predates care modules does today, and the DB backfill/default in 0019.
+ * Also the mapping-layer fallback for rows that carry no `care_modules` at all (old local
+ * AsyncStorage data, or a Supabase project where 0019 is not applied yet).
+ */
+export const LEGACY_CARE_MODULES: readonly CareModuleId[] = ['potty', 'meals', 'meds', 'visits'];
+
 // ---------------------------------------------------------------------------
 // Household
 // ---------------------------------------------------------------------------
@@ -92,6 +106,12 @@ export type Pet = {
   poopHoldHours: number | null;
   /** Drives the 3-day calibration countdown (was Pet.createdAt). */
   calibrationStartedAt: string;
+  /**
+   * The care this pet gets help with, as an explicit stored list (never "use the defaults":
+   * the server gates the potty push on it). Never null in the app: a stored row without it
+   * maps to {@link LEGACY_CARE_MODULES} — see {@link narrowCareModules}.
+   */
+  careModules: CareModuleId[];
   /** Soft delete. Archived pets keep their log history. */
   archivedAt: string | null;
   createdAt: string;
@@ -254,10 +274,44 @@ export function toPet(r: Row): Pet {
     peeHoldHours: r.pee_hold_hours === null ? null : Number(r.pee_hold_hours),
     poopHoldHours: r.poop_hold_hours === null ? null : Number(r.poop_hold_hours),
     calibrationStartedAt: r.calibration_started_at,
+    careModules: narrowCareModules(r.care_modules),
     archivedAt: r.archived_at,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
+}
+
+/** Every CareModuleId this build understands. A Record so a new union member must be listed. */
+const KNOWN_CARE_MODULES: Record<CareModuleId, true> = {
+  potty: true,
+  walks: true,
+  meds: true,
+  meals: true,
+  habitat: true,
+  visits: true,
+};
+
+/**
+ * Stored care modules → the app's non-null list.
+ *
+ *  - Missing (`undefined`/`null`, i.e. not an array): the row predates care modules — old local
+ *    data, or a DB without 0019 — so it gets exactly today's behaviour, {@link LEGACY_CARE_MODULES}.
+ *  - An array: kept as stored (an empty list is a real choice), minus values this build does
+ *    not know (a newer build's module) and duplicates.
+ */
+export function narrowCareModules(v: unknown): CareModuleId[] {
+  if (!Array.isArray(v)) return [...LEGACY_CARE_MODULES];
+  const out: CareModuleId[] = [];
+  for (const m of v) {
+    if (
+      typeof m === 'string' &&
+      Object.prototype.hasOwnProperty.call(KNOWN_CARE_MODULES, m) &&
+      !out.includes(m as CareModuleId)
+    ) {
+      out.push(m as CareModuleId);
+    }
+  }
+  return out;
 }
 
 /** Postgres `time` comes back as "HH:MM:SS"; the app only ever wants "HH:MM". */

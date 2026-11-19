@@ -25,6 +25,8 @@ export function mkPet(p: Partial<Pet> & Pick<Pet, 'id' | 'name'>): Pet {
     peeHoldHours: null,
     poopHoldHours: null,
     calibrationStartedAt: '2026-06-01T12:00:00.000Z',
+    // Every pet that predates care modules (and the 0019 backfill): today's behaviour.
+    careModules: ['potty', 'meals', 'meds', 'visits'],
     archivedAt: null,
     createdAt: '2026-06-01T12:00:00.000Z',
     updatedAt: '2026-06-01T12:00:00.000Z',

@@ -1,14 +1,8 @@
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, G } from 'react-native-svg';
 import type { Pet } from '../data/mockData';
-import {
-  countLogsToday,
-  formatClock,
-  formatTimeRange,
-  getPetStatus,
-  getTodaysMeals,
-  getUpcomingForPet,
-} from '../lib/petSchedule';
+import { countLogsToday, getTodaysMeals } from '../lib/petSchedule';
+import { useCareOutputs } from '../lib/care/useCareOutputs';
 import { useLogs } from '../context/LogsContext';
 import { usePets } from '../context/PetsContext';
 import { useNow } from '../hooks/useNow';
@@ -16,20 +10,9 @@ import { accent, glass, ink, radius, shadow, surface, warn } from '../theme/colo
 import { fonts } from '../theme/fonts';
 import { PetAvatar } from './PetAvatar';
 import { StatGroup, type Stat } from './ui';
-import { gentleLate, petMeta } from '../lib/petVoice';
 
 const RING = 112; // outer diameter of the photo ring
 const STROKE = 7;
-
-/** "1h 12m" / "45m" / "Now" — a precise countdown for the hero headline. */
-function countdown(ms: number): string {
-  if (ms <= 0) return 'Now';
-  const mins = Math.round(ms / 60_000);
-  if (mins < 60) return `${mins}m`;
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return m ? `${h}h ${m}m` : `${h}h`;
-}
 
 /** The pet's photo (or emoji) inside a ring that fills as the next break approaches. */
 function PhotoRing({ pet, progress, late }: { pet: Pet; progress: number | null; late: boolean }) {
@@ -75,15 +58,18 @@ function PhotoRing({ pet, progress, late }: { pet: Pet; progress: number | null;
  *   reads as late; it never rolls forward to a later break.
  * - Learning (first days) / no schedule: the same layout with a plain explanation, no ring fill.
  *
- * All numbers come from the shared schedule helpers (the client copy of the prediction).
+ * The hero is DATA from the care plan (`useCareOutputs(...).hero`, a HeroModel); this component
+ * only draws it. With potty on it is potty's next-break hero, computed from the shared schedule
+ * helpers (the client copy of the prediction).
  */
 export function PetCard({ pet }: { pet: Pet }) {
   const { getLogsForPet } = useLogs();
   const { getFeedTimesForPet } = usePets();
   const now = useNow();
+  const care = useCareOutputs(pet.id);
   const petLogs = getLogsForPet(pet.id);
   const feedTimes = getFeedTimesForPet(pet.id);
-  const status = getPetStatus(pet, feedTimes);
+  if (!care) return null;
 
   const meals = getTodaysMeals(feedTimes, now, petLogs);
   const mealsDone = meals.filter((m) => m.status === 'done').length;
@@ -91,53 +77,9 @@ export function PetCard({ pet }: { pet: Pet }) {
   const tightestHold = Math.min(pet.peeHoldHours ?? Infinity, pet.poopHoldHours ?? Infinity);
   const holdStat = Number.isFinite(tightestHold) ? `${tightestHold}h` : '—';
 
-  let kicker = petMeta(pet, now);
-  let headline = pet.name;
-  let detail = '';
-  let progress: number | null = null;
-  let late = false;
-  let headlineMono = false;
-
-  if (status.kind === 'calibrating') {
-    kicker = `Day ${status.day} of 3`;
-    headline = `Getting to know ${pet.name}`;
-    detail = "Keep logging and we'll learn the routine.";
-  } else if (status.kind === 'needsInfo') {
-    headline = `Let's set up ${pet.name}`;
-    detail = 'Add meal and potty times to get reminders.';
-  } else {
-    const next = getUpcomingForPet(pet, feedTimes, petLogs, now).find((u) => u.type !== 'food');
-    if (next) {
-      const what = next.type === 'poo' ? 'Poo break' : 'Pee break';
-      headlineMono = true;
-      if (next.kind === 'overdue') {
-        late = true;
-        progress = 1;
-        kicker = what;
-        headline = gentleLate(Math.floor(next.overdueBy / 60_000)).replace(/^./, (c) => c.toUpperCase());
-        detail = `due ${formatClock(new Date(now.getTime() - next.overdueBy))}`;
-        headlineMono = false;
-      } else if (next.kind === 'due') {
-        progress = 1;
-        kicker = what;
-        headline = 'Due now';
-        detail = formatTimeRange(next.timeStart, next.timeEnd);
-        headlineMono = false;
-      } else {
-        kicker = `${what} in`;
-        headline = countdown(next.timeStart.getTime() - now.getTime());
-        detail = formatTimeRange(next.timeStart, next.timeEnd);
-        // Ring fills as the break approaches: 0 just after a break, 1 when it's due.
-        if (Number.isFinite(tightestHold) && tightestHold > 0) {
-          const remaining = next.timeStart.getTime() - now.getTime();
-          progress = 1 - remaining / (tightestHold * 3_600_000);
-        }
-      }
-    } else {
-      detail = Number.isFinite(tightestHold) ? `${petMeta(pet, now)} · ${tightestHold}h hold time` : '';
-      kicker = 'No break predicted yet';
-    }
-  }
+  // The hero itself (kicker, headline, detail, ring) is the care plan's: the first module, in
+  // strict priority order, with something to say (potty's next break today), else "All caught up".
+  const { kicker, headline, detail, progress, late, headlineMono } = care.hero;
 
   const stats: Stat[] = [
     { value: String(countLogsToday(petLogs, now)), label: 'Logs today' },

@@ -5,34 +5,23 @@ import { accent, glass, ink, radius, shadow, surface, warn } from '../theme/colo
 import { gentleLate } from '../lib/petVoice';
 import { fonts } from '../theme/fonts';
 import { SectionLabel } from './ui';
-import { Icon, type IconName } from './Icon';
+import { Icon } from './Icon';
 import type { Pet } from '../data/mockData';
-import {
-  formatTimeRange,
-  formatTimeUntil,
-  formatTimeUntilCompact,
-  getPetStatus,
-  getUpcomingForPet,
-  getUpcomingMedications,
-  type UpcomingItem,
-} from '../lib/petSchedule';
-import { useLogs } from '../context/LogsContext';
-import { usePets } from '../context/PetsContext';
+import { formatTimeRange, formatTimeUntil, formatTimeUntilCompact } from '../lib/petSchedule';
+import type { CareUpcomingItem } from '../lib/care/types';
+import { useNow } from '../hooks/useNow';
+import { useCareOutputs } from '../lib/care/useCareOutputs';
 
-/** Line icon per upcoming-item type (one accent; late items switch to warn). */
-const ITEM_ICON: Record<UpcomingItem['type'], IconName> = {
-  pee: 'drop',
-  poo: 'poo',
-  food: 'bowl',
-  medication: 'pill',
-};
+/** The strip shows at most this many cards once the pet is ready. */
+const MAX_READY_ITEMS = 5;
 
 /**
- * One upcoming reminder as a glass strip item (design v2 `.strip-item`): a line icon, the
- * time range in Geist Mono, the label, and a relative "when" sub. A late item reads gently
- * ("a little late · 20m", "running late · 2h") in warn — never red "Overdue".
+ * One upcoming reminder as a glass strip item (design v2 `.strip-item`): a line icon (the
+ * row's own `lineIcon`, one accent; late items switch to warn), the time range in Geist Mono,
+ * the label, and a relative "when" sub. A late item reads gently ("a little late · 20m",
+ * "running late · 2h") in warn — never red "Overdue".
  */
-function UpcomingCard({ item, now }: { item: UpcomingItem; now: Date }) {
+function UpcomingCard({ item, now }: { item: CareUpcomingItem; now: Date }) {
   const overdue = item.kind === 'overdue';
   const sub = overdue
     ? `${gentleLate(Math.floor(item.overdueBy / 60_000))} · ${formatTimeUntilCompact(new Date(now.getTime() + item.overdueBy), now)}`
@@ -40,7 +29,7 @@ function UpcomingCard({ item, now }: { item: UpcomingItem; now: Date }) {
   return (
     <View style={styles.card}>
       <Icon
-        name={ITEM_ICON[item.type]}
+        name={item.lineIcon}
         size={18}
         color={overdue ? warn.ink : accent.ink}
         strokeWidth={1.8}
@@ -60,7 +49,7 @@ function UpcomingCard({ item, now }: { item: UpcomingItem; now: Date }) {
 }
 
 /** A horizontal strip of upcoming-reminder cards. Renders nothing when there are none. */
-function UpcomingList({ items, now }: { items: UpcomingItem[]; now: Date }) {
+function UpcomingList({ items, now }: { items: CareUpcomingItem[]; now: Date }) {
   if (items.length === 0) return null;
   return (
     <ScrollView
@@ -77,16 +66,14 @@ function UpcomingList({ items, now }: { items: UpcomingItem[]; now: Date }) {
 }
 
 export function UpcomingSection({ pet }: { pet: Pet }) {
-  const { getLogsForPet } = useLogs();
-  const { getFeedTimesForPet, getMedicationsForPet } = usePets();
-  const feedTimes = getFeedTimesForPet(pet.id);
-  const medications = getMedicationsForPet(pet.id);
-  const status = getPetStatus(pet, feedTimes);
-  const now = new Date();
+  const care = useCareOutputs(pet.id);
+  const now = useNow();
+  if (!care) return null;
+  const { status } = care;
 
-  // Medications are user-specified fixed times, not something we're learning — so they
-  // show up regardless of whether the pee/poop calibration below is done.
-  const medicationItems = getUpcomingMedications(medications, now);
+  // While the pet is still learning, the care layer only returns rows from modules with
+  // nothing to learn (medications: user-set fixed times), so they show regardless.
+  const learningItems = care.upcoming;
 
   const heading = <SectionLabel>Coming up for {pet.name}</SectionLabel>;
   const editRoutine = () => router.push({ pathname: '/add-pet', params: { petId: pet.id, step: 'routine' } });
@@ -113,7 +100,7 @@ export function UpcomingSection({ pet }: { pet: Pet }) {
             <Text style={styles.noticeLinkText}>Add schedule now instead</Text>
           </Pressable>
         </View>
-        <UpcomingList items={medicationItems} now={now} />
+        <UpcomingList items={learningItems} now={now} />
       </View>
     );
   }
@@ -138,17 +125,14 @@ export function UpcomingSection({ pet }: { pet: Pet }) {
             </View>
           )}
         </Pressable>
-        <UpcomingList items={medicationItems} now={now} />
+        <UpcomingList items={learningItems} now={now} />
       </View>
     );
   }
 
-  // Ready: the predicted pee/poo breaks + next meal (getUpcomingForPet) merged with any
-  // medication reminders, soonest first, capped at 5 — rendered as cards on Home.
-  const holdItems = getUpcomingForPet(pet, feedTimes, getLogsForPet(pet.id), now);
-  const items = [...holdItems, ...medicationItems]
-    .sort((a, b) => a.timeStart.getTime() - b.timeStart.getTime())
-    .slice(0, 5);
+  // Ready: every module's rows (predicted breaks, next meal, medications) merged soonest
+  // first by the care layer, capped at 5 — rendered as cards on Home.
+  const items = care.upcoming.slice(0, MAX_READY_ITEMS);
 
   // Tidy empty state: render nothing when there is genuinely nothing upcoming.
   if (items.length === 0) return null;

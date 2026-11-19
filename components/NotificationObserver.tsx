@@ -15,10 +15,12 @@ import { requestNotificationPermission } from '../lib/notifications/permissions'
 import { flushPendingNavigation, initResponseHandler } from '../lib/notifications/responseHandler';
 import {
   cancelAllOurNotifications,
-  computeDesiredNotifications,
   reconcileNotifications,
   type NotificationPrefs,
 } from '../lib/notifications/scheduler';
+// Reminders come from each pet's care plan (enabled modules only); identical to the old
+// computeDesiredNotifications when every legacy module is enabled (lib/__tests__/careModules.test.ts).
+import { careDesiredNotifications } from '../lib/care/household';
 import { getActiveSnoozes } from '../lib/notifications/snoozeStore';
 import { isServerPushActive, onServerPushChange } from '../lib/push/mode';
 import { repos } from '../lib/repo/types';
@@ -88,7 +90,7 @@ export function NotificationObserver() {
       if (cancelled) return;
       // Persisted quiet-hours/mute (Settings) merged with the headless snooze map.
       const prefs: NotificationPrefs = { ...storedPrefs, snoozedUntil };
-      const desired = computeDesiredNotifications(
+      const desired = careDesiredNotifications(
         pets,
         feedTimes,
         medications,
