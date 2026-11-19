@@ -1,6 +1,22 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { type FeedTime, type Medication, type Pet, type Species } from '../data/mockData';
 import { usePersistedCollection } from '../hooks/usePersistedCollection';
+import type { CareModuleId } from '../lib/db/models';
+import { defaultCareModules, offeredCareModules, speciesProfile } from '../lib/care/species';
+
+/**
+ * The cleaning interval to STORE: a blank field with habitat enabled stores the species'
+ * suggested days, never null. The server (0022) pushes only for a stored interval and has no
+ * species table, so null would mean "no cleaning push" while the app showed it as due.
+ */
+function storedHabitatDays(
+  species: string,
+  careModules: readonly CareModuleId[],
+  value: number | null | undefined,
+): number | null {
+  if (value != null) return value;
+  return careModules.includes('habitat') ? speciesProfile(species).habitatIntervalDays ?? null : null;
+}
 import { newId } from '../lib/id';
 import { LOCAL_HOUSEHOLD_ID } from '../lib/localHousehold';
 import { repos } from '../lib/repo/types';
@@ -14,6 +30,10 @@ type ScheduleFields = {
   peeHoldHours: number | null;
   poopHoldHours: number | null;
   medications: MedicationInput[];
+  /** Walks module: hours between walks. null = the module's default. undefined = keep stored. */
+  walkIntervalHours?: number | null;
+  /** Habitat module: days between cleanings. null = the species default. undefined = keep stored. */
+  habitatIntervalDays?: number | null;
 };
 
 type NewPet = {
@@ -21,12 +41,16 @@ type NewPet = {
   avatarEmoji: string;
   breed: string;
   species?: Species;
+  /** Explicit care goals; omitted = the species' suggested defaults. */
+  careModules?: CareModuleId[];
 } & Partial<ScheduleFields>;
 
 type PetEdits = {
   name: string;
   avatarEmoji: string;
   breed: string;
+  /** Omitted = keep the pet's stored care goals. */
+  careModules?: CareModuleId[];
 } & ScheduleFields;
 
 type PetsContextValue = {
@@ -67,6 +91,24 @@ function swallow(label: string, work: Promise<unknown>): void {
   void work.catch((err) => {
     if (__DEV__) console.warn(`[pets] ${label} failed (swallowed):`, err);
   });
+}
+
+/**
+ * The explicit care-module list a NEW pet is stored with (docs/CARE_MODULES_PLAN.md).
+ *
+ * The caller's choice wins. Otherwise the species' suggested defaults — except that a potty
+ * routine typed into the form (a hold time) is itself a request for potty help, so potty is
+ * added back when the species offers it. Until the wizard's Goals step lands this keeps a new
+ * cat or rabbit whose owner entered hold times from silently getting no break predictions.
+ */
+function initialCareModules(pet: NewPet, species: Species): CareModuleId[] {
+  if (pet.careModules) return [...pet.careModules];
+  const modules = defaultCareModules(species);
+  const enteredPotty = pet.peeHoldHours != null || pet.poopHoldHours != null;
+  if (enteredPotty && !modules.includes('potty') && offeredCareModules(species).includes('potty')) {
+    modules.unshift('potty');
+  }
+  return modules;
 }
 
 function buildMedRows(petId: string, meds: MedicationInput[]): Medication[] {
@@ -139,19 +181,23 @@ export function PetsProvider({ children }: { children: ReactNode }) {
     // against staging). Await the pet upsert first, then write the schedule collections.
     // TODO(post-SYNC-1): species + birthdate pickers — add-pet defaults species to 'other'
     // and birthdate to null (the free-text age field is dropped this wave).
+    const species: Species = pet.species ?? 'other';
     swallow('addPet', (async () => {
       await repos.pets.upsert({
         id,
         householdId: LOCAL_HOUSEHOLD_ID,
         name: pet.name,
         avatarEmoji: pet.avatarEmoji,
-        species: pet.species ?? 'other',
+        species,
         breed: pet.breed || null,
         birthdate: null,
         weightKg: null,
         peeHoldHours: pet.peeHoldHours ?? null,
         poopHoldHours: pet.poopHoldHours ?? null,
         calibrationStartedAt: nowIso,
+        careModules: initialCareModules(pet, species),
+        walkIntervalHours: pet.walkIntervalHours ?? null,
+        habitatIntervalDays: storedHabitatDays(species, initialCareModules(pet, species), pet.habitatIntervalDays),
         archivedAt: null,
         createdAt: nowIso,
         updatedAt: nowIso,
@@ -187,6 +233,14 @@ export function PetsProvider({ children }: { children: ReactNode }) {
         breed: edits.breed || null,
         peeHoldHours: edits.peeHoldHours,
         poopHoldHours: edits.poopHoldHours,
+        careModules: edits.careModules ? [...edits.careModules] : existing.careModules,
+        walkIntervalHours:
+          edits.walkIntervalHours !== undefined ? edits.walkIntervalHours : existing.walkIntervalHours ?? null,
+        habitatIntervalDays: storedHabitatDays(
+          existing.species,
+          edits.careModules ?? existing.careModules,
+          edits.habitatIntervalDays !== undefined ? edits.habitatIntervalDays : existing.habitatIntervalDays,
+        ),
         updatedAt: new Date().toISOString(),
       }));
       // Replacing the whole slot list mints fresh ids; a food log referencing an old feed-time

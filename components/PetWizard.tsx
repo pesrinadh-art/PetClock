@@ -21,15 +21,38 @@ import { usePets } from '../context/PetsContext';
 import { removePetPhoto, setPetPhoto, usePetPhoto } from '../lib/petPhotos';
 import { to12h, to24h } from '../lib/petFormTime';
 import { AVATAR_LABELS, AVATAR_OPTIONS } from '../lib/petKinds';
-import type { Species } from '../lib/db/models';
+import type { CareModuleId, Species } from '../lib/db/models';
+import { GoalsStep } from './care/GoalsStep';
+import {
+  goalOptions,
+  goalSections,
+  goalsForSpeciesChange,
+  goalsSpecies,
+  goalsToSave,
+  initialGoals,
+  sameGoals,
+  toggleGoal,
+} from './care/goals';
+import {
+  habitatNounFor,
+  parseHabitatIntervalDays,
+  parseWalkIntervalHours,
+  rhythmSections,
+  suggestedHabitatDays,
+  suggestedWalkHours,
+} from './care/rhythmFields';
 
-export type WizardStep = 'about' | 'routine' | 'meds';
+export type WizardStep = 'about' | 'goals' | 'routine' | 'meds';
 
+/** Every step, in order. Routine and Meds are shown only when the chosen goals need them. */
 const STEPS: { key: WizardStep; label: string }[] = [
   { key: 'about', label: 'About' },
+  { key: 'goals', label: 'Goals' },
   { key: 'routine', label: 'Routine' },
   { key: 'meds', label: 'Meds' },
 ];
+
+const STEP_COUNT_WORDS = ['Zero', 'One', 'Two', 'Three', 'Four'];
 
 const MAX_MEDICATIONS = 5;
 const MAX_FEED_TIMES = 6;
@@ -38,10 +61,29 @@ const HOLD_HOURS_MAX = 24;
 
 type MedRow = { rowId: string; name: string; time: string };
 type FeedRow = { rowId: string; time: string };
-type FormErrors = { name?: string; peeHoldHours?: string; poopHoldHours?: string };
+type FormErrors = {
+  name?: string;
+  peeHoldHours?: string;
+  poopHoldHours?: string;
+  walkIntervalHours?: string;
+  habitatIntervalDays?: string;
+};
 
 function makeRowId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+/**
+ * The step to show for a requested one: itself when visible, else the nearest visible step
+ * before it (a step hidden by the goals, e.g. Meds without the meds goal). About and Goals are
+ * always visible.
+ */
+function visibleStep(requested: WizardStep, visible: { key: WizardStep }[]): WizardStep {
+  const at = STEPS.findIndex((s) => s.key === requested);
+  for (let i = at; i >= 0; i--) {
+    if (visible.some((v) => v.key === STEPS[i].key)) return STEPS[i].key;
+  }
+  return 'about';
 }
 
 /** Optional — empty is fine (returns null). When provided, must be numeric, clamped to 0.5–24. */
@@ -56,12 +98,19 @@ function parseHoldHours(raw: string): { value: number | null; error?: string } {
 }
 
 /**
- * "Welcome a new pet" (redesign v3) — a 3-step wizard: About → Routine → Meds. Only the name is
- * required. Used to add a pet, to edit one (pre-filled; `initialStep` jumps to a step, and every
- * step stays reachable from the step bar), and inside onboarding.
+ * "Welcome a new pet" (redesign v3) — a step wizard: About → Goals → Routine → Meds. Only the
+ * name is required. Used to add a pet, to edit one (pre-filled; `initialStep` jumps to a step,
+ * and every step stays reachable from the step bar), and inside onboarding.
+ *
+ * Goals ("What do you want help with?") picks the pet's care modules (docs/CARE_MODULES_PLAN.md):
+ * pre-ticked with the species' defaults for a new pet, or the pet's stored list when editing.
+ * Routine shows only the sections those goals need (meal times for meals, hold times for potty,
+ * the walk interval for walks, the cleaning interval for habitat) and is skipped when it would
+ * be empty; Meds is shown only with the meds goal. Hidden sections
+ * keep their values, so unticking a goal never erases a routine.
  *
  * Saving writes through the same PetsContext add/update paths as the old single-page form, plus
- * the device-local photo.
+ * the device-local photo. An edit sends `careModules` only when the goals actually changed.
  */
 export function PetWizard({
   petId,
@@ -80,8 +129,25 @@ export function PetWizard({
   const editingPet = petId ? pets.find((p) => p.id === petId) : undefined;
   const isEditing = !!editingPet;
 
-  const [step, setStep] = useState<WizardStep>(initialStep);
-  const stepIndex = STEPS.findIndex((s) => s.key === step);
+  // Care goals. Species: the stored one when editing, else the kind picked on About.
+  const [avatar, setAvatar] = useState<string>(editingPet?.avatarEmoji ?? AVATAR_OPTIONS[0]);
+  const goalSpecies = goalsSpecies(editingPet, AVATAR_LABELS[avatar]);
+  const storedGoals = editingPet?.careModules;
+  const [goals, setGoals] = useState<CareModuleId[]>(() => initialGoals(goalSpecies, storedGoals));
+  const [goalsTouched, setGoalsTouched] = useState(false);
+  const options = goalOptions(goalSpecies, storedGoals);
+  const sections = goalSections(goals);
+  const rhythms = rhythmSections(goals);
+  const habitatNoun = habitatNounFor(goalSpecies);
+
+  const steps = STEPS.filter(
+    (s) =>
+      (s.key !== 'routine' || sections.meals || sections.potty || rhythms.walks || rhythms.habitat) &&
+      (s.key !== 'meds' || sections.meds),
+  );
+  const [requestedStep, setStep] = useState<WizardStep>(initialStep);
+  const step = visibleStep(requestedStep, steps);
+  const stepIndex = steps.findIndex((s) => s.key === step);
 
   // Device-local photo (kept out of the frozen Pet contract — see lib/petPhotos).
   const storedPhoto = usePetPhoto(editingPet?.id ?? '');
@@ -89,7 +155,6 @@ export function PetWizard({
   const [photoTouched, setPhotoTouched] = useState(false);
   const displayPhoto = photoTouched ? photoUri : storedPhoto;
 
-  const [avatar, setAvatar] = useState<string>(editingPet?.avatarEmoji ?? AVATAR_OPTIONS[0]);
   const [name, setName] = useState(editingPet?.name ?? '');
   const [breed, setBreed] = useState(editingPet?.breed ?? '');
   const [feedRows, setFeedRows] = useState<FeedRow[]>(() => {
@@ -99,6 +164,11 @@ export function PetWizard({
   });
   const [peeHoldHours, setPeeHoldHours] = useState(editingPet?.peeHoldHours?.toString() ?? '');
   const [poopHoldHours, setPoopHoldHours] = useState(editingPet?.poopHoldHours?.toString() ?? '');
+  // Walk / cleaning intervals (Phase 2). Blank = not set: the modules use the suggested value.
+  const [walkIntervalHours, setWalkIntervalHours] = useState(editingPet?.walkIntervalHours?.toString() ?? '');
+  const [habitatIntervalDays, setHabitatIntervalDays] = useState(
+    editingPet?.habitatIntervalDays?.toString() ?? '',
+  );
   const [medications, setMedications] = useState<MedRow[]>(() =>
     (editingPet ? getMedicationsForPet(editingPet.id) : []).map((m) => ({
       rowId: m.id,
@@ -142,15 +212,44 @@ export function PetWizard({
     setStep(target);
   };
 
+  const pickAvatar = (emoji: string) => {
+    setAvatar(emoji);
+    // A new pet's goals follow its kind; an edited pet keeps its stored species and goals.
+    if (!isEditing) setGoals((prev) => goalsForSpeciesChange(prev, goalsSpecies(undefined, AVATAR_LABELS[emoji]), goalsTouched));
+  };
+
+  const onToggleGoal = (id: CareModuleId) => {
+    setGoals((prev) => toggleGoal(prev, id));
+    setGoalsTouched(true);
+  };
+
   const handleSave = () => {
-    const pee = parseHoldHours(peeHoldHours);
-    const poop = parseHoldHours(poopHoldHours);
+    // Hold times are validated only while the potty goal shows them; hidden, an unparseable
+    // value falls back to what is stored (nothing, for a new pet).
+    const parsedPee = parseHoldHours(peeHoldHours);
+    const parsedPoop = parseHoldHours(poopHoldHours);
+    const pee = sections.potty || !parsedPee.error ? parsedPee : { value: editingPet?.peeHoldHours ?? null };
+    const poop = sections.potty || !parsedPoop.error ? parsedPoop : { value: editingPet?.poopHoldHours ?? null };
+    // Same rule for the walk / cleaning intervals: validated only while their goal shows them.
+    const parsedWalk = parseWalkIntervalHours(walkIntervalHours);
+    const parsedHabitat = parseHabitatIntervalDays(habitatIntervalDays);
+    const walk = rhythms.walks || !parsedWalk.error ? parsedWalk : { value: editingPet?.walkIntervalHours ?? null };
+    const habitat =
+      rhythms.habitat || !parsedHabitat.error ? parsedHabitat : { value: editingPet?.habitatIntervalDays ?? null };
     const feedTimes = feedRows.map((r) => to24h(r.time.trim())).filter(Boolean);
     const nextErrors: FormErrors = {};
     if (name.trim().length === 0) nextErrors.name = 'Give your pet a name to save';
     if (pee.error) nextErrors.peeHoldHours = pee.error;
     if (poop.error) nextErrors.poopHoldHours = poop.error;
-    if (nextErrors.name || nextErrors.peeHoldHours || nextErrors.poopHoldHours) {
+    if (walk.error) nextErrors.walkIntervalHours = walk.error;
+    if (habitat.error) nextErrors.habitatIntervalDays = habitat.error;
+    if (
+      nextErrors.name ||
+      nextErrors.peeHoldHours ||
+      nextErrors.poopHoldHours ||
+      nextErrors.walkIntervalHours ||
+      nextErrors.habitatIntervalDays
+    ) {
       setErrors(nextErrors);
       setStep(nextErrors.name ? 'about' : 'routine');
       return;
@@ -162,12 +261,16 @@ export function PetWizard({
       feedTimes,
       peeHoldHours: pee.value,
       poopHoldHours: poop.value,
+      walkIntervalHours: walk.value,
+      habitatIntervalDays: habitat.value,
       medications: medications
         .map((m) => ({ name: m.name.trim(), localTime: to24h(m.time.trim()) }))
         .filter((m) => m.name && m.localTime),
     };
     if (isEditing) {
-      updatePet(editingPet.id, edits);
+      // Only a real change to the goals is written; otherwise the stored list is kept as is.
+      const goalsChanged = goalsTouched && !sameGoals(goals, initialGoals(goalSpecies, storedGoals));
+      updatePet(editingPet.id, goalsChanged ? { ...edits, careModules: goalsToSave(goals, storedGoals) } : edits);
       if (photoTouched) {
         if (photoUri) void setPetPhoto(editingPet.id, photoUri);
         else void removePetPhoto(editingPet.id);
@@ -175,14 +278,14 @@ export function PetWizard({
       onSaved(editingPet.id);
     } else {
       const kind = AVATAR_LABELS[avatar]?.toLowerCase() as Species | undefined;
-      const newPetId = addPet({ ...edits, ...(kind ? { species: kind } : {}) });
+      const newPetId = addPet({ ...edits, ...(kind ? { species: kind } : {}), careModules: goalsToSave(goals) });
       if (photoUri) void setPetPhoto(newPetId, photoUri);
       onSaved(newPetId);
     }
   };
 
-  const isLast = stepIndex === STEPS.length - 1;
-  const next = STEPS[stepIndex + 1];
+  const isLast = stepIndex === steps.length - 1;
+  const next = steps[stepIndex + 1];
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -202,30 +305,30 @@ export function PetWizard({
             {isEditing ? `Edit ${editingPet.name}` : 'Welcome a new pet'}
           </Text>
           <Text style={styles.headerSub} numberOfLines={2}>
-            {isEditing ? 'Change anything, then save.' : 'Three quick steps. Only the name is needed.'}
+            {isEditing ? 'Change anything, then save.' : `${STEP_COUNT_WORDS[steps.length] ?? steps.length} quick steps. Only the name is needed.`}
           </Text>
         </View>
-        <Text style={styles.stepCount} aria-label={`Step ${stepIndex + 1} of ${STEPS.length}`}>
-          {stepIndex + 1}/{STEPS.length}
+        <Text style={styles.stepCount} aria-label={`Step ${stepIndex + 1} of ${steps.length}`}>
+          {stepIndex + 1}/{steps.length}
         </Text>
       </View>
 
       {/* Step bar: thin progress segments + mono step labels (each label jumps to its step). */}
       <View style={styles.stepBar}>
         <View style={styles.bars}>
-          {STEPS.map((s, i) => (
+          {steps.map((s, i) => (
             <View key={s.key} style={[styles.bar, i <= stepIndex && styles.barOn]} />
           ))}
         </View>
         <View style={styles.stepLabels}>
-          {STEPS.map((s, i) => {
+          {steps.map((s, i) => {
             const active = s.key === step;
             return (
               <Pressable
                 key={s.key}
                 style={[
                   styles.stepLabel,
-                  i === 0 ? styles.stepLabelStart : i === STEPS.length - 1 ? styles.stepLabelEnd : null,
+                  i === 0 ? styles.stepLabelStart : i === steps.length - 1 ? styles.stepLabelEnd : null,
                 ]}
                 onPress={() => goTo(s.key)}
                 role="tab"
@@ -317,7 +420,7 @@ export function PetWizard({
                 return (
                   <Pressable
                     key={emoji}
-                    onPress={() => setAvatar(emoji)}
+                    onPress={() => pickAvatar(emoji)}
                     role="button"
                     aria-label={AVATAR_LABELS[emoji] ?? 'Pet type'}
                     aria-selected={selected}
@@ -339,66 +442,135 @@ export function PetWizard({
           </>
         )}
 
+        {step === 'goals' && (
+          <GoalsStep petName={petName} options={options} selected={goals} onToggle={onToggleGoal} />
+        )}
+
+        {/* Routine: only the sections the goals need. Meal times show for meals AND for potty:
+            the potty prediction anchors on the day's first meal until a break is logged, so a
+            potty-only pet without meal times would never leave "needs info". */}
         {step === 'routine' && (
           <>
-            <SectionLabel sub={`When does ${petName} usually eat? We'll remind you at meal time.`}>Meal times</SectionLabel>
-            <Card padded>
-              {feedRows.map((row, i) => (
-                <View key={row.rowId} style={styles.feedRow}>
-                  <TimePickerField
-                    label={`Meal ${i + 1}`}
-                    value={row.time}
-                    onChange={(v) => setFeedRows((prev) => prev.map((r) => (r.rowId === row.rowId ? { ...r, time: v } : r)))}
-                    placeholder={`Meal time ${i + 1}`}
-                    style={{ flex: 1 }}
-                  />
-                  <Pressable
-                    style={({ pressed }) => [styles.removeChip, pressed && styles.pressed]}
-                    onPress={() => setFeedRows((prev) => prev.filter((r) => r.rowId !== row.rowId))}
-                    role="button"
-                    aria-label={`Remove meal time ${i + 1}`}
-                    hitSlop={8}
-                  >
-                    <Icon name="close" size={14} color={ink.muted} strokeWidth={1.8} />
-                  </Pressable>
-                </View>
-              ))}
-              {feedRows.length < MAX_FEED_TIMES && (
-                <AddButton
-                  label="Add a meal time"
-                  onPress={() => setFeedRows((prev) => [...prev, { rowId: makeRowId(), time: '' }])}
-                />
-              )}
-            </Card>
+            {(sections.meals || sections.potty) && (
+              <>
+                <SectionLabel
+                  sub={
+                    sections.meals
+                      ? `When does ${petName} usually eat? We'll remind you at meal time.`
+                      : `When does ${petName} usually eat? Potty predictions start from the first meal of the day.`
+                  }
+                >
+                  Meal times
+                </SectionLabel>
+                <Card padded>
+                  {feedRows.map((row, i) => (
+                    <View key={row.rowId} style={styles.feedRow}>
+                      <TimePickerField
+                        label={`Meal ${i + 1}`}
+                        value={row.time}
+                        onChange={(v) => setFeedRows((prev) => prev.map((r) => (r.rowId === row.rowId ? { ...r, time: v } : r)))}
+                        placeholder={`Meal time ${i + 1}`}
+                        style={{ flex: 1 }}
+                      />
+                      <Pressable
+                        style={({ pressed }) => [styles.removeChip, pressed && styles.pressed]}
+                        onPress={() => setFeedRows((prev) => prev.filter((r) => r.rowId !== row.rowId))}
+                        role="button"
+                        aria-label={`Remove meal time ${i + 1}`}
+                        hitSlop={8}
+                      >
+                        <Icon name="close" size={14} color={ink.muted} strokeWidth={1.8} />
+                      </Pressable>
+                    </View>
+                  ))}
+                  {feedRows.length < MAX_FEED_TIMES && (
+                    <AddButton
+                      label="Add a meal time"
+                      onPress={() => setFeedRows((prev) => [...prev, { rowId: makeRowId(), time: '' }])}
+                    />
+                  )}
+                </Card>
+              </>
+            )}
 
-            <SectionLabel
-              style={styles.sectionSpacer}
-              sub={`How long can ${petName} usually hold it? Leave blank and we'll learn it in a few days.`}
-            >
-              Potty rhythm
-            </SectionLabel>
-            <View style={styles.holdRow}>
-              <HoldTile
-                label="Pee every (hours)"
-                value={peeHoldHours}
-                onChangeText={(v) => {
-                  setPeeHoldHours(v);
-                  clearError('peeHoldHours');
-                }}
-                placeholder="e.g. 4"
-                error={errors.peeHoldHours}
-              />
-              <HoldTile
-                label="Poo every (hours)"
-                value={poopHoldHours}
-                onChangeText={(v) => {
-                  setPoopHoldHours(v);
-                  clearError('poopHoldHours');
-                }}
-                placeholder="e.g. 8"
-                error={errors.poopHoldHours}
-              />
-            </View>
+            {sections.potty && (
+              <>
+                <SectionLabel
+                  style={styles.sectionSpacer}
+                  sub={`How long can ${petName} usually hold it? Leave blank and we'll learn it in a few days.`}
+                >
+                  Potty rhythm
+                </SectionLabel>
+                <View style={styles.holdRow}>
+                  <HoldTile
+                    label="Pee every (hours)"
+                    value={peeHoldHours}
+                    onChangeText={(v) => {
+                      setPeeHoldHours(v);
+                      clearError('peeHoldHours');
+                    }}
+                    placeholder="e.g. 4"
+                    error={errors.peeHoldHours}
+                  />
+                  <HoldTile
+                    label="Poo every (hours)"
+                    value={poopHoldHours}
+                    onChangeText={(v) => {
+                      setPoopHoldHours(v);
+                      clearError('poopHoldHours');
+                    }}
+                    placeholder="e.g. 8"
+                    error={errors.poopHoldHours}
+                  />
+                </View>
+              </>
+            )}
+
+            {rhythms.walks && (
+              <>
+                <SectionLabel
+                  style={sections.meals || sections.potty ? styles.sectionSpacer : undefined}
+                  sub={`How often does ${petName} need a walk? We'll remind you that long after the last one. Leave blank for every ${suggestedWalkHours()} hours.`}
+                >
+                  Walks
+                </SectionLabel>
+                <View style={styles.holdRow}>
+                  <HoldTile
+                    label="Walk every (hours)"
+                    value={walkIntervalHours}
+                    onChangeText={(v) => {
+                      setWalkIntervalHours(v);
+                      clearError('walkIntervalHours');
+                    }}
+                    placeholder={`e.g. ${suggestedWalkHours()}`}
+                    error={errors.walkIntervalHours}
+                  />
+                </View>
+              </>
+            )}
+
+            {rhythms.habitat && (
+              <>
+                <SectionLabel
+                  style={sections.meals || sections.potty || rhythms.walks ? styles.sectionSpacer : undefined}
+                  sub={`How often should the ${habitatNoun} be cleaned? We'll remind you at 10 AM on the day it's due. Leave blank for every ${suggestedHabitatDays(goalSpecies)} days.`}
+                >
+                  {`Cleaning the ${habitatNoun}`}
+                </SectionLabel>
+                <View style={styles.holdRow}>
+                  <HoldTile
+                    label="Clean every (days)"
+                    value={habitatIntervalDays}
+                    onChangeText={(v) => {
+                      setHabitatIntervalDays(v);
+                      clearError('habitatIntervalDays');
+                    }}
+                    placeholder={`e.g. ${suggestedHabitatDays(goalSpecies)}`}
+                    error={errors.habitatIntervalDays}
+                  />
+                </View>
+              </>
+            )}
           </>
         )}
 
@@ -455,7 +627,7 @@ export function PetWizard({
         {stepIndex > 0 && (
           <Pressable
             style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]}
-            onPress={() => setStep(STEPS[stepIndex - 1].key)}
+            onPress={() => setStep(steps[stepIndex - 1].key)}
             role="button"
             aria-label="Previous step"
           >

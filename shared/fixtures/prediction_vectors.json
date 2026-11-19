@@ -1,0 +1,620 @@
+{
+  "$comment": "Golden prediction vectors (docs/CARE_MODULES_PLAN.md, Phase 0). Inputs -> the CURRENT client output of lib/petSchedule.ts predictBreak(). Consumed by lib/__tests__/predictionVectors.test.ts and by scripts/gen-prediction-parity-sql.js, which generates supabase/tests/011_prediction_parity.sql. deviceTz must equal the TZ pinned in jest.config.js. Vectors with knownDivergence record the client value; their 'server' block (or, for feed-anchored vectors, the inputs) states the server's current value. Regenerate expected values with UPDATE_VECTORS=1 npx jest predictionVectors, then review the diff by hand.",
+  "version": 1,
+  "vectors": [
+    {
+      "id": "v01_feed_anchor_past",
+      "description": "No log; earliest feed time (07:30) already passed, so predicted = feed anchor + hold.",
+      "householdTz": "America/Chicago",
+      "deviceTz": "America/Chicago",
+      "now": "2026-06-15T15:00:00.000Z",
+      "peeHoldHours": 4,
+      "poopHoldHours": 6,
+      "feedTimes": [
+        {
+          "localTime": "07:30",
+          "active": true
+        },
+        {
+          "localTime": "18:00",
+          "active": true
+        }
+      ],
+      "logs": [],
+      "breakType": "pee",
+      "expected": {
+        "anchor": "2026-06-15T12:30:00.000Z",
+        "predicted": "2026-06-15T16:30:00.000Z",
+        "bufferMs": 2160000,
+        "notifyAt": "2026-06-15T15:54:00.000Z",
+        "overdueBy": 0
+      }
+    },
+    {
+      "id": "v02_feed_anchor_future",
+      "description": "No log; earliest feed time still ahead (now 06:00 local), so predicted = the feed anchor itself. Poo hold 6h -> buffer ceils at 45 min.",
+      "householdTz": "America/Chicago",
+      "deviceTz": "America/Chicago",
+      "now": "2026-06-15T11:00:00.000Z",
+      "peeHoldHours": 4,
+      "poopHoldHours": 6,
+      "feedTimes": [
+        {
+          "localTime": "07:30",
+          "active": true
+        },
+        {
+          "localTime": "18:00",
+          "active": true
+        }
+      ],
+      "logs": [],
+      "breakType": "poo",
+      "expected": {
+        "anchor": "2026-06-15T12:30:00.000Z",
+        "predicted": "2026-06-15T12:30:00.000Z",
+        "bufferMs": 2700000,
+        "notifyAt": "2026-06-15T11:45:00.000Z",
+        "overdueBy": 0
+      }
+    },
+    {
+      "id": "v03_feed_anchor_overdue",
+      "description": "No log; feed anchor + hold already passed. Stays put and reads overdue (never rolls forward, D7).",
+      "householdTz": "America/Chicago",
+      "deviceTz": "America/Chicago",
+      "now": "2026-06-15T22:00:00.000Z",
+      "peeHoldHours": 4,
+      "poopHoldHours": 6,
+      "feedTimes": [
+        {
+          "localTime": "07:30",
+          "active": true
+        },
+        {
+          "localTime": "18:00",
+          "active": true
+        }
+      ],
+      "logs": [],
+      "breakType": "pee",
+      "expected": {
+        "anchor": "2026-06-15T12:30:00.000Z",
+        "predicted": "2026-06-15T16:30:00.000Z",
+        "bufferMs": 2160000,
+        "notifyAt": "2026-06-15T15:54:00.000Z",
+        "overdueBy": 19800000
+      }
+    },
+    {
+      "id": "v04_log_past",
+      "description": "Pee logged 1h ago; predicted = log + 4h.",
+      "householdTz": "America/Chicago",
+      "deviceTz": "America/Chicago",
+      "now": "2026-06-15T15:00:00.000Z",
+      "peeHoldHours": 4,
+      "poopHoldHours": 6,
+      "feedTimes": [
+        {
+          "localTime": "07:30",
+          "active": true
+        },
+        {
+          "localTime": "18:00",
+          "active": true
+        }
+      ],
+      "logs": [
+        {
+          "type": "pee",
+          "occurredAt": "2026-06-15T14:00:00.000Z"
+        }
+      ],
+      "breakType": "pee",
+      "expected": {
+        "anchor": "2026-06-15T14:00:00.000Z",
+        "predicted": "2026-06-15T18:00:00.000Z",
+        "bufferMs": 2160000,
+        "notifyAt": "2026-06-15T17:24:00.000Z",
+        "overdueBy": 0
+      }
+    },
+    {
+      "id": "v05_log_overdue_d7",
+      "description": "Pee logged 10h ago with a 4h hold: predicted 6h in the past, overdue, never rolled forward (D7).",
+      "householdTz": "America/Chicago",
+      "deviceTz": "America/Chicago",
+      "now": "2026-06-15T15:00:00.000Z",
+      "peeHoldHours": 4,
+      "poopHoldHours": 6,
+      "feedTimes": [
+        {
+          "localTime": "07:30",
+          "active": true
+        },
+        {
+          "localTime": "18:00",
+          "active": true
+        }
+      ],
+      "logs": [
+        {
+          "type": "pee",
+          "occurredAt": "2026-06-15T05:00:00.000Z"
+        }
+      ],
+      "breakType": "pee",
+      "expected": {
+        "anchor": "2026-06-15T05:00:00.000Z",
+        "predicted": "2026-06-15T09:00:00.000Z",
+        "bufferMs": 2160000,
+        "notifyAt": "2026-06-15T08:24:00.000Z",
+        "overdueBy": 21600000
+      }
+    },
+    {
+      "id": "v06_log_at_now",
+      "description": "Pee logged exactly at now; predicted = now + hold (a Yes tap must clear the nudge).",
+      "householdTz": "America/Chicago",
+      "deviceTz": "America/Chicago",
+      "now": "2026-06-15T15:00:00.000Z",
+      "peeHoldHours": 4,
+      "poopHoldHours": 6,
+      "feedTimes": [
+        {
+          "localTime": "07:30",
+          "active": true
+        },
+        {
+          "localTime": "18:00",
+          "active": true
+        }
+      ],
+      "logs": [
+        {
+          "type": "pee",
+          "occurredAt": "2026-06-15T15:00:00.000Z"
+        }
+      ],
+      "breakType": "pee",
+      "expected": {
+        "anchor": "2026-06-15T15:00:00.000Z",
+        "predicted": "2026-06-15T19:00:00.000Z",
+        "bufferMs": 2160000,
+        "notifyAt": "2026-06-15T18:24:00.000Z",
+        "overdueBy": 0
+      }
+    },
+    {
+      "id": "v07_log_future",
+      "description": "Pee log dated 30 min in the FUTURE: predicted = log + hold on both sides (0018; the future-anchor branch is only for the feed-time fallback).",
+      "householdTz": "America/Chicago",
+      "deviceTz": "America/Chicago",
+      "now": "2026-06-15T15:00:00.000Z",
+      "peeHoldHours": 4,
+      "poopHoldHours": 6,
+      "feedTimes": [
+        {
+          "localTime": "07:30",
+          "active": true
+        },
+        {
+          "localTime": "18:00",
+          "active": true
+        }
+      ],
+      "logs": [
+        {
+          "type": "pee",
+          "occurredAt": "2026-06-15T15:30:00.000Z"
+        }
+      ],
+      "breakType": "pee",
+      "expected": {
+        "anchor": "2026-06-15T15:30:00.000Z",
+        "predicted": "2026-06-15T19:30:00.000Z",
+        "bufferMs": 2160000,
+        "notifyAt": "2026-06-15T18:54:00.000Z",
+        "overdueBy": 0
+      }
+    },
+    {
+      "id": "v08_one_hold_pee",
+      "description": "Only the pee hold is set (poop hold null); pee logged 1h ago. Per-type schedule: predicted = log + 4h on both sides.",
+      "householdTz": "America/Chicago",
+      "deviceTz": "America/Chicago",
+      "now": "2026-06-15T15:00:00.000Z",
+      "peeHoldHours": 4,
+      "poopHoldHours": null,
+      "feedTimes": [
+        {
+          "localTime": "07:30",
+          "active": true
+        },
+        {
+          "localTime": "18:00",
+          "active": true
+        }
+      ],
+      "logs": [
+        {
+          "type": "pee",
+          "occurredAt": "2026-06-15T14:00:00.000Z"
+        }
+      ],
+      "breakType": "pee",
+      "expected": {
+        "anchor": "2026-06-15T14:00:00.000Z",
+        "predicted": "2026-06-15T18:00:00.000Z",
+        "bufferMs": 2160000,
+        "notifyAt": "2026-06-15T17:24:00.000Z",
+        "overdueBy": 0
+      }
+    },
+    {
+      "id": "v09_one_hold_poo_unset",
+      "description": "Only the pee hold is set; asking for poo (hold null) yields no prediction on either side.",
+      "householdTz": "America/Chicago",
+      "deviceTz": "America/Chicago",
+      "now": "2026-06-15T15:00:00.000Z",
+      "peeHoldHours": 4,
+      "poopHoldHours": null,
+      "feedTimes": [
+        {
+          "localTime": "07:30",
+          "active": true
+        },
+        {
+          "localTime": "18:00",
+          "active": true
+        }
+      ],
+      "logs": [
+        {
+          "type": "pee",
+          "occurredAt": "2026-06-15T14:00:00.000Z"
+        }
+      ],
+      "breakType": "poo",
+      "expected": null
+    },
+    {
+      "id": "v10_device_tz_differs",
+      "description": "Household in America/Los_Angeles, device in America/Chicago, no log, feed 07:30: resolves 07:30 in the HOUSEHOLD zone (14:30Z) on both sides.",
+      "householdTz": "America/Los_Angeles",
+      "deviceTz": "America/Chicago",
+      "now": "2026-06-15T15:00:00.000Z",
+      "peeHoldHours": 4,
+      "poopHoldHours": 6,
+      "feedTimes": [
+        {
+          "localTime": "07:30",
+          "active": true
+        }
+      ],
+      "logs": [],
+      "breakType": "pee",
+      "expected": {
+        "anchor": "2026-06-15T14:30:00.000Z",
+        "predicted": "2026-06-15T18:30:00.000Z",
+        "bufferMs": 2160000,
+        "notifyAt": "2026-06-15T17:54:00.000Z",
+        "overdueBy": 0
+      }
+    },
+    {
+      "id": "v11_buffer_floor",
+      "description": "Hold 0.5h -> buffer 4.5 min floors to 10. Logged 1h ago, so 30 min overdue.",
+      "householdTz": "America/Chicago",
+      "deviceTz": "America/Chicago",
+      "now": "2026-06-15T15:00:00.000Z",
+      "peeHoldHours": 0.5,
+      "poopHoldHours": 0.5,
+      "feedTimes": [
+        {
+          "localTime": "07:30",
+          "active": true
+        },
+        {
+          "localTime": "18:00",
+          "active": true
+        }
+      ],
+      "logs": [
+        {
+          "type": "pee",
+          "occurredAt": "2026-06-15T14:00:00.000Z"
+        }
+      ],
+      "breakType": "pee",
+      "expected": {
+        "anchor": "2026-06-15T14:00:00.000Z",
+        "predicted": "2026-06-15T14:30:00.000Z",
+        "bufferMs": 600000,
+        "notifyAt": "2026-06-15T14:20:00.000Z",
+        "overdueBy": 1800000
+      }
+    },
+    {
+      "id": "v12_buffer_ceiling",
+      "description": "Hold 24h -> buffer 216 min ceils to 45.",
+      "householdTz": "America/Chicago",
+      "deviceTz": "America/Chicago",
+      "now": "2026-06-15T15:00:00.000Z",
+      "peeHoldHours": 24,
+      "poopHoldHours": 24,
+      "feedTimes": [
+        {
+          "localTime": "07:30",
+          "active": true
+        },
+        {
+          "localTime": "18:00",
+          "active": true
+        }
+      ],
+      "logs": [
+        {
+          "type": "pee",
+          "occurredAt": "2026-06-15T14:00:00.000Z"
+        }
+      ],
+      "breakType": "pee",
+      "expected": {
+        "anchor": "2026-06-15T14:00:00.000Z",
+        "predicted": "2026-06-16T14:00:00.000Z",
+        "bufferMs": 2700000,
+        "notifyAt": "2026-06-16T13:15:00.000Z",
+        "overdueBy": 0
+      }
+    },
+    {
+      "id": "v13_buffer_half_rounds_up",
+      "description": "Hold 2.5h -> 22.5 min rounds half up to 23 (JS Math.round and Postgres numeric round agree).",
+      "householdTz": "America/Chicago",
+      "deviceTz": "America/Chicago",
+      "now": "2026-06-15T15:00:00.000Z",
+      "peeHoldHours": 2.5,
+      "poopHoldHours": 2.5,
+      "feedTimes": [
+        {
+          "localTime": "07:30",
+          "active": true
+        },
+        {
+          "localTime": "18:00",
+          "active": true
+        }
+      ],
+      "logs": [
+        {
+          "type": "pee",
+          "occurredAt": "2026-06-15T14:30:00.000Z"
+        }
+      ],
+      "breakType": "pee",
+      "expected": {
+        "anchor": "2026-06-15T14:30:00.000Z",
+        "predicted": "2026-06-15T17:00:00.000Z",
+        "bufferMs": 1380000,
+        "notifyAt": "2026-06-15T16:37:00.000Z",
+        "overdueBy": 0
+      }
+    },
+    {
+      "id": "v14_deleted_log_ignored",
+      "description": "The newest pee log is soft-deleted (undone); the older live one anchors.",
+      "householdTz": "America/Chicago",
+      "deviceTz": "America/Chicago",
+      "now": "2026-06-15T15:00:00.000Z",
+      "peeHoldHours": 4,
+      "poopHoldHours": 6,
+      "feedTimes": [
+        {
+          "localTime": "07:30",
+          "active": true
+        },
+        {
+          "localTime": "18:00",
+          "active": true
+        }
+      ],
+      "logs": [
+        {
+          "type": "pee",
+          "occurredAt": "2026-06-15T14:00:00.000Z",
+          "deleted": true
+        },
+        {
+          "type": "pee",
+          "occurredAt": "2026-06-15T12:00:00.000Z"
+        }
+      ],
+      "breakType": "pee",
+      "expected": {
+        "anchor": "2026-06-15T12:00:00.000Z",
+        "predicted": "2026-06-15T16:00:00.000Z",
+        "bufferMs": 2160000,
+        "notifyAt": "2026-06-15T15:24:00.000Z",
+        "overdueBy": 0
+      }
+    },
+    {
+      "id": "v15_other_type_log_ignored",
+      "description": "Only a poo log exists; the pee prediction falls back to the feed anchor.",
+      "householdTz": "America/Chicago",
+      "deviceTz": "America/Chicago",
+      "now": "2026-06-15T15:00:00.000Z",
+      "peeHoldHours": 4,
+      "poopHoldHours": 6,
+      "feedTimes": [
+        {
+          "localTime": "07:30",
+          "active": true
+        },
+        {
+          "localTime": "18:00",
+          "active": true
+        }
+      ],
+      "logs": [
+        {
+          "type": "poo",
+          "occurredAt": "2026-06-15T14:00:00.000Z"
+        }
+      ],
+      "breakType": "pee",
+      "expected": {
+        "anchor": "2026-06-15T12:30:00.000Z",
+        "predicted": "2026-06-15T16:30:00.000Z",
+        "bufferMs": 2160000,
+        "notifyAt": "2026-06-15T15:54:00.000Z",
+        "overdueBy": 0
+      }
+    },
+    {
+      "id": "v16_inactive_feed_only",
+      "description": "The only feed time is inactive: no schedule, no prediction, even with a log.",
+      "householdTz": "America/Chicago",
+      "deviceTz": "America/Chicago",
+      "now": "2026-06-15T15:00:00.000Z",
+      "peeHoldHours": 4,
+      "poopHoldHours": 6,
+      "feedTimes": [
+        {
+          "localTime": "07:30",
+          "active": false
+        }
+      ],
+      "logs": [
+        {
+          "type": "pee",
+          "occurredAt": "2026-06-15T14:00:00.000Z"
+        }
+      ],
+      "breakType": "pee",
+      "expected": null
+    },
+    {
+      "id": "v17_dst_fall_back_day",
+      "description": "2026-11-01 (US DST ends 02:00): feed 07:30 resolves to 07:30 CST, predicted 11:30 CST.",
+      "householdTz": "America/Chicago",
+      "deviceTz": "America/Chicago",
+      "now": "2026-11-01T18:00:00.000Z",
+      "peeHoldHours": 4,
+      "poopHoldHours": 6,
+      "feedTimes": [
+        {
+          "localTime": "07:30",
+          "active": true
+        }
+      ],
+      "logs": [],
+      "breakType": "pee",
+      "expected": {
+        "anchor": "2026-11-01T13:30:00.000Z",
+        "predicted": "2026-11-01T17:30:00.000Z",
+        "bufferMs": 2160000,
+        "notifyAt": "2026-11-01T16:54:00.000Z",
+        "overdueBy": 1800000
+      }
+    },
+    {
+      "id": "v18_earliest_feed_unsorted",
+      "description": "Feed times stored out of order; the EARLIEST active one (06:15) anchors.",
+      "householdTz": "America/Chicago",
+      "deviceTz": "America/Chicago",
+      "now": "2026-06-15T15:00:00.000Z",
+      "peeHoldHours": 6,
+      "poopHoldHours": 6,
+      "feedTimes": [
+        {
+          "localTime": "18:00",
+          "active": true
+        },
+        {
+          "localTime": "06:15",
+          "active": true
+        }
+      ],
+      "logs": [],
+      "breakType": "pee",
+      "expected": {
+        "anchor": "2026-06-15T11:15:00.000Z",
+        "predicted": "2026-06-15T17:15:00.000Z",
+        "bufferMs": 2700000,
+        "notifyAt": "2026-06-15T16:30:00.000Z",
+        "overdueBy": 0
+      }
+    },
+    {
+      "id": "v19_latest_log_wins",
+      "description": "Several pee logs; the most recent (13:30Z) anchors regardless of array order.",
+      "householdTz": "America/Chicago",
+      "deviceTz": "America/Chicago",
+      "now": "2026-06-15T15:00:00.000Z",
+      "peeHoldHours": 4,
+      "poopHoldHours": 6,
+      "feedTimes": [
+        {
+          "localTime": "07:30",
+          "active": true
+        },
+        {
+          "localTime": "18:00",
+          "active": true
+        }
+      ],
+      "logs": [
+        {
+          "type": "pee",
+          "occurredAt": "2026-06-15T10:00:00.000Z"
+        },
+        {
+          "type": "pee",
+          "occurredAt": "2026-06-15T13:30:00.000Z"
+        },
+        {
+          "type": "pee",
+          "occurredAt": "2026-06-15T12:00:00.000Z"
+        }
+      ],
+      "breakType": "pee",
+      "expected": {
+        "anchor": "2026-06-15T13:30:00.000Z",
+        "predicted": "2026-06-15T17:30:00.000Z",
+        "bufferMs": 2160000,
+        "notifyAt": "2026-06-15T16:54:00.000Z",
+        "overdueBy": 0
+      }
+    },
+    {
+      "id": "v20_household_date_differs",
+      "description": "Household in Asia/Kolkata (UTC+5:30), device in America/Chicago. At now it is already the NEXT day in the household, so the feed anchor is 07:30 on the household-local date (2026-06-16) and still ahead: predicted = the anchor.",
+      "householdTz": "Asia/Kolkata",
+      "deviceTz": "America/Chicago",
+      "now": "2026-06-15T20:00:00.000Z",
+      "peeHoldHours": 4,
+      "poopHoldHours": 6,
+      "feedTimes": [
+        {
+          "localTime": "07:30",
+          "active": true
+        },
+        {
+          "localTime": "18:00",
+          "active": true
+        }
+      ],
+      "logs": [],
+      "breakType": "pee",
+      "expected": {
+        "anchor": "2026-06-16T02:00:00.000Z",
+        "predicted": "2026-06-16T02:00:00.000Z",
+        "bufferMs": 2160000,
+        "notifyAt": "2026-06-16T01:24:00.000Z",
+        "overdueBy": 0
+      }
+    }
+  ]
+}

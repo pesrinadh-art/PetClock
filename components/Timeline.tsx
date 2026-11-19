@@ -1,22 +1,19 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { accent, category, danger, glass, ink, line, logTint, radius, terracotta } from '../theme/colors';
+import { accent, danger, glass, ink, line, radius } from '../theme/colors';
 import { fonts } from '../theme/fonts';
-import type { FeedTime, LogEntry, LogType } from '../data/mockData';
+import type { FeedTime, LogEntry } from '../data/mockData';
 import { useLogs } from '../context/LogsContext';
 import { describeLog, formatClock } from '../lib/petSchedule';
 import { Card } from './ui';
-import { Icon, type IconName } from './Icon';
+import { Icon } from './Icon';
+import { presentLogType, type LogTypePresentation } from '../lib/care/logTypes';
 
-/** Drawn-icon + tint per log type (replaces the emoji dots). */
-const TYPE_STYLE: Record<LogType, { icon: IconName; bg: string; fg: string }> = {
-  pee: { icon: 'drop', bg: logTint.peeBg, fg: logTint.peeInk },
-  poo: { icon: 'poo', bg: logTint.pooBg, fg: logTint.pooInk },
-  food: { icon: 'bowl', bg: terracotta.tint, fg: terracotta.ink },
-  medication: { icon: 'pill', bg: category.medBg, fg: category.medInk },
-  vet: { icon: 'vet', bg: category.vetBg, fg: category.vetInk },
-  other: { icon: 'paw', bg: accent.soft, fg: accent.ink },
-};
+/**
+ * Drawn-icon + tint per log type come from the shared table (lib/care/logTypes). The Timeline
+ * draws its other/unknown row as a paw on the accent tint, as it always has.
+ */
+const TIMELINE_OTHER: LogTypePresentation = { icon: 'paw', label: 'Log', bg: accent.soft, fg: accent.ink };
 
 /** "by you" / "by a caregiver" — attribution derived from the log's author id. */
 function caregiverLabel(createdBy: string | null, currentUserId?: string | null): string {
@@ -53,7 +50,7 @@ export function Timeline({
       {entries.map((e, i) => {
         const expanded = expandedId === e.id;
         const { label } = describeLog(e, feedTimes, now);
-        const ts = TYPE_STYLE[e.type] ?? TYPE_STYLE.other;
+        const ts = presentLogType(e.type, TIMELINE_OTHER);
         const occurredMs = new Date(e.occurredAt).getTime();
         const last = i === entries.length - 1;
         return (

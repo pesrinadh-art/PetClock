@@ -1,0 +1,4 @@
+{
+  "$comment": "Pre-existing care-module boundary violations (scripts/check-boundaries.mjs). Matched by file + trimmed line text. This list may only SHRINK: remove entries as screens move onto lib/care. Never add new entries to get a check to pass.",
+  "entries": []
+}

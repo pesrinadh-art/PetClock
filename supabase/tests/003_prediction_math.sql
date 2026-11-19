@@ -206,6 +206,48 @@ insert into _tap(line) select is(
   0, 'a new log resets the consecutive "not yet" streak');
 
 -- ---------------------------------------------------------------------------
+-- 0018: a FUTURE-dated log still predicts log + hold
+-- ---------------------------------------------------------------------------
+-- The "anchor in the future => predicted = anchor" branch belongs only to the feed-time
+-- fallback anchor. A real log 30 min ahead with a 4h hold must predict 4h30m from now
+-- (matching the client predictBreak), not the log instant itself — pre-0018 the push fired
+-- 30 min out while the app showed 4h30m.
+
+select tests.mk_pet('f0000000-0000-0000-0000-00000000000d', 4, -0.5);   -- logged 30 min AHEAD
+
+insert into _tap(line) select is(
+  (select round(extract(epoch from (anchor_at - now())) / 60)::int from prediction_state
+    where pet_id = 'f0000000-0000-0000-0000-00000000000d' and break_type = 'pee'),
+  30, '0018: the future-dated log is the anchor (30 min ahead)');
+
+insert into _tap(line) select ok(
+  (select last_log_id is not null from prediction_state
+    where pet_id = 'f0000000-0000-0000-0000-00000000000d' and break_type = 'pee'),
+  '0018: anchored on the log, not the feed time');
+
+insert into _tap(line) select is(
+  (select round((extract(epoch from (predicted_at - anchor_at))/3600)::numeric, 4)
+     from prediction_state
+    where pet_id = 'f0000000-0000-0000-0000-00000000000d' and break_type = 'pee'),
+  4.0000::numeric,
+  '0018: a future-dated log predicts log + hold, never the log instant itself');
+
+insert into _tap(line) select is(
+  (select round(extract(epoch from (notify_at - now())) / 60)::int from prediction_state
+    where pet_id = 'f0000000-0000-0000-0000-00000000000d' and break_type = 'pee'),
+  234, '0018: notify_at = log + 4h - 36 min buffer (234 min from now)');
+
+-- The feed-anchor branch is unchanged: with no log and today's 08:00 feed time still ahead,
+-- predicted = the anchor; once passed, anchor + hold. Asserted shape-wise because pgTAP
+-- cannot fake now().
+insert into _tap(line) select ok(
+  (select predicted_at = case when anchor_at > now() then anchor_at
+                              else anchor_at + hold_hours::double precision * interval '1 hour' end
+     from prediction_state
+    where pet_id = 'f0000000-0000-0000-0000-000000000008' and break_type = 'pee'),
+  '0018: the feed-time fallback anchor keeps the "still ahead => predict at anchor" branch');
+
+-- ---------------------------------------------------------------------------
 -- Report
 -- ---------------------------------------------------------------------------
 

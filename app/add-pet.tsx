@@ -2,11 +2,11 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Screen } from '../components/ui';
 import { PetWizard, type WizardStep } from '../components/PetWizard';
 
-const STEPS: WizardStep[] = ['about', 'routine', 'meds'];
+const STEPS: WizardStep[] = ['about', 'goals', 'routine', 'meds'];
 
 /**
- * Add / edit a pet — the 3-step wizard ("Welcome a new pet"). `petId` edits that pet; `step`
- * (about | routine | meds) opens straight at that step, e.g. "Edit Mochi's routine".
+ * Add / edit a pet — the step wizard ("Welcome a new pet"). `petId` edits that pet; `step`
+ * (about | goals | routine | meds) opens straight at that step, e.g. "Edit Mochi's routine".
  */
 export default function AddPetScreen() {
   const { petId, step } = useLocalSearchParams<{ petId?: string; step?: string }>();

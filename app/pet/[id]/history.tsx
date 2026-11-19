@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
-import { possessive, pottyBreakPhrase } from '../../../lib/petVoice';
+import { possessive } from '../../../lib/petVoice';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { accent, ink, line, logTint, terracotta, category, radius } from '../../../theme/colors';
+import { accent, ink, line, category, radius } from '../../../theme/colors';
 import { fonts } from '../../../theme/fonts';
 import { Icon, type IconName } from '../../../components/Icon';
 import { ScreenHeader } from '../../../components/ScreenHeader';
@@ -12,7 +12,10 @@ import { useLogs } from '../../../context/LogsContext';
 import { useAppointments } from '../../../context/AppointmentsContext';
 import { describeLog, formatClock } from '../../../lib/petSchedule';
 import { useNow } from '../../../hooks/useNow';
-import type { Appointment, ApptType, FeedTime, LogEntry, LogType } from '../../../lib/db/models';
+import type { Appointment, ApptType, FeedTime, LogEntry } from '../../../lib/db/models';
+import { presentLogType } from '../../../lib/care/logTypes';
+import { REGISTRY } from '../../../lib/care/registry';
+import { pottyPhraseForPet } from '../../../lib/care/species';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -39,15 +42,6 @@ function dayLabel(dayMs: number, now: Date): string {
 
 type Visual = { icon: IconName; bg: string; fg: string };
 
-const LOG_VISUAL: Record<LogType, Visual> = {
-  pee: { icon: 'drop', bg: logTint.peeBg, fg: logTint.peeInk },
-  poo: { icon: 'poo', bg: logTint.pooBg, fg: logTint.pooInk },
-  food: { icon: 'bowl', bg: terracotta.tint, fg: terracotta.ink },
-  medication: { icon: 'pill', bg: category.medBg, fg: category.medInk },
-  vet: { icon: 'vet', bg: category.vetBg, fg: category.vetInk },
-  other: { icon: 'dots', bg: category.otherBg, fg: category.otherInk },
-};
-
 const APPT_VISUAL: Record<ApptType, Visual & { label: string }> = {
   vet: { icon: 'vet', bg: category.vetBg, fg: category.vetInk, label: 'Vet' },
   vaccine: { icon: 'vaccine', bg: category.vaccineBg, fg: category.vaccineInk, label: 'Vaccine' },
@@ -68,6 +62,15 @@ type Moment = {
   allDay?: boolean;
 };
 
+/**
+ * The day-summary bucket for a log type, by the care module that owns it: meals logs are
+ * "meal", potty logs are "potty", everything else (meds, vet, other, unknown) is "other".
+ */
+function bucketOf(type: string): Moment['bucket'] {
+  const owner = REGISTRY.find((m) => (m.logTypes as readonly string[]).includes(type))?.id;
+  return owner === 'meals' ? 'meal' : owner === 'potty' ? 'potty' : 'other';
+}
+
 function toMoments(logs: LogEntry[], appts: Appointment[], feedTimes: FeedTime[], now: Date): Moment[] {
   const fromLogs: Moment[] = logs
     .filter((l) => !l.deletedAt)
@@ -76,8 +79,8 @@ function toMoments(logs: LogEntry[], appts: Appointment[], feedTimes: FeedTime[]
       at: new Date(l.occurredAt).getTime(),
       label: l.type === 'food' ? 'Meal' : describeLog(l, feedTimes, now).label,
       note: l.note ?? null,
-      visual: LOG_VISUAL[l.type] ?? LOG_VISUAL.other,
-      bucket: l.type === 'food' ? 'meal' : l.type === 'pee' || l.type === 'poo' ? 'potty' : 'other',
+      visual: presentLogType(l.type),
+      bucket: bucketOf(l.type),
     }));
   // Visits join the diary once they've happened (or were marked done).
   const fromAppts: Moment[] = appts
@@ -102,8 +105,7 @@ function plural(n: number, one: string, many: string): string {
 }
 
 /** "2 potty walks · 1 meal · 1 more" — "litter box trips" for cats and rabbits. */
-function daySummary(moments: Moment[], species: string | null | undefined): string {
-  const potty1 = pottyBreakPhrase(species);
+function daySummary(moments: Moment[], potty1: string): string {
   const meals = moments.filter((m) => m.bucket === 'meal').length;
   const potty = moments.filter((m) => m.bucket === 'potty').length;
   const other = moments.length - meals - potty;
@@ -178,7 +180,7 @@ export default function LogHistoryScreen() {
                   {group.label}
                 </Text>
                 <Text style={styles.daySummary} numberOfLines={1}>
-                  {daySummary(group.entries, pet?.species)}
+                  {daySummary(group.entries, pottyPhraseForPet(pet))}
                 </Text>
               </View>
               <Card>

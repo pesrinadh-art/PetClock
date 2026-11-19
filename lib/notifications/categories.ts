@@ -36,6 +36,12 @@ export async function registerNotificationCategories(): Promise<void> {
       { identifier: ACTION.yes, buttonTitle: '✅ Given', options: noForeground },
       { identifier: ACTION.snooze, buttonTitle: '⏰ Snooze 15 min', options: noForeground },
     ]);
+    // care-check — walks / habitat cleaning (Phase 3 `care_due`): "Done / Snooze".
+    // Done sends LOG_YES (writes the walk / habitat_clean log), Snooze sends SNOOZE_15.
+    await Notifications.setNotificationCategoryAsync(CATEGORY.care, [
+      { identifier: ACTION.yes, buttonTitle: '✅ Done', options: noForeground },
+      { identifier: ACTION.snooze, buttonTitle: '⏰ Snooze 15 min', options: noForeground },
+    ]);
     // appt-reminder — tap-through only, no action buttons.
     await Notifications.setNotificationCategoryAsync(CATEGORY.appointment, []);
   });

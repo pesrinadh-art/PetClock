@@ -25,6 +25,8 @@ export type ActionClaims = {
   breakType?: "pee" | "poo";
   feedTimeId?: string;
   medicationId?: string;
+  /** care_due pushes only: which module's log a "Done" writes (Phase 3). */
+  careModule?: "walks" | "habitat";
 };
 
 const key = () => new TextEncoder().encode(ACTION_TOKEN_SECRET());

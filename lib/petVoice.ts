@@ -286,6 +286,10 @@ export function loggedLine(
       return `Yum! ${name} has been fed.`;
     case 'medication':
       return `Done — ${possessive(name)} meds are logged.`;
+    case 'walk':
+      return `${cheer} Walk logged for ${name}.`;
+    case 'habitat_clean':
+      return `All clean! Logged for ${name}.`;
     default:
       return `Logged for ${name}.`;
   }

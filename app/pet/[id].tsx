@@ -9,6 +9,7 @@ import { Card, HeroAvatar, HeroCard, ListRow, Screen, SectionLabel, Pill, type S
 import { AppModal } from '../../components/AppModal';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { EmptyActionCard } from '../../components/EmptyActionCard';
+import { CarePlanRow } from '../../components/care/CarePlanRow';
 import { usePets } from '../../context/PetsContext';
 import { useLogs } from '../../context/LogsContext';
 import { useAppointments } from '../../context/AppointmentsContext';
@@ -86,8 +87,8 @@ export default function PetDetailScreen() {
       ? { label: 'On file', color: ink.muted }
       : { label: 'None yet', color: ink.muted };
 
-  // Edit opens the 3-step wizard pre-filled; `step` jumps straight to the relevant step.
-  const editPet = (step?: 'about' | 'routine' | 'meds') =>
+  // Edit opens the step wizard pre-filled; `step` jumps straight to the relevant step.
+  const editPet = (step?: 'about' | 'goals' | 'routine' | 'meds') =>
     router.push({ pathname: '/add-pet', params: { petId: pet.id, ...(step ? { step } : {}) } });
 
   // "Mochi's meals" (meal plan + meds) shows the pet switcher, so select this pet first.
@@ -148,6 +149,12 @@ export default function PetDetailScreen() {
             />
           )}
         </HeroCard>
+
+        {/* ── Care plan: the care modules this pet gets help with; opens the wizard at Goals ── */}
+        <View style={styles.section}>
+          <SectionLabel>Care plan</SectionLabel>
+          <CarePlanRow pet={pet} onPress={() => editPet('goals')} />
+        </View>
 
         {/* ── Meals ── */}
         <View style={styles.section}>

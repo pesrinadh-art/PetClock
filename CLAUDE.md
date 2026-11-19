@@ -96,10 +96,20 @@ Read the deltas before changing schema or prediction logic.
 
 ### Current wiring state
 
-The app and the backend are **not connected**. The app reads entirely from in-memory
-contexts seeded from `data/mockData.ts`; nothing survives a reload. There is no
-`@supabase/supabase-js` dependency, no `lib/repo/` seam, and no auth. The backend schema is
-live and tested but nothing calls it. Connecting them is SYNC 1.
+The app and the backend **are connected** (SYNC 1 landed). Contexts read through the
+`repos` facade in `lib/repo/types.ts`, which defaults to the on-device AsyncStorage repo
+(`lib/repo/local.ts`; demo data from `data/mockData.ts` only on request). With
+`EXPO_PUBLIC_USE_SUPABASE=true`, `SessionContext` signs in (Supabase auth, `app/auth.tsx`,
+`lib/auth/`) and hot-swaps the facade to `lib/repo/synced.ts`. Push ownership is local
+(expo-notifications) unless a server push token registers (`lib/push/mode.ts`), in which
+case the Edge Functions in `supabase/functions/` dispatch.
+
+Because real devices now talk to the live schema, **rollout order matters**: an older app
+build must tolerate any new enum value, column or push kind before the server starts
+producing it (see `docs/CARE_MODULES_PLAN.md`, "Rollout phases").
+
+Safety net: `npm test` (jest-expo; characterization snapshots and golden prediction vectors
+in `lib/__tests__/`, TZ pinned in `jest.config.js`) and `npm run check:boundaries`.
 
 ### Frontend layers
 

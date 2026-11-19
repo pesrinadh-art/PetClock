@@ -16,8 +16,12 @@
 export type Species =
   | 'dog' | 'cat' | 'rabbit' | 'hamster' | 'bird' | 'turtle' | 'snake' | 'fish' | 'other';
 
-/** Δ: 'medication' is new vs the old TimelineEntry union — meds finally get real logs. */
-export type LogType = 'pee' | 'poo' | 'food' | 'medication' | 'vet' | 'other';
+/**
+ * Δ: 'medication' is new vs the old TimelineEntry union — meds finally get real logs.
+ * 'walk' and 'habitat_clean' arrive with 0020_care_enums.sql (care modules Phase 2).
+ */
+export type LogType =
+  | 'pee' | 'poo' | 'food' | 'medication' | 'vet' | 'walk' | 'habitat_clean' | 'other';
 
 export type LogSource =
   | 'manual' | 'notification_yes' | 'backfill' | 'import' | 'system' | 'walker';
@@ -27,6 +31,20 @@ export type ApptType = 'vet' | 'groom' | 'vaccine' | 'other';
 export type BreakType = 'pee' | 'poo';
 
 export type MemberRole = 'owner' | 'member' | 'walker';
+
+/**
+ * A kind of care a pet gets help with (docs/CARE_MODULES_PLAN.md). Mirrors the Postgres text
+ * domain `public.care_module` (0019_care_modules.sql). `walks` and `habitat` are implemented
+ * since Phase 2 (opt-in: existing pets were backfilled with the four legacy modules only).
+ */
+export type CareModuleId = 'potty' | 'walks' | 'meds' | 'meals' | 'habitat' | 'visits';
+
+/**
+ * What every pet that predates care modules does today, and the DB backfill/default in 0019.
+ * Also the mapping-layer fallback for rows that carry no `care_modules` at all (old local
+ * AsyncStorage data, or a Supabase project where 0019 is not applied yet).
+ */
+export const LEGACY_CARE_MODULES: readonly CareModuleId[] = ['potty', 'meals', 'meds', 'visits'];
 
 // ---------------------------------------------------------------------------
 // Household
@@ -92,6 +110,23 @@ export type Pet = {
   poopHoldHours: number | null;
   /** Drives the 3-day calibration countdown (was Pet.createdAt). */
   calibrationStartedAt: string;
+  /**
+   * The care this pet gets help with, as an explicit stored list (never "use the defaults":
+   * the server gates the potty push on it). Never null in the app: a stored row without it
+   * maps to {@link LEGACY_CARE_MODULES} — see {@link narrowCareModules}.
+   */
+  careModules: CareModuleId[];
+  /**
+   * Walks module: "every N hours since the last walk" (pets.walk_interval_hours, 0021,
+   * 0.5–24). null/absent = not set — read it through rhythmsForPet (lib/care/rhythms.ts), which
+   * supplies the default. Optional so pets built before 0021 (and older local data) still type.
+   */
+  walkIntervalHours?: number | null;
+  /**
+   * Habitat module: cleaning "due every N days" (pets.habitat_interval_days, 0021, 1–90).
+   * null/absent = not set — read it through rhythmsForPet.
+   */
+  habitatIntervalDays?: number | null;
   /** Soft delete. Archived pets keep their log history. */
   archivedAt: string | null;
   createdAt: string;
@@ -254,10 +289,47 @@ export function toPet(r: Row): Pet {
     peeHoldHours: r.pee_hold_hours === null ? null : Number(r.pee_hold_hours),
     poopHoldHours: r.poop_hold_hours === null ? null : Number(r.poop_hold_hours),
     calibrationStartedAt: r.calibration_started_at,
+    careModules: narrowCareModules(r.care_modules),
+    // Absent on a DB without 0021: `== null` maps undefined and null alike to null.
+    walkIntervalHours: r.walk_interval_hours == null ? null : Number(r.walk_interval_hours),
+    habitatIntervalDays: r.habitat_interval_days == null ? null : Number(r.habitat_interval_days),
     archivedAt: r.archived_at,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
+}
+
+/** Every CareModuleId this build understands. A Record so a new union member must be listed. */
+const KNOWN_CARE_MODULES: Record<CareModuleId, true> = {
+  potty: true,
+  walks: true,
+  meds: true,
+  meals: true,
+  habitat: true,
+  visits: true,
+};
+
+/**
+ * Stored care modules → the app's non-null list.
+ *
+ *  - Missing (`undefined`/`null`, i.e. not an array): the row predates care modules — old local
+ *    data, or a DB without 0019 — so it gets exactly today's behaviour, {@link LEGACY_CARE_MODULES}.
+ *  - An array: kept as stored (an empty list is a real choice), minus values this build does
+ *    not know (a newer build's module) and duplicates.
+ */
+export function narrowCareModules(v: unknown): CareModuleId[] {
+  if (!Array.isArray(v)) return [...LEGACY_CARE_MODULES];
+  const out: CareModuleId[] = [];
+  for (const m of v) {
+    if (
+      typeof m === 'string' &&
+      Object.prototype.hasOwnProperty.call(KNOWN_CARE_MODULES, m) &&
+      !out.includes(m as CareModuleId)
+    ) {
+      out.push(m as CareModuleId);
+    }
+  }
+  return out;
 }
 
 /** Postgres `time` comes back as "HH:MM:SS"; the app only ever wants "HH:MM". */
@@ -284,12 +356,38 @@ export function toMedication(r: Row): Medication {
   };
 }
 
+/**
+ * Every LogType this build understands. A Record (not an array) so adding a member to the
+ * LogType union without listing it here is a compile error.
+ */
+const KNOWN_LOG_TYPES: Record<LogType, true> = {
+  pee: true,
+  poo: true,
+  food: true,
+  medication: true,
+  vet: true,
+  walk: true,
+  habitat_clean: true,
+  other: true,
+};
+
+/**
+ * Release N tolerance: a newer server (or a partner on a newer build) may write log types this
+ * build has never heard of. Narrow them to 'other' here, at the one place rows become models,
+ * so nothing downstream ever sees a value outside the LogType union.
+ */
+function narrowLogType(t: unknown): LogType {
+  return typeof t === 'string' && Object.prototype.hasOwnProperty.call(KNOWN_LOG_TYPES, t)
+    ? (t as LogType)
+    : 'other';
+}
+
 export function toLogEntry(r: Row): LogEntry {
   return {
     id: r.id,
     householdId: r.household_id,
     petId: r.pet_id,
-    type: r.type,
+    type: narrowLogType(r.type),
     occurredAt: r.occurred_at,
     note: r.note,
     source: r.source,

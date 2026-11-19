@@ -19,6 +19,10 @@ import { useNow } from '../../hooks/useNow';
 import { formatClock } from '../../lib/petSchedule';
 import { formatAgo } from '../../lib/formatAgo';
 import type { LogEntry } from '../../data/mockData';
+import type { CareModuleId } from '../../lib/db/models';
+import { presentLogType } from '../../lib/care/logTypes';
+import { moduleById } from '../../lib/care/registry';
+import { useCareOutputs } from '../../lib/care/useCareOutputs';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -39,12 +43,14 @@ function formatRecent(occurredAt: string, now: Date): string {
   return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${clock}`;
 }
 
-/** The three log types the Home "Recent" summary distils to, with their line icon (accent-soft tile). */
-const RECENT_ROWS: { type: LogEntry['type']; label: string; icon: IconName }[] = [
-  { type: 'pee', label: 'Last pee', icon: 'drop' },
-  { type: 'poo', label: 'Last poo', icon: 'poo' },
-  { type: 'food', label: 'Last meal', icon: 'bowl' },
-];
+/**
+ * The care modules whose log types the Home "Recent" summary distils to, in the pet's plan
+ * order: potty (last pee, last poo) then meals (last meal). A module switched off for the pet
+ * drops its rows.
+ */
+const RECENT_MODULES: readonly CareModuleId[] = ['potty', 'meals'];
+
+type RecentRow = { type: LogEntry['type']; label: string; icon: IconName; log: LogEntry | null };
 
 export default function HomeScreen() {
   const { pets, activePet, activePetId, setActivePetId } = usePets();
@@ -54,10 +60,12 @@ export default function HomeScreen() {
   // Every hook must run on every render — compute BEFORE any early return, so the hook order
   // stays stable when activePet flips to null (e.g. after the last pet is removed).
   const petLogs = activePet ? getLogsForPet(activePet.id) : [];
+  const care = useCareOutputs(activePet?.id);
+  const moduleIds = care?.plan.moduleIds;
 
-  // The most-recent non-deleted log of each summarised type (Pee / Poo / Fed), across all
-  // history — this is "last", not "today". null when that type was never logged.
-  const recentByType = useMemo(() => {
+  // One row per log type of each recent module, with the most-recent non-deleted log of that
+  // type across all history — this is "last", not "today". log is null when never logged.
+  const recentRows = useMemo<RecentRow[]>(() => {
     const active = petLogs.filter((l) => !l.deletedAt);
     const latestOf = (type: LogEntry['type']): LogEntry | null =>
       active
@@ -67,8 +75,14 @@ export default function HomeScreen() {
             !best || new Date(l.occurredAt).getTime() > new Date(best.occurredAt).getTime() ? l : best,
           null,
         );
-    return { pee: latestOf('pee'), poo: latestOf('poo'), food: latestOf('food') };
-  }, [petLogs]);
+    return (moduleIds ?? [])
+      .filter((id) => RECENT_MODULES.includes(id))
+      .flatMap((id) => moduleById(id)?.logTypes ?? [])
+      .map((type) => {
+        const p = presentLogType(type);
+        return { type, label: `Last ${p.label.toLowerCase()}`, icon: p.icon, log: latestOf(type) };
+      });
+  }, [petLogs, moduleIds]);
 
   if (!activePet) {
     return (
@@ -116,8 +130,8 @@ export default function HomeScreen() {
           </SectionLabel>
           {/* Compact summary: the last Pee, Poo and meal. The full diary lives behind "See all". */}
           <Card>
-            {RECENT_ROWS.map((row, i) => {
-              const log = recentByType[row.type as 'pee' | 'poo' | 'food'];
+            {recentRows.map((row, i) => {
+              const { log } = row;
               return (
                 <ListRow
                   key={row.type}
@@ -133,7 +147,7 @@ export default function HomeScreen() {
                     ) : undefined
                   }
                   showChevron={false}
-                  divider={i < RECENT_ROWS.length - 1}
+                  divider={i < recentRows.length - 1}
                 />
               );
             })}

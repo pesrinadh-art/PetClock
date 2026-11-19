@@ -16,6 +16,10 @@
  *            re-inserts the same key and no-ops.
  *
  * Auth is the action token, not a session — see _shared/tokens.ts for why.
+ *
+ * Phase 3 adds a care_due branch (walks / habitat cleaning): "Done" (LOG_YES) writes a 'walk' /
+ * 'habitat_clean' log through the SAME two gates, and "Snooze" (SNOOZE_15) re-asks via
+ * snooze_care. The break path is unchanged.
  */
 
 import {
@@ -102,6 +106,23 @@ Deno.serve(async (req) => {
 
     // ---- Action handling --------------------------------------------------
 
+    // ---- Phase 3: care_due Snooze / Not-yet ----------------------------------
+    // A care push has Done / Snooze only; a LOG_NO (no such button, but a client could send
+    // one) is treated as a 20-minute snooze — the break re-ask delay, with no drift signal,
+    // since walks and cleaning have no hold time to recalibrate.
+    if (claims.kind === "care_due" && body.action !== "LOG_YES") {
+      if (claims.pid && isCareModule(claims.careModule)) {
+        const { error: snoozeErr } = await admin.rpc("snooze_care", {
+          p_pet_id: claims.pid,
+          p_module: claims.careModule,
+          p_notification_id: claims.nid,
+          p_minutes: body.action === "SNOOZE_15" ? 15 : 20,
+        });
+        if (snoozeErr) console.error("snooze_care failed", snoozeErr);
+      }
+      return json({ ok: true, logId: null, nextPrediction: null, replayed: false });
+    }
+
     if (body.action === "SNOOZE_15") {
       if (claims.breakType && claims.pid) {
         await admin.rpc("snooze_break", {
@@ -187,7 +208,8 @@ Deno.serve(async (req) => {
 
     // trg_logs_after_insert has now recomputed prediction_state AND superseded any sibling
     // in-flight push for this pet and break type. Realtime broadcasts the new row to every
-    // household member's open app. Nothing else to do here.
+    // household member's open app. Nothing else to do here. (For a care_due "Done",
+    // trg_logs_care_change does the same for care_state and sibling care_due pushes.)
 
     return json({
       ok: true,
@@ -206,7 +228,13 @@ function json(payload: LogActionResponse): Response {
   return Response.json(payload);
 }
 
-function resolveLogType(claims: { kind: string; breakType?: string }): string | null {
+function isCareModule(m: unknown): m is "walks" | "habitat" {
+  return m === "walks" || m === "habitat";
+}
+
+function resolveLogType(
+  claims: { kind: string; breakType?: string; careModule?: string },
+): string | null {
   switch (claims.kind) {
     case "break_prediction":
       return claims.breakType ?? null;
@@ -215,6 +243,13 @@ function resolveLogType(claims: { kind: string; breakType?: string }): string | 
     case "medication":
     case "med_escalation":
       return "medication";
+    case "care_due":
+      // Modules write only their own log type (plan, "Guardrails" 3).
+      return claims.careModule === "walks"
+        ? "walk"
+        : claims.careModule === "habitat"
+        ? "habitat_clean"
+        : null;
     default:
       return null;   // appointment reminders are not loggable events
   }

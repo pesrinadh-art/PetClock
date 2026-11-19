@@ -9,6 +9,8 @@ import { useNow } from '../hooks/useNow';
 import { usePendingNudges } from '../hooks/usePendingNudges';
 import { usePersistedCollection } from '../hooks/usePersistedCollection';
 import type { PendingKind, PendingNudge } from '../lib/notifications/pending';
+import { careLogTypeFor } from '../lib/notifications/actions';
+import { OTHER_LOG_PRESENTATION, presentLogType } from '../lib/care/logTypes';
 import { listScheduledSummaries, type ScheduledSummary } from '../lib/notifications/scheduler';
 import { repos } from '../lib/repo/types';
 import { formatClock, formatTimeUntil } from '../lib/petSchedule';
@@ -21,6 +23,16 @@ import { PetAvatar } from '../components/PetAvatar';
 import { Card, Screen, SectionLabel } from '../components/ui';
 
 const KIND_ICON: Record<PendingKind, IconName> = { meal: 'bowl', medication: 'pill', break: 'paw' };
+
+/**
+ * The card icon for a nudge. A care_due payload (walks / habitat cleaning) draws its module's
+ * log-type icon via the care presentation table; every other kind keeps its KIND_ICON glyph, and
+ * anything this build does not know falls back to the shared other/unknown row.
+ */
+function nudgeCardIcon(nudge: PendingNudge): IconName {
+  if (nudge.data?.kind === 'care_due') return presentLogType(careLogTypeFor(nudge.data.careModule) ?? 'unknown').icon;
+  return KIND_ICON[nudge.kind] ?? OTHER_LOG_PRESENTATION.icon;
+}
 /** A nudge this far past due reads "Running late". */
 const LATE_MS = 15 * 60 * 1000;
 
@@ -146,7 +158,7 @@ export default function NotificationsScreen() {
                           <View style={styles.cardHeader}>
                             <View style={[styles.cardIcon, late && styles.cardIconLate]}>
                               <Icon
-                                name={KIND_ICON[nudge.kind]}
+                                name={nudgeCardIcon(nudge)}
                                 size={18}
                                 color={late ? warn.ink : accent.ink}
                                 strokeWidth={1.8}

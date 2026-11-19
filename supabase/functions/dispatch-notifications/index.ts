@@ -1,7 +1,8 @@
 /**
  * dispatch-notifications — invoked every minute by pg_cron via pg_net.
  *
- * Four due-queries, one send path. The whole function is built around a single guarantee:
+ * Five due-queries (breaks, meals, medications, appointments and — Phase 3 — walks / habitat
+ * cleaning as `care_due`), one send path. The whole function is built around a single guarantee:
  * a push is sent at most once, no matter how many times this runs.
  *
  * That guarantee lives in `notifications.dedupe_key`, which is UNIQUE. Every send begins
@@ -16,6 +17,7 @@ import { signActionToken } from "../_shared/tokens.ts";
 import { type ExpoMessage, sendExpoPush } from "../_shared/expo.ts";
 import {
   ANDROID_CHANNEL,
+  type CareDueModule,
   CATEGORY,
   PUSH_PAYLOAD_VERSION,
 } from "../../../shared/notificationContracts.ts";
@@ -24,7 +26,13 @@ import {
 const UNIQUE_VIOLATION = "23505";
 
 type DueItem = {
-  kind: "break_prediction" | "meal" | "medication" | "appointment";
+  kind: "break_prediction" | "meal" | "medication" | "appointment" | "care_due";
+  /**
+   * Who receives it. "household" (default): every live member's unrevoked token.
+   * "care": the same, limited to builds at or above the care_due minimum app version
+   * (public.care_push_tokens, migration 0022) — older builds do not understand the kind.
+   */
+  audience?: "household" | "care";
   dedupeKey: string;
   householdId: string;
   petId: string | null;
@@ -49,14 +57,15 @@ type DueItem = {
 async function collectDueItems(admin: SupabaseClient): Promise<DueItem[]> {
   const items: DueItem[] = [];
 
-  const [breaks, meals, meds, appts] = await Promise.all([
+  const [breaks, meals, meds, appts, care] = await Promise.all([
     admin.rpc("due_break_predictions"),
     admin.rpc("due_meals"),
     admin.rpc("due_medications"),
     admin.rpc("due_appointment_reminders"),
+    admin.rpc("due_care_items"),
   ]);
 
-  for (const [label, res] of Object.entries({ breaks, meals, meds, appts })) {
+  for (const [label, res] of Object.entries({ breaks, meals, meds, appts, care })) {
     if (res.error) console.error(`due query ${label} failed`, res.error);
   }
 
@@ -169,6 +178,42 @@ async function collectDueItems(admin: SupabaseClient): Promise<DueItem[]> {
     });
   }
 
+  // Phase 3: walks and habitat cleaning. Due times come from care_state (app.recompute_care,
+  // the server mirror of lib/care/modules/{walks,habitat}.ts). The copy is species-neutral on
+  // purpose — the server holds no species table (0019), so "habitat", not "litter tray".
+  for (const r of care.data ?? []) {
+    const careModule = r.care_module as CareDueModule;
+    if (careModule !== "walks" && careModule !== "habitat") continue;
+    const copy = careCopy(careModule, r.pet_name, r.interval_hours);
+    items.push({
+      kind: "care_due",
+      audience: "care",
+      dedupeKey: r.dedupe_key,
+      householdId: r.household_id,
+      petId: r.pet_id,
+      title: copy.title,
+      body: copy.body,
+      categoryId: CATEGORY.care,
+      channelId: ANDROID_CHANNEL.care_due.id,
+      data: {
+        petId: r.pet_id,
+        petName: r.pet_name,
+        careModule,
+        dueOn: r.due_at,
+      },
+      tokenClaims: { careModule },
+      onSent: async (a, nid) => {
+        // This cycle's push is done: notify_at goes null and due_at stays put (never rolls
+        // forward). The next push comes from a new log or a snooze re-ask.
+        await a.rpc("mark_care_dispatched", {
+          p_pet_id: r.pet_id,
+          p_module: careModule,
+          p_notification_id: nid,
+        });
+      },
+    });
+  }
+
   return items;
 }
 
@@ -178,6 +223,32 @@ async function collectDueItems(admin: SupabaseClient): Promise<DueItem[]> {
 // Two queries rather than a join: notification_tokens and household_members both point at
 // auth.users, with no direct relationship for PostgREST to traverse. Cached per run,
 // since several pets usually share one household.
+
+/**
+ * Recipients of a care_due push: like makeTokenLookup, but only builds at or above the care
+ * minimum app version. The filter lives in SQL (public.care_push_tokens) so pgTAP covers it.
+ */
+function makeCareTokenLookup(admin: SupabaseClient) {
+  const cache = new Map<string, string[]>();
+
+  return async function careTokensFor(householdId: string): Promise<string[]> {
+    const hit = cache.get(householdId);
+    if (hit) return hit;
+
+    const { data, error } = await admin.rpc("care_push_tokens", {
+      p_household_id: householdId,
+    });
+    if (error) console.error("care_push_tokens failed", householdId, error);
+
+    const list = [
+      ...new Set(
+        ((data ?? []) as Array<{ expo_push_token: string }>).map((t) => t.expo_push_token),
+      ),
+    ];
+    cache.set(householdId, list);
+    return list;
+  };
+}
 
 function makeTokenLookup(admin: SupabaseClient) {
   const cache = new Map<string, string[]>();
@@ -230,6 +301,7 @@ Deno.serve(async (req) => {
 
     const admin = adminClient();
     const tokensFor = makeTokenLookup(admin);
+    const careTokensFor = makeCareTokenLookup(admin);
     const due = await collectDueItems(admin);
 
     let sent = 0;
@@ -259,6 +331,18 @@ Deno.serve(async (req) => {
       if (error) {
         if (error.code === UNIQUE_VIOLATION) {
           skipped++;              // a previous tick already sent this exact item
+          // Care rows stay "due" until marked dispatched. A reused dedupe key (a log undone
+          // back to the same due time, or two walks due in the same local minute) would
+          // otherwise be re-selected and re-collide every tick, forever. The push for this key
+          // already went out, so close this cycle against that existing notification.
+          if (item.audience === "care" && item.onSent) {
+            const { data: existing } = await admin
+              .from("notifications")
+              .select("id")
+              .eq("dedupe_key", item.dedupeKey)
+              .maybeSingle();
+            if (existing?.id) await item.onSent(admin, existing.id as string);
+          }
           continue;
         }
         console.error("notification insert failed", item.dedupeKey, error);
@@ -267,7 +351,9 @@ Deno.serve(async (req) => {
 
       const notificationId = notif.id as string;
 
-      const tokens = await tokensFor(item.householdId);
+      const tokens = item.audience === "care"
+        ? await careTokensFor(item.householdId)
+        : await tokensFor(item.householdId);
       if (tokens.length === 0) {
         // Nobody has registered a device yet. The row still exists (so the audit trail and
         // dedupe hold), and bookkeeping still runs so we do not retry forever.
@@ -348,6 +434,25 @@ function formatLocal(iso: string, timezone?: string): string {
   const h = d.getUTCHours() % 12 || 12;
   const m = String(d.getUTCMinutes()).padStart(2, "0");
   return `${h}:${m} ${d.getUTCHours() < 12 ? "AM" : "PM"} UTC`;
+}
+
+function careCopy(
+  careModule: CareDueModule,
+  petName: string,
+  intervalHours: number | string | null,
+): { title: string; body: string } {
+  if (careModule === "walks") {
+    // A numeric column can arrive from PostgREST as a number or a string.
+    const hours = Number(intervalHours);
+    const body = Number.isFinite(hours) && hours > 0
+      ? `It's been about ${hours} hour${hours === 1 ? "" : "s"} since the last walk.`
+      : "It's time for the next walk.";
+    return { title: `Walk time for ${petName} 🦮`, body };
+  }
+  return {
+    title: `Time to clean ${petName}'s habitat 🧽`,
+    body: "It's due for a clean today. Tap Done once it's cleaned.",
+  };
 }
 
 function describeLead(minutes: number): string {

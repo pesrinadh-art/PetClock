@@ -8,28 +8,63 @@ import type { Pet } from '../data/mockData';
 import { useLogs } from '../context/LogsContext';
 import { repos } from '../lib/repo/types';
 import { loggedLine } from '../lib/petVoice';
+import { presentLogType } from '../lib/care/logTypes';
+import type { QuickLogAction } from '../lib/care/types';
+import { useCareOutputs } from '../lib/care/useCareOutputs';
 import { AppModal } from './AppModal';
-import { Icon, type IconName } from './Icon';
+import { Icon } from './Icon';
 import { useSnackbar } from './Snackbar';
 
 /**
- * The "+ Log" quick-log menu (design v2): tapping the tab bar's + Log fans four
- * line-icon circles out in an arc over a dimmed screen. Tap a circle to log now;
- * press and hold one to pick when it happened. Replaces the Pee/Poo/Both/Fed tiles
- * that used to sit on Today.
+ * The "+ Log" quick-log menu (design v2): tapping the tab bar's + Log fans the pet's
+ * quick-log actions out as line-icon circles in an arc over a dimmed screen. Tap a circle
+ * to log now; press and hold one to pick when it happened.
  *
- * Writes go through the same `repos.logs.add` path the tiles used: 'both' writes a
- * pee AND a poo at one instant, 'fed' a generic meal log. One Undo reverts the action.
+ * The actions come from the pet's care modules (`useCareOutputs(...).quickLog`): with
+ * potty and meals on that is today's Pee / Poo / Both / Fed. Each action's `writes` are
+ * recorded through `repos.logs.add` at ONE instant (so "Both" is a pee and a poo at the
+ * same time), and one Undo reverts the whole action.
  */
 
-export type LogTarget = 'pee' | 'poo' | 'both' | 'fed';
+/**
+ * At most this many circles fit the arc. Six is every quick log the registry can produce
+ * (pee, poo, both, walk, fed, cleaned), so no action is ever dropped. Six circles need the
+ * wider ARC_RADIUS_WIDE so neighbours (58px) don't overlap.
+ */
+export const QUICK_LOG_MAX = 6;
+const ARC_RADIUS_WIDE = 134;
 
-const ITEMS: { key: LogTarget; icon: IconName; label: string; verb: string; dx: number; dy: number }[] = [
-  { key: 'pee', icon: 'drop', label: 'Pee', verb: 'pee', dx: -108, dy: -96 },
-  { key: 'poo', icon: 'poo', label: 'Poo', verb: 'poo', dx: -46, dy: -162 },
-  { key: 'both', icon: 'drop', label: 'Both', verb: 'go', dx: 46, dy: -162 },
-  { key: 'fed', icon: 'bowl', label: 'Fed', verb: 'eat', dx: 108, dy: -96 },
-];
+/** The arc radius for n circles: today's arc up to five, the wider one for six. */
+export function arcRadiusFor(n: number): number {
+  return n >= 6 ? ARC_RADIUS_WIDE : ARC_RADIUS;
+}
+
+/**
+ * The arc the circles fan out on: a slightly squashed circle lifted above the + Log button,
+ * spanning ±ARC_SPREAD_DEG. Tuned so four items land exactly on the original design
+ * positions (±108,-96) and (±46,-162).
+ */
+const ARC_RADIUS = 114;
+const ARC_SQUASH = 110 / 114;
+const ARC_LIFT = 61 / 114;
+const ARC_SPREAD_DEG = 71.4;
+
+/**
+ * Offsets (px, from the + Log button's centre; dy negative = up) for `n` items spread evenly
+ * along the arc, left to right. `radius` scales the whole arc.
+ */
+export function arcLayout(n: number, radius: number = ARC_RADIUS): { dx: number; dy: number }[] {
+  if (n <= 0) return [];
+  const spread = (ARC_SPREAD_DEG * Math.PI) / 180;
+  const out: { dx: number; dy: number }[] = [];
+  for (let i = 0; i < n; i++) {
+    const theta = n === 1 ? 0 : -spread + (2 * spread * i) / (n - 1);
+    const dx = Math.round(radius * Math.sin(theta));
+    const dy = -Math.round(radius * ARC_LIFT + radius * ARC_SQUASH * Math.cos(theta));
+    out.push({ dx: dx === 0 ? 0 : dx, dy });
+  }
+  return out;
+}
 
 const PRESETS: { label: string; minutesAgo: number }[] = [
   { label: 'Now', minutesAgo: 0 },
@@ -59,26 +94,26 @@ function successHaptic(): void {
   void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
 }
 
-/** Write the log(s) for `target`; returns a function that removes them all. */
+/**
+ * Write the log(s) for one quick-log `action`, then show the "logged" snackbar whose Undo
+ * removes them all. Several writes share one instant (the time picked, else now); a single
+ * write leaves `occurredAt` to the repo's "now" default when none was picked.
+ */
 export function useQuickLog() {
   const { removeLog } = useLogs();
   const { show } = useSnackbar();
-  return async (pet: Pet, target: LogTarget, occurredAt?: string) => {
+  return async (pet: Pet, action: QuickLogAction, occurredAt?: string) => {
+    if (action.writes.length === 0) return;
+    const at = action.writes.length > 1 ? (occurredAt ?? new Date().toISOString()) : occurredAt;
     const ids: string[] = [];
-    if (target === 'both') {
-      const at = occurredAt ?? new Date().toISOString();
-      const pee = await repos.logs.add(pet.id, { type: 'pee', occurredAt: at });
-      const poo = await repos.logs.add(pet.id, { type: 'poo', occurredAt: at });
-      ids.push(pee.id, poo.id);
-    } else if (target === 'fed') {
-      const entry = await repos.logs.add(pet.id, { type: 'food', feedTimeId: null, occurredAt });
-      ids.push(entry.id);
-    } else {
-      const entry = await repos.logs.add(pet.id, { type: target, occurredAt });
+    for (const write of action.writes) {
+      const entry = await repos.logs.add(pet.id, { ...write, occurredAt: at });
       ids.push(entry.id);
     }
     successHaptic();
-    show(loggedLine(pet, target === 'fed' ? 'food' : target), () => ids.forEach((id) => removeLog(id)));
+    // A multi-write action reads as one potty trip ("both"); a single write by its log type.
+    const what = action.writes.length > 1 ? 'both' : action.writes[0].type;
+    show(loggedLine(pet, what), () => ids.forEach((id) => removeLog(id)));
   };
 }
 
@@ -99,10 +134,18 @@ export function QuickLogMenu({
   onClose: () => void;
 }) {
   const quickLog = useQuickLog();
+  const care = useCareOutputs(pet?.id);
+  const actions = (care?.quickLog ?? []).slice(0, QUICK_LOG_MAX);
+  // Up to five keep today's arc (four land on the original design positions); six widen it.
+  const arcRadius = arcRadiusFor(actions.length);
+  const positions = arcLayout(actions.length, arcRadius);
+  // The hint sits just above the arc's highest circle.
+  const hintBottom = Math.round(214 * (arcRadius / ARC_RADIUS));
   const anim = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(open);
-  const [chooser, setChooser] = useState<LogTarget | null>(null);
-  const [custom, setCustom] = useState<LogTarget | null>(null);
+  // The action being timed is kept whole, so a re-render can't swap it mid-choice.
+  const [chooser, setChooser] = useState<QuickLogAction | null>(null);
+  const [custom, setCustom] = useState<QuickLogAction | null>(null);
 
   useEffect(() => {
     if (open) setMounted(true);
@@ -116,11 +159,9 @@ export function QuickLogMenu({
     });
   }, [open, anim]);
 
-  const log = (target: LogTarget, occurredAt?: string) => {
-    if (pet) void quickLog(pet, target, occurredAt);
+  const log = (action: QuickLogAction, occurredAt?: string) => {
+    if (pet) void quickLog(pet, action, occurredAt);
   };
-
-  const verbFor = (t: LogTarget) => ITEMS.find((i) => i.key === t)?.verb ?? 'go';
 
   return (
     <>
@@ -138,7 +179,7 @@ export function QuickLogMenu({
           </Animated.View>
 
           <Animated.Text
-            style={[styles.hint, { bottom: fabCenterBottom + 214, opacity: anim }]}
+            style={[styles.hint, { bottom: fabCenterBottom + hintBottom, opacity: anim }]}
             pointerEvents="none"
           >
             {pet ? `Logging for ${pet.name}` : ''}
@@ -146,8 +187,9 @@ export function QuickLogMenu({
             <Text style={styles.hintSub}>Tap to log now · hold to pick a time</Text>
           </Animated.Text>
 
-          {ITEMS.map((item) => {
+          {actions.map((action, i) => {
             const t = anim;
+            const item = { ...action, ...positions[i] };
             return (
               <Animated.View
                 key={item.key}
@@ -167,11 +209,11 @@ export function QuickLogMenu({
                 <Pressable
                   onPress={() => {
                     onClose();
-                    log(item.key);
+                    log(action);
                   }}
                   onLongPress={() => {
                     onClose();
-                    setChooser(item.key);
+                    setChooser(action);
                   }}
                   delayLongPress={350}
                   role="button"
@@ -179,10 +221,18 @@ export function QuickLogMenu({
                   style={({ pressed }) => [styles.circle, pressed && styles.circlePressed]}
                   testID={`quicklog-${item.key}`}
                 >
-                  {item.key === 'both' ? (
+                  {item.writes.length > 1 ? (
+                    // A multi-log action shows each log's glyph side by side (Both = drop + poo).
                     <View style={styles.bothIcons}>
-                      <Icon name="drop" size={17} color={accent.primary} strokeWidth={1.8} />
-                      <Icon name="poo" size={17} color={accent.primary} strokeWidth={1.8} />
+                      {item.writes.map((w, wi) => (
+                        <Icon
+                          key={`${w.type}-${wi}`}
+                          name={presentLogType(w.type).icon}
+                          size={17}
+                          color={accent.primary}
+                          strokeWidth={1.8}
+                        />
+                      ))}
                     </View>
                   ) : (
                     <Icon name={item.icon} size={24} color={accent.primary} strokeWidth={1.8} />
@@ -213,17 +263,17 @@ export function QuickLogMenu({
         <Pressable style={styles.overlay} onPress={() => setChooser(null)}>
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.sheetTitle}>
-              {chooser ? `When did ${pet?.name ?? 'your pet'} ${verbFor(chooser)}?` : ''}
+              {chooser ? `When did ${pet?.name ?? 'your pet'} ${chooser.verb}?` : ''}
             </Text>
             {PRESETS.map((p) => (
               <Pressable
                 key={p.label}
                 style={({ pressed }) => [styles.option, pressed && styles.optionPressed]}
                 onPress={() => {
-                  const target = chooser;
+                  const action = chooser;
                   setChooser(null);
-                  if (target)
-                    log(target, p.minutesAgo === 0 ? undefined : new Date(Date.now() - p.minutesAgo * MINUTE_MS).toISOString());
+                  if (action)
+                    log(action, p.minutesAgo === 0 ? undefined : new Date(Date.now() - p.minutesAgo * MINUTE_MS).toISOString());
                 }}
                 role="button"
                 aria-label={p.label}
@@ -260,14 +310,14 @@ export function QuickLogMenu({
                 <Pressable
                   style={({ pressed }) => [styles.option, pressed && styles.optionPressed]}
                   onPress={() => {
-                    const target = custom;
+                    const action = custom;
                     setCustom(null);
-                    if (!target) return;
+                    if (!action) return;
                     const d = new Date();
                     d.setHours(item.hours, item.minutes, 0, 0);
                     // A time later than now belongs to yesterday — a backdate is always past.
                     if (d.getTime() > Date.now()) d.setDate(d.getDate() - 1);
-                    log(target, d.toISOString());
+                    log(action, d.toISOString());
                   }}
                   role="button"
                   aria-label={item.label}

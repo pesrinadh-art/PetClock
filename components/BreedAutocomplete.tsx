@@ -2,18 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { accent, glass, ink, radius, shadow, surface } from '../theme/colors';
 import { fonts } from '../theme/fonts';
-import { suggestBreeds, type BreedSpecies } from '../lib/breeds';
-
-// Accepts either the internal species tag ('dog'/'cat') or the human label used on the pet
-// screens (AVATAR_LABELS[avatar], e.g. 'Dog', 'Cat', 'Rabbit'). Only dog/cat have breed data;
-// anything else falls through to `undefined` and searches all breeds.
-function normalizeSpecies(species?: string): BreedSpecies | undefined {
-  if (!species) return undefined;
-  const s = species.trim().toLowerCase();
-  if (s === 'dog') return 'dog';
-  if (s === 'cat') return 'cat';
-  return undefined;
-}
+import { breedSpeciesKey, suggestBreeds } from '../lib/breeds';
 
 type Props = {
   label?: string;
@@ -41,7 +30,7 @@ export function BreedAutocomplete({ label, value, onChange, placeholder, species
     }
   };
 
-  const normalized = normalizeSpecies(species);
+  const normalized = breedSpeciesKey(species);
   const suggestions = useMemo(() => suggestBreeds(value, normalized), [value, normalized]);
 
   // Show the dropdown while the field is focused, the user has typed, and hasn't just picked/closed.

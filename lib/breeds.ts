@@ -4,6 +4,20 @@
 
 export type BreedSpecies = 'dog' | 'cat';
 
+/**
+ * Maps a species value to the breed list to suggest from. Accepts either the internal species
+ * tag ('dog'/'cat') or the human label used on the pet screens (AVATAR_LABELS[avatar], e.g.
+ * 'Dog', 'Cat', 'Rabbit'). Only dog/cat have breed data; anything else is `undefined`, which
+ * searches all breeds.
+ */
+export function breedSpeciesKey(species?: string | null): BreedSpecies | undefined {
+  if (!species) return undefined;
+  const s = species.trim().toLowerCase();
+  if (s === 'dog') return 'dog';
+  if (s === 'cat') return 'cat';
+  return undefined;
+}
+
 export type Breed = {
   name: string;
   species: BreedSpecies;

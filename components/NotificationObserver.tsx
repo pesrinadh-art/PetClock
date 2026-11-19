@@ -5,6 +5,7 @@ import { useAppointments } from '../context/AppointmentsContext';
 import { useLogs } from '../context/LogsContext';
 import { useNotificationPrefs } from '../context/NotificationPrefsContext';
 import { usePets } from '../context/PetsContext';
+import { useHouseholdTimeZone } from '../context/SessionContext';
 import { usePersistedCollection } from '../hooks/usePersistedCollection';
 import { notificationsSupported } from '../lib/notifications/available';
 import { registerNotificationCategories } from '../lib/notifications/categories';
@@ -15,10 +16,12 @@ import { requestNotificationPermission } from '../lib/notifications/permissions'
 import { flushPendingNavigation, initResponseHandler } from '../lib/notifications/responseHandler';
 import {
   cancelAllOurNotifications,
-  computeDesiredNotifications,
   reconcileNotifications,
   type NotificationPrefs,
 } from '../lib/notifications/scheduler';
+// Reminders come from each pet's care plan (enabled modules only); identical to the old
+// computeDesiredNotifications when every legacy module is enabled (lib/__tests__/careModules.test.ts).
+import { careDesiredNotifications } from '../lib/care/household';
 import { getActiveSnoozes } from '../lib/notifications/snoozeStore';
 import { isServerPushActive, onServerPushChange } from '../lib/push/mode';
 import { repos } from '../lib/repo/types';
@@ -42,6 +45,9 @@ export function NotificationObserver() {
   // User-editable quiet hours / per-pet mute (FE-5 Settings). Reactive, so an edit re-reconciles
   // (it's in the effect deps below); replaces the old hardcoded DEFAULT_NOTIFICATION_PREFS.
   const { prefs: storedPrefs } = useNotificationPrefs();
+  // The household's zone (device zone until known / in local mode), so local break and
+  // habitat reminders fire when the server's would.
+  const timeZone = useHouseholdTimeZone();
   // Deep-link cold-start: a notification body-tap that LAUNCHED the app is handled at import time,
   // before the router exists, so its target url is stashed. Once the root navigator is mounted
   // (navState has a key) we replay it. Warm taps navigate immediately and no-op here.
@@ -88,7 +94,7 @@ export function NotificationObserver() {
       if (cancelled) return;
       // Persisted quiet-hours/mute (Settings) merged with the headless snooze map.
       const prefs: NotificationPrefs = { ...storedPrefs, snoozedUntil };
-      const desired = computeDesiredNotifications(
+      const desired = careDesiredNotifications(
         pets,
         feedTimes,
         medications,
@@ -96,6 +102,7 @@ export function NotificationObserver() {
         appointments,
         prefs,
         new Date(),
+        timeZone,
       );
       if (cancelled) return;
       await reconcileNotifications(desired);
@@ -111,7 +118,7 @@ export function NotificationObserver() {
       clearTimeout(timer);
       sub.remove();
     };
-  }, [pets, feedTimes, medications, logs, appointments, storedPrefs, serverPush]);
+  }, [pets, feedTimes, medications, logs, appointments, storedPrefs, serverPush, timeZone]);
 
   return null;
 }
