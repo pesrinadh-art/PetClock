@@ -334,12 +334,17 @@ export function predictBreak(
  * Pee/poop breaks are predicted from the pet's *last logged* pee/poop (falling back to the
  * earliest feed time if nothing's been logged yet) plus their hold time, shown as a buffered
  * range rather than a single instant since it's an estimate. Empty if no schedule is set up.
+ *
+ * `timeZone` (the household's IANA zone) is passed to {@link predictBreak} so the pee/poo rows
+ * match the server's prediction and push. The meal row still reads the device wall clock, as
+ * meal pushes and getTodaysMeals do. Omitted or null: device zone, exactly as before.
  */
 export function getUpcomingForPet(
   pet: Pet,
   feedTimes: FeedTime[],
   logs: LogEntry[],
   now: Date = new Date(),
+  timeZone?: string | null,
 ): UpcomingItem[] {
   if (!hasSchedule(pet, feedTimes)) return [];
 
@@ -371,7 +376,7 @@ export function getUpcomingForPet(
 
   const addHoldItem = (type: 'pee' | 'poo', icon: string, label: string) => {
     // Same pure kernel the notification scheduler mirrors, so window and push stay in lockstep.
-    const prediction = predictBreak(pet, feedTimes, logs, type, now);
+    const prediction = predictBreak(pet, feedTimes, logs, type, now, timeZone);
     if (!prediction) return;
     const { predictedAt, bufferMs, overdueBy } = prediction;
     const predicted = predictedAt.getTime();

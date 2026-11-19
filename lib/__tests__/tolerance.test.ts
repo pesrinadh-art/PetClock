@@ -63,14 +63,16 @@ describe('toLogEntry narrowing', () => {
 describe('isPawClockPush', () => {
   const base = { v: PUSH_PAYLOAD_VERSION, notificationId: 'n1', actionToken: 't' };
 
-  test.each(['break_prediction', 'meal', 'medication', 'appointment', 'digest', 'med_escalation'])(
+  // care_due became a known kind in Phase 3 (deliberate contract update); 'walk' is a log type,
+  // never a push kind, so it stays rejected.
+  test.each(['break_prediction', 'meal', 'medication', 'appointment', 'digest', 'med_escalation', 'care_due'])(
     'accepts known kind %s',
     (kind) => {
       expect(isPawClockPush({ ...base, kind })).toBe(true);
     },
   );
 
-  test.each([['care_due'], ['walk'], [''], ['toString'], ['__proto__'], [1], [null], [undefined]])(
+  test.each([['walk'], ['litter_scoop'], [''], ['toString'], ['__proto__'], [1], [null], [undefined]])(
     'rejects unknown kind %p',
     (kind) => {
       expect(isPawClockPush({ ...base, kind })).toBe(false);

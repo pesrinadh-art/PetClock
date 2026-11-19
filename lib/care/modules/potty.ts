@@ -48,7 +48,7 @@ export function tightestHoldHours(pet: Pet): number {
 }
 
 function breakItems(s: CareSnapshot): UpcomingItem[] {
-  return getUpcomingForPet(s.pet, s.feedTimes, ownLogs(s.logs), s.now).filter(
+  return getUpcomingForPet(s.pet, s.feedTimes, ownLogs(s.logs), s.now, s.timeZone).filter(
     (u) => u.type === 'pee' || u.type === 'poo',
   );
 }
@@ -87,7 +87,7 @@ function pottyHero(s: CareSnapshot): HeroModel {
     return hero;
   }
 
-  const next = getUpcomingForPet(pet, s.feedTimes, ownLogs(s.logs), now).find((u) => u.type !== 'food');
+  const next = getUpcomingForPet(pet, s.feedTimes, ownLogs(s.logs), now, s.timeZone).find((u) => u.type !== 'food');
   if (!next) {
     hero.detail = Number.isFinite(tightestHold) ? `${petMeta(pet, now)} · ${tightestHold}h hold time` : '';
     hero.kicker = 'No break predicted yet';
@@ -148,12 +148,12 @@ export const pottyModule: CareModule = {
   ],
 
   reminders: (s, prefs) =>
-    computeDesiredNotifications([s.pet], s.feedTimes, [], ownLogs(s.logs), [], prefs, s.now).filter(
+    computeDesiredNotifications([s.pet], s.feedTimes, [], ownLogs(s.logs), [], prefs, s.now, s.timeZone).filter(
       (d) => d.data.kind === 'break_prediction',
     ),
 
   nudges: (s, snoozes) =>
-    computePendingNudges([s.pet], s.feedTimes, [], ownLogs(s.logs), s.now, snoozes).filter(
+    computePendingNudges([s.pet], s.feedTimes, [], ownLogs(s.logs), s.now, snoozes, s.timeZone).filter(
       (n) => n.kind === 'break',
     ),
 };

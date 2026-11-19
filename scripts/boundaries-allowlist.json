@@ -1,25 +1,4 @@
 {
   "$comment": "Pre-existing care-module boundary violations (scripts/check-boundaries.mjs). Matched by file + trimmed line text. This list may only SHRINK: remove entries as screens move onto lib/care. Never add new entries to get a check to pass.",
-  "entries": [
-    {
-      "file": "app/pet/[id]/history.tsx",
-      "line": "{daySummary(group.entries, pet?.species)}"
-    },
-    {
-      "file": "components/BreedAutocomplete.tsx",
-      "line": "// Accepts either the internal species tag ('dog'/'cat') or the human label used on the pet"
-    },
-    {
-      "file": "components/BreedAutocomplete.tsx",
-      "line": "if (s === 'dog') return 'dog';"
-    },
-    {
-      "file": "components/BreedAutocomplete.tsx",
-      "line": "if (s === 'cat') return 'cat';"
-    },
-    {
-      "file": "components/Icon.tsx",
-      "line": "| 'poo'"
-    }
-  ]
+  "entries": []
 }

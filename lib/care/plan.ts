@@ -65,8 +65,14 @@ export function buildSnapshot(input: {
   logs: LogEntry[];
   appts: Appointment[];
   now: Date;
+  /** The household's IANA zone; omitted / null / empty = device zone. */
+  timeZone?: string | null;
 }): CareSnapshot {
-  return { ...input, profile: speciesProfile(input.pet.species) };
+  return {
+    ...input,
+    timeZone: input.timeZone || null,
+    profile: speciesProfile(input.pet.species),
+  };
 }
 
 /** "Day N of 3" of the calibration window (same formula getPetStatus has always used). */

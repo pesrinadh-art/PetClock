@@ -85,9 +85,20 @@ type SessionState = {
    * the synced repo is active.
    */
   needsAuth: boolean;
+  /**
+   * The active household's IANA timezone (`households.timezone`) as read back from the
+   * server, or null when unknown (local mode, not resolved yet, offline, or an unusable value).
+   * Prefer {@link SessionValue.timeZone}, which is never null.
+   */
+  householdTimeZone: string | null;
 };
 
 type SessionValue = SessionState & {
+  /**
+   * The timezone predictions and care reminders resolve wall clocks in: the household's when
+   * known, else this device's. Never null. In local mode this is always the device zone.
+   */
+  timeZone: string;
   /**
    * Redeem an invite and move this device into that household.
    *
@@ -149,13 +160,45 @@ const canEnterApp = (session: Session | null): boolean => {
 
 const SessionContext = createContext<SessionValue | null>(null);
 
-const deviceTimezone = (): string => {
+export const deviceTimezone = (): string => {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Los_Angeles';
   } catch {
     return 'America/Los_Angeles';
   }
 };
+
+/** `tz` when it is a non-empty IANA zone this runtime's Intl accepts, else null. */
+export function usableTimeZone(tz: unknown): string | null {
+  if (typeof tz !== 'string' || tz.trim() === '') return null;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return tz;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Best-effort read of `households.timezone` for `householdId`. Null on any failure (offline,
+ * RLS miss, bad value): callers then fall back to the device zone, as before this existed.
+ */
+async function fetchHouseholdTimeZone(
+  client: ReturnType<typeof getSupabaseClient>,
+  householdId: string,
+): Promise<string | null> {
+  try {
+    const { data, error } = await client
+      .from('households')
+      .select('timezone')
+      .eq('id', householdId)
+      .maybeSingle();
+    if (error || !data) return null;
+    return usableTimeZone((data as { timezone?: unknown }).timezone);
+  } catch {
+    return null;
+  }
+}
 
 type SupabaseClientT = ReturnType<typeof getSupabaseClient>;
 
@@ -232,6 +275,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     email: null,
     // Unknown until bootstrap settles; the gate waits for `ready` before acting on it.
     needsAuth: false,
+    householdTimeZone: null,
   });
 
   // `join` needs the current user id without re-creating itself on every state change,
@@ -255,6 +299,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
     const switchToUser = async (userId: string, freshUser: boolean): Promise<void> => {
       const householdId = await resolveAndActivateHousehold(client, userId, freshUser);
+      const householdTimeZone = await fetchHouseholdTimeZone(client, householdId);
       if (live) {
         // needsAuth clears HERE — only once the verified session's household is live and the
         // synced repo is active — so the gate never lets the tabs render on a half-booted state.
@@ -265,6 +310,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           error: null,
           synced: true,
           needsAuth: false,
+          householdTimeZone,
         }));
       }
       void registerPushToken(client, userId);
@@ -309,6 +355,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             ...prev,
             synced: false,
             needsAuth: isSyncedModeEnabled() && !AUTH_DEV_BYPASS,
+            householdTimeZone: null,
           }));
         }
       }
@@ -395,6 +442,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
               synced: false,
               error: null,
               needsAuth: true,
+              householdTimeZone: null,
             }));
           }
         }
@@ -413,6 +461,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             isAnonymous: false,
             email: null,
             needsAuth: isSyncedModeEnabled() && !AUTH_DEV_BYPASS,
+            householdTimeZone: null,
           }));
         }
       } finally {
@@ -449,8 +498,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // joined household rather than falling back to a resolution that no longer applies.
     await setCachedHouseholdId(result.householdId);
     activateSyncedRepos(createSyncedRepos(client, result.householdId, userId));
+    // The joined household's zone, not the one this device just left.
+    const householdTimeZone = await fetchHouseholdTimeZone(client, result.householdId);
 
-    setState((prev) => ({ ...prev, householdId: result.householdId, synced: true, error: null }));
+    setState((prev) => ({
+      ...prev,
+      householdId: result.householdId,
+      synced: true,
+      error: null,
+      householdTimeZone,
+    }));
     return result;
   }, [state.householdId]);
 
@@ -519,6 +576,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       // so the warm-start cache from any previous session must not be trusted). Pass the name
       // so a FIRST household create is named after the user; an existing/joined one is untouched.
       const householdId = await resolveAndActivateHousehold(client, userId, true, trimmedName);
+      const householdTimeZone = await fetchHouseholdTimeZone(client, householdId);
       setState((prev) => ({
         ...prev,
         householdId,
@@ -526,6 +584,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         error: null,
         synced: true,
         needsAuth: false,
+        householdTimeZone,
       }));
       void registerPushToken(client, userId);
     } finally {
@@ -534,7 +593,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<SessionValue>(
-    () => ({ ...state, join, secureAccount, signInWithEmail, sendEmailCode, verifyEmailCode }),
+    () => ({
+      ...state,
+      // Local mode never consults the server: device zone, exactly as before.
+      timeZone: (state.synced && state.householdTimeZone) || deviceTimezone(),
+      join,
+      secureAccount,
+      signInWithEmail,
+      sendEmailCode,
+      verifyEmailCode,
+    }),
     [state, join, secureAccount, signInWithEmail, sendEmailCode, verifyEmailCode],
   );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
@@ -544,4 +612,14 @@ export function useSession(): SessionValue {
   const ctx = useContext(SessionContext);
   if (!ctx) throw new Error('useSession must be used within a SessionProvider');
   return ctx;
+}
+
+/**
+ * The timezone predictions and care reminders resolve in: the active household's when known,
+ * else the device's. Safe outside a SessionProvider (returns the device zone), so pure-UI
+ * consumers and tests need no provider.
+ */
+export function useHouseholdTimeZone(): string {
+  const ctx = useContext(SessionContext);
+  return ctx?.timeZone ?? deviceTimezone();
 }

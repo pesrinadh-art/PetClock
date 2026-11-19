@@ -25,6 +25,8 @@ export const CATEGORY = {
   meal: 'meal-check',
   medication: 'med-check',
   appointment: 'appt-reminder',
+  /** Walks / habitat cleaning (Phase 3): "Done / Snooze". Done sends LOG_YES, Snooze SNOOZE_15. */
+  care: 'care-check',
 } as const;
 
 export type CategoryId = (typeof CATEGORY)[keyof typeof CATEGORY];
@@ -72,7 +74,15 @@ export type NotificationKind =
   | 'medication'
   | 'appointment'
   | 'digest'
-  | 'med_escalation';
+  | 'med_escalation'
+  | 'care_due';
+
+/**
+ * Care modules that can raise a server `care_due` push (Phase 3). The wire values are the
+ * CareModuleId strings of lib/db/models.ts; declared here because this file may not import
+ * app-side modules (it must also resolve in Deno).
+ */
+export type CareDueModule = 'walks' | 'habitat';
 
 interface BasePushData {
   v: typeof PUSH_PAYLOAD_VERSION;
@@ -81,7 +91,7 @@ interface BasePushData {
   notificationId: string;
   /**
    * Self-contained HS256 JWT, 3h expiry, signed with ACTION_TOKEN_SECRET.
-   * Claims: { nid, pid, hid, kind, breakType?, exp }.
+   * Claims: { nid, pid, hid, kind, breakType?, careModule?, exp }.
    *
    * This is what makes the one-tap write work with no live session: on iOS the OS may
    * decline to wake a killed app, and the response is then replayed on next launch —
@@ -131,11 +141,25 @@ export interface AppointmentPushData extends BasePushData {
   offsetMinutes: number;
 }
 
+/**
+ * Walks / habitat cleaning due (Phase 3, one generic kind — plan "Push kind name"). LOG_YES
+ * ("Done") writes a 'walk' / 'habitat_clean' log; SNOOZE_15 re-asks in 15 minutes.
+ */
+export interface CareDuePushData extends BasePushData {
+  kind: 'care_due';
+  petId: string;
+  petName: string;
+  careModule: CareDueModule;
+  /** ISO instant the walk / clean falls due (care_state.due_at) — not when the push fired. */
+  dueOn: string;
+}
+
 export type PawClockPushData =
   | BreakPushData
   | MealPushData
   | MedicationPushData
-  | AppointmentPushData;
+  | AppointmentPushData
+  | CareDuePushData;
 
 /**
  * Every NotificationKind this build understands. A Record so a kind added to the union without
@@ -148,6 +172,7 @@ const KNOWN_KINDS: Record<NotificationKind, true> = {
   appointment: true,
   digest: true,
   med_escalation: true,
+  care_due: true,
 };
 
 /**
@@ -171,6 +196,10 @@ export function isPawClockPush(data: unknown): data is PawClockPushData {
 
 export function isBreakPush(data: PawClockPushData): data is BreakPushData {
   return data.kind === 'break_prediction';
+}
+
+export function isCareDuePush(data: PawClockPushData): data is CareDuePushData {
+  return data.kind === 'care_due';
 }
 
 // ---------------------------------------------------------------------------
@@ -229,6 +258,7 @@ export const ANDROID_CHANNEL = {
   med_escalation:   { id: 'med_escalation',   name: 'Missed meds',    importance: 'high' },
   appointment:      { id: 'appointment',      name: 'Appointments',   importance: 'default' },
   digest:           { id: 'digest',           name: 'Weekly summary', importance: 'low' },
+  care_due:         { id: 'care_due',         name: 'Walks & cleaning', importance: 'default' },
 } as const;
 
 /**

@@ -16,6 +16,7 @@
 import type { CareModuleId, Species } from '../db/models';
 import type { SpeciesProfile } from './types';
 import { isImplemented } from './registry';
+import { pottyBreakPhrase } from '../petVoice';
 
 const ALL: readonly CareModuleId[] = ['potty', 'walks', 'meals', 'meds', 'habitat', 'visits'];
 
@@ -106,4 +107,13 @@ export function offeredCareModules(species: Species | string | null | undefined)
  */
 export function defaultCareModules(species: Species | string | null | undefined): CareModuleId[] {
   return speciesProfile(species).defaults.filter(isImplemented);
+}
+
+/**
+ * The pet-aware potty phrase used in counts ("2 potty walks", "1 litter box trip"). Takes the
+ * pet so screens never read `.species` themselves (boundary rule); wording is identical to
+ * {@link pottyBreakPhrase} for every species.
+ */
+export function pottyPhraseForPet(pet: { species?: Species | string | null } | null | undefined): string {
+  return pottyBreakPhrase(pet?.species);
 }

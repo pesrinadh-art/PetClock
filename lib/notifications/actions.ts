@@ -1,4 +1,4 @@
-import type { LogSource } from '../db/models';
+import type { LogSource, LogType } from '../db/models';
 import { repos } from '../repo/types';
 import { scheduleSnoozeFollowup, type ScheduledNotificationData } from './scheduler';
 import { clearSnooze, setSnooze } from './snoozeStore';
@@ -25,6 +25,9 @@ export function occurredAtFor(data: ScheduledNotificationData): string {
     const d = new Date(data.predictedAt);
     if (!Number.isNaN(d.getTime())) return d.toISOString();
   }
+  // care_due "Done" means "just walked / just cleaned": the tap is the event. Not the reminder's
+  // fire time (that is the buffer BEFORE the walk is due), so local and server pushes agree.
+  if (data.kind === 'care_due') return new Date().toISOString();
   const ms = Number(data.fireAtMs);
   return Number.isFinite(ms) && ms > 0 ? new Date(ms).toISOString() : new Date().toISOString();
 }
@@ -75,11 +78,35 @@ export async function logYes(
         notificationId,
       });
       break;
+    case 'care_due': {
+      // "Done" on a walk / habitat-cleaning reminder (Phase 3). This is also the local fallback
+      // when log-action could not be reached for a server push.
+      const type = careLogTypeFor(data.careModule);
+      // A care module this build does not know: write nothing rather than a mistyped log.
+      if (!type) return;
+      await repos.logs.add(data.petId, { type, occurredAt, source, notificationId });
+      break;
+    }
     case 'appointment':
       // Appointment reminders have no "Yes" button — nothing to log.
       return;
   }
   await clearSnooze(data.reconcileKey);
+}
+
+/**
+ * The log type a `care_due` "Done" writes, or null for a module this build does not know.
+ * Each care module writes only its own declared log type (plan, "Guardrails" 3).
+ */
+export function careLogTypeFor(careModule: unknown): Extract<LogType, 'walk' | 'habitat_clean'> | null {
+  switch (careModule) {
+    case 'walks':
+      return 'walk';
+    case 'habitat':
+      return 'habitat_clean';
+    default:
+      return null;
+  }
 }
 
 /**
@@ -92,6 +119,11 @@ export async function snoozeNudge(
   data: ScheduledNotificationData,
   untilMs: number,
 ): Promise<void> {
-  await setSnooze(data.reconcileKey, untilMs);
-  await scheduleSnoozeFollowup(data, untilMs);
+  // Server care_due pushes carry no local reconcileKey; key the snooze by pet + module so it
+  // never lands under "undefined" (and matches what a local care reminder for it would use).
+  const key =
+    data.reconcileKey ??
+    (data.kind === 'care_due' ? `care:${data.petId}:${data.careModule}` : undefined);
+  if (key) await setSnooze(key, untilMs);
+  await scheduleSnoozeFollowup(key ? { ...data, reconcileKey: key } : data, untilMs);
 }

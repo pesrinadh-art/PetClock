@@ -76,6 +76,20 @@ function requestNavigation(url: string): void {
 }
 
 /**
+ * Where a body tap goes: the payload's own `url` when it carries one (locally scheduled
+ * reminders do). A server `care_due` push carries none, so it opens Today focused on its pet —
+ * the same target the local walk / habitat reminder uses. Other kinds without a url keep
+ * today's behaviour (the app simply opens).
+ */
+export function tapThroughUrl(data: { kind?: unknown; url?: unknown; petId?: unknown }): string | null {
+  if (typeof data.url === 'string' && data.url) return data.url;
+  if (data.kind === 'care_due') {
+    return typeof data.petId === 'string' && data.petId ? `/?pet=${encodeURIComponent(data.petId)}` : '/';
+  }
+  return null;
+}
+
+/**
  * Map a notification response to a domain mutation — HEADLESS-SAFE: it writes through `repos`
  * directly (no React context, via the shared `actions` module), so a lock-screen tap logs even
  * with the app killed. The repo's `subscribe` then propagates the write to the UI on the next
@@ -126,10 +140,12 @@ export async function handleNotificationResponse(
       case ACTION.dismiss:
         // User swiped it away — no write, no navigation.
         break;
-      default:
+      default: {
         // DEFAULT_ACTION_IDENTIFIER (body tap) / OPEN — opens the app; deep-link tap-through.
-        if (typeof data.url === 'string' && data.url) requestNavigation(data.url);
+        const url = tapThroughUrl(data);
+        if (url) requestNavigation(url);
         break;
+      }
     }
     await markProcessed(dedupeKey);
   } catch (err) {

@@ -40,6 +40,20 @@ const RULES = [
   { id: 'species-access', re: /\.species\b/, why: '`.species` access' },
 ];
 
+/**
+ * Narrow, documented exemptions: lines that match a rule textually but are not a break-type or
+ * species branch. Each entry is one file + one line shape — keep this list tiny.
+ *   - components/Icon.tsx: members of the `IconName` string union (e.g. `| 'poo'`). 'poo' there
+ *     is a glyph NAME, not a log type, so renaming it across the app would buy nothing.
+ */
+const LINE_EXEMPTIONS = [
+  { file: 'components/Icon.tsx', re: /^\|\s*'[A-Za-z][A-Za-z0-9]*'\s*(\/\/.*)?$/ },
+];
+
+function isExemptLine(rel, trimmed) {
+  return LINE_EXEMPTIONS.some((e) => e.file === rel && e.re.test(trimmed));
+}
+
 function toPosix(p) {
   return p.split(path.sep).join('/');
 }
@@ -70,6 +84,7 @@ function collectViolations() {
       const hits = RULES.filter((r) => r.re.test(raw));
       if (hits.length === 0) return;
       const line = raw.trim();
+      if (isExemptLine(rel, line)) return;
       const key = `${rel}\u0000${line}`;
       const prev = found.get(key);
       if (prev) prev.count += 1;

@@ -53,6 +53,12 @@ export interface CareSnapshot {
   appts: Appointment[];
   now: Date;
   profile: SpeciesProfile;
+  /**
+   * The household's IANA timezone (`households.timezone`), or null when unknown. Wall clocks
+   * (feed-time anchors, habitat's 10:00 due time) resolve in it; null means the device zone,
+   * exactly as before households carried one.
+   */
+  timeZone: string | null;
 }
 
 /** A module's own readiness. The pet's overall status is derived in plan.ts. */

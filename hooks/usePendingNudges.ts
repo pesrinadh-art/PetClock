@@ -4,6 +4,7 @@ import { logYes, REASK_NO_MS, snoozeNudge, SNOOZE_15_MS } from '../lib/notificat
 import type { PendingNudge } from '../lib/notifications/pending';
 // Nudges come from each pet's care plan (enabled modules only).
 import { carePendingNudges } from '../lib/care/household';
+import { useHouseholdTimeZone } from '../context/SessionContext';
 import { getActiveSnoozes, type SnoozeMap } from '../lib/notifications/snoozeStore';
 
 /**
@@ -26,6 +27,8 @@ export function usePendingNudges(
   onSnooze: (nudge: PendingNudge) => void;
 } {
   const [snoozes, setSnoozes] = useState<SnoozeMap>({});
+  // Household zone (device zone when unknown), so nudges agree with the predictions on screen.
+  const timeZone = useHouseholdTimeZone();
 
   const refreshSnoozes = useCallback(() => {
     getActiveSnoozes(Date.now())
@@ -41,7 +44,7 @@ export function usePendingNudges(
     refreshSnoozes();
   }, [refreshSnoozes, now]);
 
-  const nudges = carePendingNudges(pets, feedTimes, medications, logs, now, snoozes);
+  const nudges = carePendingNudges(pets, feedTimes, medications, logs, now, snoozes, timeZone);
 
   const onYes = useCallback(
     (nudge: PendingNudge) => {

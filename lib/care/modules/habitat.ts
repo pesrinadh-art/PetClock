@@ -181,9 +181,9 @@ export function habitatDue(
 // Copy
 // ---------------------------------------------------------------------------
 
-/** The snapshot's household timezone when the caller supplied one (else device time). */
+/** The snapshot's household timezone, or null for device time. */
 function snapshotTimeZone(s: CareSnapshot): string | null {
-  const tz = (s as CareSnapshot & { timeZone?: string | null }).timeZone;
+  const tz = s.timeZone;
   return typeof tz === 'string' && tz ? tz : null;
 }
 

@@ -1,17 +1,18 @@
 /**
- * Local reminders for the Phase 2 care modules (walks, habitat cleaning).
+ * Local reminders for the care modules with their own rhythm (walks, habitat cleaning).
  *
  * They ride the SAME local scheduling path as every other reminder: the module returns a
  * DesiredNotification, lib/care/household.ts composes it with the rest, and the
  * NotificationObserver reconciles the OS's scheduled set (keyed by `reconcileKey`).
  *
- * The payload's `kind` is 'care_due' — the generic kind 0020_care_enums.sql reserves for
- * Phase 3's server push. It is NOT in the frozen contract's PawClockPushData union yet (that
- * is a two-sided Phase 3 change), so:
- *  - the payload is cast to ScheduledNotificationData here and nowhere else;
- *  - `isPawClockPush` rejects it, so a tap just opens the app (no headless write);
- *  - it uses the tap-through-only appointment category (no action buttons) and an existing
- *    Android channel.
+ * The payload's `kind` is 'care_due', the contract kind the Phase 3 server push also uses
+ * (shared/notificationContracts.ts, CareDuePushData). Locally scheduled ones keep the
+ * tap-through-only appointment category: a body tap opens Today on the pet, and the walk or
+ * clean is logged from the app. Server pushes carry the 'care-check' category (Done / Snooze).
+ *
+ * LOCAL MODE ONLY. Once server pushes are active (lib/push/mode.ts) the backend sends care_due
+ * for this household, so these stand down exactly like potty's break reminders do: no local
+ * copy is ever scheduled alongside the server's, and a user never gets both.
  *
  * Mute is applied by the household composition (muted pets are skipped before any module
  * runs). Snooze, quiet hours and "never in the past" are applied here, the same way the
@@ -28,8 +29,9 @@ import type {
   NotificationPrefs,
   ScheduledNotificationData,
 } from '../../notifications/scheduler';
+import { isServerPushActive } from '../../push/mode';
 
-/** The Phase 3 generic kind, used locally ahead of its contract payload. */
+/** The contract kind shared with the Phase 3 server push. */
 export const CARE_DUE_KIND = 'care_due';
 
 /** What a care_due local payload carries (mirrors the plan's `{careModule, petId, dueOn}`). */
@@ -83,6 +85,8 @@ export function careReminder(input: {
   prefs: NotificationPrefs;
   now: Date;
 }): DesiredNotification[] {
+  // Server mode: the backend owns care reminders (care_due). Never schedule a duplicate.
+  if (isServerPushActive()) return [];
   const { pet, prefs, now, key } = input;
   const nowMs = now.getTime();
   const snoozeUntil = prefs.snoozedUntil[key];
@@ -113,7 +117,7 @@ export function careReminder(input: {
       body: input.body,
       categoryId: CATEGORY.appointment,
       channelId: ANDROID_CHANNEL.appointment.id,
-      // Not a contract payload yet (see the file comment): cast at this one place.
+      // careModule is typed as the wider CareModuleId here; cast at this one place.
       data: data as unknown as ScheduledNotificationData,
     },
   ];

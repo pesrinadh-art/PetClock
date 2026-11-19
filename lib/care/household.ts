@@ -4,6 +4,9 @@
  * loop to switch onto (plan, "How screens use it": the `['pee','poo']` loops become
  * `plan.flatMap(m => m.reminders?.(s, prefs) ?? [])`).
  *
+ * `timeZone` is the household's IANA zone (SessionContext's `timeZone`); it rides each pet's
+ * snapshot to the modules. Omitted or null = device zone, exactly as before.
+ *
  * Mute, quiet hours, snooze and "never in the past" stay global and untouched: the modules
  * wrap the existing builders, which already apply them per item.
  *
@@ -47,6 +50,7 @@ export function careDesiredNotifications(
   appts: Appointment[],
   prefs: NotificationPrefs,
   now: Date = new Date(),
+  timeZone?: string | null,
 ): DesiredNotification[] {
   const muted = new Set(prefs.mutedPetIds);
   const feedByPet = indexByPet(feedTimes);
@@ -64,6 +68,7 @@ export function careDesiredNotifications(
       logs: logsByPet.get(pet.id) ?? [],
       appts: [],
       now,
+      timeZone,
     });
     for (const m of inEmissionOrder(resolvePlan(pet))) {
       if (m.reminders) raw.push(...m.reminders(s, prefs));
@@ -85,6 +90,7 @@ export function carePendingNudges(
   logs: LogEntry[],
   now: Date = new Date(),
   snoozes: Record<string, number> = {},
+  timeZone?: string | null,
 ): PendingNudge[] {
   const feedByPet = indexByPet(feedTimes);
   const medsByPet = indexByPet(medications);
@@ -100,6 +106,7 @@ export function carePendingNudges(
       logs: logsByPet.get(pet.id) ?? [],
       appts: [],
       now,
+      timeZone,
     });
     for (const m of inEmissionOrder(resolvePlan(pet))) {
       if (m.nudges) out.push(...m.nudges(s, snoozes));

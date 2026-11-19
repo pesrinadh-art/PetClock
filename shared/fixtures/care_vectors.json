@@ -1,0 +1,310 @@
+{
+  "$comment": "Golden care vectors (docs/CARE_MODULES_PLAN.md, Phase 3: 'Parity vectors green on both sides'). Inputs -> the due time of the walks module (lib/care/modules/walks.ts predictWalk) and the habitat module (lib/care/modules/habitat.ts habitatDue). Consumed by lib/__tests__/careVectors.test.ts (client) and by scripts/gen-care-parity-sql.js, which writes the generated block of supabase/tests/012_care_pushes.sql (server, app.recompute_care in 0022). All instants are absolute: neither due time depends on now(), so the SQL replays them exactly; `now` only decides overdueBy on the client. Habitat vectors always set habitatIntervalDays: a null interval resolves to the species default on the client but produces no server row (see 0022's header).",
+  "version": 1,
+  "vectors": [
+    {
+      "id": "w01_default_interval",
+      "description": "Walk interval unset -> 4h default. Buffer round(4*60*0.10)=24 clamps to 20 min.",
+      "module": "walks",
+      "householdTz": "America/Chicago",
+      "now": "2026-06-15T15:00:00.000Z",
+      "walkIntervalHours": null,
+      "habitatIntervalDays": null,
+      "logs": [{ "type": "walk", "occurredAt": "2026-06-15T14:00:00.000Z" }],
+      "expected": {
+        "anchor": "2026-06-15T14:00:00.000Z",
+        "dueAt": "2026-06-15T18:00:00.000Z",
+        "notifyAt": "2026-06-15T17:40:00.000Z",
+        "bufferMinutes": 20,
+        "overdueBy": 0
+      }
+    },
+    {
+      "id": "w02_half_hour_min_buffer",
+      "description": "0.5h interval: buffer round(3)=3 clamps up to the 5 min floor.",
+      "module": "walks",
+      "householdTz": "America/Chicago",
+      "now": "2026-06-15T14:10:00.000Z",
+      "walkIntervalHours": 0.5,
+      "habitatIntervalDays": null,
+      "logs": [{ "type": "walk", "occurredAt": "2026-06-15T14:00:00.000Z" }],
+      "expected": {
+        "anchor": "2026-06-15T14:00:00.000Z",
+        "dueAt": "2026-06-15T14:30:00.000Z",
+        "notifyAt": "2026-06-15T14:25:00.000Z",
+        "bufferMinutes": 5,
+        "overdueBy": 0
+      }
+    },
+    {
+      "id": "w03_fractional_interval",
+      "description": "1.5h interval: buffer round(9)=9 min, inside the clamp.",
+      "module": "walks",
+      "householdTz": "Europe/London",
+      "now": "2026-06-15T14:30:00.000Z",
+      "walkIntervalHours": 1.5,
+      "habitatIntervalDays": null,
+      "logs": [{ "type": "walk", "occurredAt": "2026-06-15T14:00:00.000Z" }],
+      "expected": {
+        "anchor": "2026-06-15T14:00:00.000Z",
+        "dueAt": "2026-06-15T15:30:00.000Z",
+        "notifyAt": "2026-06-15T15:21:00.000Z",
+        "bufferMinutes": 9,
+        "overdueBy": 0
+      }
+    },
+    {
+      "id": "w04_two_and_a_half_hours",
+      "description": "2.5h interval: buffer 15 min.",
+      "module": "walks",
+      "householdTz": "America/New_York",
+      "now": "2026-06-15T14:30:00.000Z",
+      "walkIntervalHours": 2.5,
+      "habitatIntervalDays": null,
+      "logs": [{ "type": "walk", "occurredAt": "2026-06-15T14:00:00.000Z" }],
+      "expected": {
+        "anchor": "2026-06-15T14:00:00.000Z",
+        "dueAt": "2026-06-15T16:30:00.000Z",
+        "notifyAt": "2026-06-15T16:15:00.000Z",
+        "bufferMinutes": 15,
+        "overdueBy": 0
+      }
+    },
+    {
+      "id": "w05_max_interval",
+      "description": "24h interval: buffer 144 clamps down to the 20 min ceiling.",
+      "module": "walks",
+      "householdTz": "America/Chicago",
+      "now": "2026-06-15T15:00:00.000Z",
+      "walkIntervalHours": 24,
+      "habitatIntervalDays": null,
+      "logs": [{ "type": "walk", "occurredAt": "2026-06-15T14:00:00.000Z" }],
+      "expected": {
+        "anchor": "2026-06-15T14:00:00.000Z",
+        "dueAt": "2026-06-16T14:00:00.000Z",
+        "notifyAt": "2026-06-16T13:40:00.000Z",
+        "bufferMinutes": 20,
+        "overdueBy": 0
+      }
+    },
+    {
+      "id": "w06_latest_live_walk_only",
+      "description": "The anchor is the latest NON-deleted walk; a later deleted walk and later pee/food logs are ignored (modules read only their own log type).",
+      "module": "walks",
+      "householdTz": "America/Chicago",
+      "now": "2026-06-15T16:00:00.000Z",
+      "walkIntervalHours": 3,
+      "habitatIntervalDays": null,
+      "logs": [
+        { "type": "walk", "occurredAt": "2026-06-15T08:00:00.000Z" },
+        { "type": "walk", "occurredAt": "2026-06-15T12:00:00.000Z" },
+        { "type": "walk", "occurredAt": "2026-06-15T15:00:00.000Z", "deleted": true },
+        { "type": "pee", "occurredAt": "2026-06-15T15:30:00.000Z" },
+        { "type": "food", "occurredAt": "2026-06-15T15:40:00.000Z" }
+      ],
+      "expected": {
+        "anchor": "2026-06-15T12:00:00.000Z",
+        "dueAt": "2026-06-15T15:00:00.000Z",
+        "notifyAt": "2026-06-15T14:42:00.000Z",
+        "bufferMinutes": 18,
+        "overdueBy": 3600000
+      }
+    },
+    {
+      "id": "w07_future_dated_walk",
+      "description": "A walk logged with a future time: due is still exactly one interval after it (never the anchor itself).",
+      "module": "walks",
+      "householdTz": "America/Chicago",
+      "now": "2026-06-15T14:00:00.000Z",
+      "walkIntervalHours": 4,
+      "habitatIntervalDays": null,
+      "logs": [{ "type": "walk", "occurredAt": "2026-06-15T15:00:00.000Z" }],
+      "expected": {
+        "anchor": "2026-06-15T15:00:00.000Z",
+        "dueAt": "2026-06-15T19:00:00.000Z",
+        "notifyAt": "2026-06-15T18:40:00.000Z",
+        "bufferMinutes": 20,
+        "overdueBy": 0
+      }
+    },
+    {
+      "id": "w08_missed_walk_never_rolls_forward",
+      "description": "The last walk was months ago: due stays at anchor + one interval and reads overdue; it never rolls forward (Δ7).",
+      "module": "walks",
+      "householdTz": "America/Los_Angeles",
+      "now": "2026-06-15T15:00:00.000Z",
+      "walkIntervalHours": 4,
+      "habitatIntervalDays": null,
+      "logs": [{ "type": "walk", "occurredAt": "2026-01-01T08:00:00.000Z" }],
+      "expected": {
+        "anchor": "2026-01-01T08:00:00.000Z",
+        "dueAt": "2026-01-01T12:00:00.000Z",
+        "notifyAt": "2026-01-01T11:40:00.000Z",
+        "bufferMinutes": 20,
+        "overdueBy": 14266800000
+      }
+    },
+    {
+      "id": "w09_no_walk_logged",
+      "description": "No walk logged yet (only other types): nothing is predicted.",
+      "module": "walks",
+      "householdTz": "America/Chicago",
+      "now": "2026-06-15T15:00:00.000Z",
+      "walkIntervalHours": 4,
+      "habitatIntervalDays": null,
+      "logs": [{ "type": "pee", "occurredAt": "2026-06-15T14:00:00.000Z" }],
+      "expected": null
+    },
+    {
+      "id": "h01_same_day_clean",
+      "description": "Cleaned 10:00 CDT on Jun 10, every 7 days -> due Jun 17 at 10:00 CDT.",
+      "module": "habitat",
+      "householdTz": "America/Chicago",
+      "now": "2026-06-12T15:00:00.000Z",
+      "walkIntervalHours": null,
+      "habitatIntervalDays": 7,
+      "logs": [{ "type": "habitat_clean", "occurredAt": "2026-06-10T15:00:00.000Z" }],
+      "expected": {
+        "anchor": "2026-06-10T15:00:00.000Z",
+        "dueAt": "2026-06-17T15:00:00.000Z",
+        "notifyAt": "2026-06-17T15:00:00.000Z",
+        "bufferMinutes": 0,
+        "overdueBy": 0
+      }
+    },
+    {
+      "id": "h02_late_night_local_date",
+      "description": "Cleaned 23:30 CDT Jun 9 (04:30Z Jun 10): the household-local DATE (Jun 9) counts, not the UTC date -> due Jun 16 10:00 CDT.",
+      "module": "habitat",
+      "householdTz": "America/Chicago",
+      "now": "2026-06-12T15:00:00.000Z",
+      "walkIntervalHours": null,
+      "habitatIntervalDays": 7,
+      "logs": [{ "type": "habitat_clean", "occurredAt": "2026-06-10T04:30:00.000Z" }],
+      "expected": {
+        "anchor": "2026-06-10T04:30:00.000Z",
+        "dueAt": "2026-06-16T15:00:00.000Z",
+        "notifyAt": "2026-06-16T15:00:00.000Z",
+        "bufferMinutes": 0,
+        "overdueBy": 0
+      }
+    },
+    {
+      "id": "h03_tokyo_next_day",
+      "description": "16:00Z Jun 10 is 01:00 Jun 11 in Tokyo -> due Jun 18 10:00 JST (01:00Z).",
+      "module": "habitat",
+      "householdTz": "Asia/Tokyo",
+      "now": "2026-06-12T15:00:00.000Z",
+      "walkIntervalHours": null,
+      "habitatIntervalDays": 7,
+      "logs": [{ "type": "habitat_clean", "occurredAt": "2026-06-10T16:00:00.000Z" }],
+      "expected": {
+        "anchor": "2026-06-10T16:00:00.000Z",
+        "dueAt": "2026-06-18T01:00:00.000Z",
+        "notifyAt": "2026-06-18T01:00:00.000Z",
+        "bufferMinutes": 0,
+        "overdueBy": 0
+      }
+    },
+    {
+      "id": "h04_spring_forward",
+      "description": "Cleaned 10:00 EST Mar 5; DST starts Mar 8 -> due Mar 12 at 10:00 EDT (14:00Z), not 15:00Z.",
+      "module": "habitat",
+      "householdTz": "America/New_York",
+      "now": "2026-03-06T15:00:00.000Z",
+      "walkIntervalHours": null,
+      "habitatIntervalDays": 7,
+      "logs": [{ "type": "habitat_clean", "occurredAt": "2026-03-05T15:00:00.000Z" }],
+      "expected": {
+        "anchor": "2026-03-05T15:00:00.000Z",
+        "dueAt": "2026-03-12T14:00:00.000Z",
+        "notifyAt": "2026-03-12T14:00:00.000Z",
+        "bufferMinutes": 0,
+        "overdueBy": 0
+      }
+    },
+    {
+      "id": "h05_fall_back_14_days",
+      "description": "London, cleaned 10:00 BST Oct 20, every 14 days; BST ends Oct 25 -> due Nov 3 10:00 GMT (10:00Z).",
+      "module": "habitat",
+      "householdTz": "Europe/London",
+      "now": "2026-10-21T12:00:00.000Z",
+      "walkIntervalHours": null,
+      "habitatIntervalDays": 14,
+      "logs": [{ "type": "habitat_clean", "occurredAt": "2026-10-20T09:00:00.000Z" }],
+      "expected": {
+        "anchor": "2026-10-20T09:00:00.000Z",
+        "dueAt": "2026-11-03T10:00:00.000Z",
+        "notifyAt": "2026-11-03T10:00:00.000Z",
+        "bufferMinutes": 0,
+        "overdueBy": 0
+      }
+    },
+    {
+      "id": "h06_missed_clean_never_rolls_forward",
+      "description": "Last clean in January, every 7 days: due stays Jan 9 10:00 PST and reads overdue in June; never rolls forward (Δ7).",
+      "module": "habitat",
+      "householdTz": "America/Los_Angeles",
+      "now": "2026-06-15T15:00:00.000Z",
+      "walkIntervalHours": null,
+      "habitatIntervalDays": 7,
+      "logs": [{ "type": "habitat_clean", "occurredAt": "2026-01-02T18:00:00.000Z" }],
+      "expected": {
+        "anchor": "2026-01-02T18:00:00.000Z",
+        "dueAt": "2026-01-09T18:00:00.000Z",
+        "notifyAt": "2026-01-09T18:00:00.000Z",
+        "bufferMinutes": 0,
+        "overdueBy": 13554000000
+      }
+    },
+    {
+      "id": "h07_latest_live_clean_only",
+      "description": "A later deleted clean and a later walk are ignored; the anchor is the latest live habitat_clean.",
+      "module": "habitat",
+      "householdTz": "America/Chicago",
+      "now": "2026-06-12T15:00:00.000Z",
+      "walkIntervalHours": null,
+      "habitatIntervalDays": 3,
+      "logs": [
+        { "type": "habitat_clean", "occurredAt": "2026-06-08T15:00:00.000Z" },
+        { "type": "habitat_clean", "occurredAt": "2026-06-11T15:00:00.000Z", "deleted": true },
+        { "type": "walk", "occurredAt": "2026-06-11T16:00:00.000Z" }
+      ],
+      "expected": {
+        "anchor": "2026-06-08T15:00:00.000Z",
+        "dueAt": "2026-06-11T15:00:00.000Z",
+        "notifyAt": "2026-06-11T15:00:00.000Z",
+        "bufferMinutes": 0,
+        "overdueBy": 86400000
+      }
+    },
+    {
+      "id": "h08_half_hour_offset_zone",
+      "description": "Kolkata (+05:30): 20:00Z Jun 10 is 01:30 Jun 11 local; every day -> due Jun 12 10:00 IST (04:30Z).",
+      "module": "habitat",
+      "householdTz": "Asia/Kolkata",
+      "now": "2026-06-11T00:00:00.000Z",
+      "walkIntervalHours": null,
+      "habitatIntervalDays": 1,
+      "logs": [{ "type": "habitat_clean", "occurredAt": "2026-06-10T20:00:00.000Z" }],
+      "expected": {
+        "anchor": "2026-06-10T20:00:00.000Z",
+        "dueAt": "2026-06-12T04:30:00.000Z",
+        "notifyAt": "2026-06-12T04:30:00.000Z",
+        "bufferMinutes": 0,
+        "overdueBy": 0
+      }
+    },
+    {
+      "id": "h09_no_clean_logged",
+      "description": "No clean logged yet: nothing is due.",
+      "module": "habitat",
+      "householdTz": "America/Chicago",
+      "now": "2026-06-12T15:00:00.000Z",
+      "walkIntervalHours": null,
+      "habitatIntervalDays": 7,
+      "logs": [{ "type": "walk", "occurredAt": "2026-06-11T16:00:00.000Z" }],
+      "expected": null
+    }
+  ]
+}

@@ -128,6 +128,21 @@ function presentation(data: ScheduledNotificationData): {
         categoryId: CATEGORY.appointment,
         channelId: ANDROID_CHANNEL.appointment.id,
       };
+    case 'care_due':
+      // Species-neutral copy, matching the server's (the server has no species table).
+      return data.careModule === 'walks'
+        ? {
+            title: `Walk time for ${data.petName} 🦮`,
+            body: "It's time for the next walk.",
+            categoryId: CATEGORY.care,
+            channelId: ANDROID_CHANNEL.care_due.id,
+          }
+        : {
+            title: `Time to clean ${data.petName}'s habitat 🧽`,
+            body: "It's due for a clean today. Tap Done once it's cleaned.",
+            categoryId: CATEGORY.care,
+            channelId: ANDROID_CHANNEL.care_due.id,
+          };
   }
 }
 
@@ -229,6 +244,9 @@ function indexByPet<T extends { petId: string }>(items: T[]): Map<string, T[]> {
  *  - Appointments: one per reminder offset, fired at `startsAt − offset`.
  *  - Per-pet mute drops all of a pet's pushes; quiet hours drop break/meal only; a live snooze
  *    overrides the fire time; anything that would fire in the past is not scheduled.
+ *
+ * `timeZone` (the household's IANA zone) only reaches predictBreak, so break pushes match the
+ * server's. Omitted or null: device zone, exactly as before.
  */
 export function computeDesiredNotifications(
   pets: Pet[],
@@ -238,6 +256,7 @@ export function computeDesiredNotifications(
   appts: Appointment[],
   prefs: NotificationPrefs,
   now: Date = new Date(),
+  timeZone?: string | null,
 ): DesiredNotification[] {
   const nowMs = now.getTime();
   const muted = new Set(prefs.mutedPetIds);
@@ -253,7 +272,7 @@ export function computeDesiredNotifications(
 
     // --- Breaks (the flagship) — mirror predictBreak, the same kernel the UI window uses.
     for (const breakType of ['pee', 'poo'] as const) {
-      const p = predictBreak(pet, fts, petLogs, breakType, now);
+      const p = predictBreak(pet, fts, petLogs, breakType, now, timeZone);
       if (!p) continue;
       const key = `break:${pet.id}:${breakType}`;
       const data: BreakData = {

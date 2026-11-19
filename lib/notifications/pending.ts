@@ -106,6 +106,9 @@ function startOfDayMs(now: Date): number {
  *  - Meds: an active med whose time today has passed with no medication log covering it today.
  *
  * A live snooze (from `snoozeStore`) drops the nudge. Ordered most-overdue first.
+ *
+ * `timeZone` (the household's IANA zone) only reaches predictBreak. Omitted or null: device
+ * zone, exactly as before.
  */
 export function computePendingNudges(
   pets: Pet[],
@@ -114,6 +117,7 @@ export function computePendingNudges(
   logs: LogEntry[],
   now: Date = new Date(),
   snoozes: Record<string, number> = {},
+  timeZone?: string | null,
 ): PendingNudge[] {
   const nowMs = now.getTime();
   const todayStart = startOfDayMs(now);
@@ -129,7 +133,7 @@ export function computePendingNudges(
 
     // --- Breaks (the flagship).
     for (const breakType of ['pee', 'poo'] as const) {
-      const p = predictBreak(pet, fts, petLogs, breakType, now);
+      const p = predictBreak(pet, fts, petLogs, breakType, now, timeZone);
       if (!p || p.notifyAt.getTime() > nowMs) continue; // not due yet
       const key = `break:${pet.id}:${breakType}`;
       if (isSnoozed(snoozes, key, nowMs)) continue;

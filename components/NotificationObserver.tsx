@@ -5,6 +5,7 @@ import { useAppointments } from '../context/AppointmentsContext';
 import { useLogs } from '../context/LogsContext';
 import { useNotificationPrefs } from '../context/NotificationPrefsContext';
 import { usePets } from '../context/PetsContext';
+import { useHouseholdTimeZone } from '../context/SessionContext';
 import { usePersistedCollection } from '../hooks/usePersistedCollection';
 import { notificationsSupported } from '../lib/notifications/available';
 import { registerNotificationCategories } from '../lib/notifications/categories';
@@ -44,6 +45,9 @@ export function NotificationObserver() {
   // User-editable quiet hours / per-pet mute (FE-5 Settings). Reactive, so an edit re-reconciles
   // (it's in the effect deps below); replaces the old hardcoded DEFAULT_NOTIFICATION_PREFS.
   const { prefs: storedPrefs } = useNotificationPrefs();
+  // The household's zone (device zone until known / in local mode), so local break and
+  // habitat reminders fire when the server's would.
+  const timeZone = useHouseholdTimeZone();
   // Deep-link cold-start: a notification body-tap that LAUNCHED the app is handled at import time,
   // before the router exists, so its target url is stashed. Once the root navigator is mounted
   // (navState has a key) we replay it. Warm taps navigate immediately and no-op here.
@@ -98,6 +102,7 @@ export function NotificationObserver() {
         appointments,
         prefs,
         new Date(),
+        timeZone,
       );
       if (cancelled) return;
       await reconcileNotifications(desired);
@@ -113,7 +118,7 @@ export function NotificationObserver() {
       clearTimeout(timer);
       sub.remove();
     };
-  }, [pets, feedTimes, medications, logs, appointments, storedPrefs, serverPush]);
+  }, [pets, feedTimes, medications, logs, appointments, storedPrefs, serverPush, timeZone]);
 
   return null;
 }

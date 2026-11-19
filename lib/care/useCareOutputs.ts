@@ -10,6 +10,7 @@ import { useMemo } from 'react';
 import { useAppointments } from '../../context/AppointmentsContext';
 import { useLogs } from '../../context/LogsContext';
 import { usePets } from '../../context/PetsContext';
+import { useHouseholdTimeZone } from '../../context/SessionContext';
 import { useNow } from '../../hooks/useNow';
 import type { PetStatus } from '../petSchedule';
 import {
@@ -40,6 +41,7 @@ export function useCareOutputs(petId: string | null | undefined): CareOutputs | 
   const { getLogsForPet } = useLogs();
   const { appointments } = useAppointments();
   const now = useNow();
+  const timeZone = useHouseholdTimeZone();
 
   const pet = pets.find((p) => p.id === petId) ?? null;
   const species = pet?.species;
@@ -58,7 +60,7 @@ export function useCareOutputs(petId: string | null | undefined): CareOutputs | 
 
   return useMemo(() => {
     if (!pet || !plan) return null;
-    const s = buildSnapshot({ pet, feedTimes, meds, logs, appts: appointments, now });
+    const s = buildSnapshot({ pet, feedTimes, meds, logs, appts: appointments, now, timeZone });
     return {
       hero: heroFor(plan, s),
       upcoming: planUpcoming(plan, s),
@@ -68,5 +70,5 @@ export function useCareOutputs(petId: string | null | undefined): CareOutputs | 
     };
     // feedTimes/meds/logs are stable per-pet arrays from the contexts (D28).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pet, plan, feedTimes, meds, logs, appointments, now]);
+  }, [pet, plan, feedTimes, meds, logs, appointments, now, timeZone]);
 }

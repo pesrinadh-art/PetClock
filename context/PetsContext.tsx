@@ -2,7 +2,21 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import { type FeedTime, type Medication, type Pet, type Species } from '../data/mockData';
 import { usePersistedCollection } from '../hooks/usePersistedCollection';
 import type { CareModuleId } from '../lib/db/models';
-import { defaultCareModules, offeredCareModules } from '../lib/care/species';
+import { defaultCareModules, offeredCareModules, speciesProfile } from '../lib/care/species';
+
+/**
+ * The cleaning interval to STORE: a blank field with habitat enabled stores the species'
+ * suggested days, never null. The server (0022) pushes only for a stored interval and has no
+ * species table, so null would mean "no cleaning push" while the app showed it as due.
+ */
+function storedHabitatDays(
+  species: string,
+  careModules: readonly CareModuleId[],
+  value: number | null | undefined,
+): number | null {
+  if (value != null) return value;
+  return careModules.includes('habitat') ? speciesProfile(species).habitatIntervalDays ?? null : null;
+}
 import { newId } from '../lib/id';
 import { LOCAL_HOUSEHOLD_ID } from '../lib/localHousehold';
 import { repos } from '../lib/repo/types';
@@ -183,7 +197,7 @@ export function PetsProvider({ children }: { children: ReactNode }) {
         calibrationStartedAt: nowIso,
         careModules: initialCareModules(pet, species),
         walkIntervalHours: pet.walkIntervalHours ?? null,
-        habitatIntervalDays: pet.habitatIntervalDays ?? null,
+        habitatIntervalDays: storedHabitatDays(species, initialCareModules(pet, species), pet.habitatIntervalDays),
         archivedAt: null,
         createdAt: nowIso,
         updatedAt: nowIso,
@@ -222,8 +236,11 @@ export function PetsProvider({ children }: { children: ReactNode }) {
         careModules: edits.careModules ? [...edits.careModules] : existing.careModules,
         walkIntervalHours:
           edits.walkIntervalHours !== undefined ? edits.walkIntervalHours : existing.walkIntervalHours ?? null,
-        habitatIntervalDays:
-          edits.habitatIntervalDays !== undefined ? edits.habitatIntervalDays : existing.habitatIntervalDays ?? null,
+        habitatIntervalDays: storedHabitatDays(
+          existing.species,
+          edits.careModules ?? existing.careModules,
+          edits.habitatIntervalDays !== undefined ? edits.habitatIntervalDays : existing.habitatIntervalDays,
+        ),
         updatedAt: new Date().toISOString(),
       }));
       // Replacing the whole slot list mints fresh ids; a food log referencing an old feed-time

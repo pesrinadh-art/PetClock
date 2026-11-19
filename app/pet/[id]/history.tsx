@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { possessive, pottyBreakPhrase } from '../../../lib/petVoice';
+import { possessive } from '../../../lib/petVoice';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { accent, ink, line, category, radius } from '../../../theme/colors';
@@ -15,6 +15,7 @@ import { useNow } from '../../../hooks/useNow';
 import type { Appointment, ApptType, FeedTime, LogEntry } from '../../../lib/db/models';
 import { presentLogType } from '../../../lib/care/logTypes';
 import { REGISTRY } from '../../../lib/care/registry';
+import { pottyPhraseForPet } from '../../../lib/care/species';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -104,8 +105,7 @@ function plural(n: number, one: string, many: string): string {
 }
 
 /** "2 potty walks · 1 meal · 1 more" — "litter box trips" for cats and rabbits. */
-function daySummary(moments: Moment[], species: string | null | undefined): string {
-  const potty1 = pottyBreakPhrase(species);
+function daySummary(moments: Moment[], potty1: string): string {
   const meals = moments.filter((m) => m.bucket === 'meal').length;
   const potty = moments.filter((m) => m.bucket === 'potty').length;
   const other = moments.length - meals - potty;
@@ -180,7 +180,7 @@ export default function LogHistoryScreen() {
                   {group.label}
                 </Text>
                 <Text style={styles.daySummary} numberOfLines={1}>
-                  {daySummary(group.entries, pet?.species)}
+                  {daySummary(group.entries, pottyPhraseForPet(pet))}
                 </Text>
               </View>
               <Card>
