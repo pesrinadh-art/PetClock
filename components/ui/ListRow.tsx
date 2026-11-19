@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
-import { ink, line, radius } from '../../theme/colors';
+import { accent, ink, line, radius } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { Icon } from '../Icon';
 
@@ -25,8 +25,11 @@ export function ListRow({
   showChevron,
   onPress,
   divider = false,
+  subtitleMono = false,
   style,
 }: {
+  /** Set the subtitle in Geist Mono — for times and dates ("8:00 AM"). */
+  subtitleMono?: boolean;
   icon?: React.ComponentProps<typeof Icon>['name'];
   iconBg?: string;
   iconColor?: string;
@@ -53,11 +56,11 @@ export function ListRow({
               width: tileSize,
               height: tileSize,
               borderRadius: iconLarge ? radius.iconTile : radius.iconTileSm,
-              backgroundColor: iconBg ?? '#f4f0e6',
+              backgroundColor: iconBg ?? accent.soft,
             },
           ]}
         >
-          <Icon name={icon} size={iconLarge ? 17 : 16} color={iconColor ?? ink.muted} />
+          <Icon name={icon} size={iconLarge ? 17 : 16} color={iconColor ?? accent.ink} strokeWidth={1.8} />
         </View>
       )}
       <View style={styles.text}>
@@ -65,13 +68,13 @@ export function ListRow({
           {title}
         </Text>
         {!!subtitle && (
-          <Text style={styles.sub} numberOfLines={1}>
+          <Text style={[styles.sub, subtitleMono && styles.subMono]} numberOfLines={1}>
             {subtitle}
           </Text>
         )}
       </View>
       {right}
-      {chevron && <Icon name="chevronRight" size={15} color="#c0b8a8" strokeWidth={2.3} />}
+      {chevron && <Icon name="chevronRight" size={15} color={ink.placeholder} strokeWidth={2} />}
     </>
   );
 
@@ -97,15 +100,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingVertical: 13,
-    paddingHorizontal: 16,
+    minHeight: 56,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
   },
   pressed: { opacity: 0.6 },
   tile: { alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   text: { flex: 1 },
-  title: { fontFamily: fonts.bold, fontSize: 14, color: ink.primary },
-  sub: { fontFamily: fonts.medium, fontSize: 12, color: ink.muted, marginTop: 2 },
-  divider: { height: 1, backgroundColor: line.hairline, marginHorizontal: 16 },
+  title: { fontFamily: fonts.medium, fontSize: 14, color: ink.primary },
+  sub: { fontFamily: fonts.regular, fontSize: 12, color: ink.muted, marginTop: 2 },
+  subMono: { fontFamily: fonts.monoRegular, fontSize: 11.5 },
+  divider: { height: 1, backgroundColor: line.hairline, marginHorizontal: 14 },
 });
 
 export default ListRow;

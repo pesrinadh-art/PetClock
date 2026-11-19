@@ -50,7 +50,7 @@ const styles = StyleSheet.create({
   },
   sm: { paddingVertical: 4, paddingHorizontal: 9 },
   md: { paddingVertical: 6, paddingHorizontal: 11 },
-  text: { fontFamily: fonts.bold },
+  text: { fontFamily: fonts.medium },
 });
 
 export default Pill;

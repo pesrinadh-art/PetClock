@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { green, ink, line, radius, surface } from '../theme/colors';
+import { accent, glass, ink, radius, shadow, surface } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { Icon } from './Icon';
 import { AppModal } from './AppModal';
@@ -76,7 +76,7 @@ export function TimePickerField({ label, value, onChange, placeholder = 'Select 
             aria-label={`${label ? `${label}: ` : ''}${value || placeholder}`}
           >
             <Text style={[styles.valueText, !value && styles.placeholderText]}>{value || placeholder}</Text>
-            <Icon name="clock" size={16} color={ink.faint} strokeWidth={2} />
+            <Icon name="clock" size={16} color={ink.muted} strokeWidth={1.8} />
           </Pressable>
         </>
       )}
@@ -127,7 +127,7 @@ export function TimePickerField({ label, value, onChange, placeholder = 'Select 
                     }}
                   >
                     <Text style={[styles.optionText, selected && styles.optionTextSelected]}>{item}</Text>
-                    {selected && <Icon name="check" size={15} color={green.primary} strokeWidth={2.6} />}
+                    {selected && <Icon name="check" size={15} color={accent.ink} strokeWidth={2} />}
                   </Pressable>
                 );
               }}
@@ -141,43 +141,42 @@ export function TimePickerField({ label, value, onChange, placeholder = 'Select 
 
 const styles = StyleSheet.create({
   formGroup: { gap: 6 },
-  formLabel: { fontSize: 13.5, fontFamily: fonts.bold, color: ink.primary },
+  formLabel: { fontSize: 13.5, fontFamily: fonts.medium, color: ink.primary },
   field: {
-    backgroundColor: surface.card,
+    minHeight: 46,
+    backgroundColor: glass.strong,
     borderWidth: 1,
-    borderColor: line.border,
+    borderColor: glass.border,
     borderRadius: radius.tile,
-    paddingVertical: 13,
+    paddingVertical: 12,
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  fieldFilled: { borderColor: green.tintBorder },
+  fieldFilled: { borderColor: accent.line },
   // inset (card cell) variant
   insetGroup: {},
-  insetField: { paddingVertical: 13, paddingHorizontal: 16 },
-  insetLabel: { fontSize: 10, fontFamily: fonts.bold, textTransform: 'uppercase', letterSpacing: 1.2, color: ink.faint2 },
-  insetValue: { fontFamily: fonts.bold, fontSize: 14.5, color: ink.primary, marginTop: 3 },
-  insetPlaceholder: { fontFamily: fonts.semiBold, color: '#c0b8a8' },
+  insetField: { paddingVertical: 12, paddingHorizontal: 16 },
+  insetLabel: { fontSize: 12, fontFamily: fonts.regular, color: ink.muted },
+  insetValue: { fontFamily: fonts.mono, fontSize: 14.5, color: ink.primary, marginTop: 3 },
+  insetPlaceholder: { fontFamily: fonts.regular, color: ink.placeholder },
   pressed: { opacity: 0.7 },
-  valueText: { fontFamily: fonts.semiBold, fontSize: 14, color: ink.primary },
-  placeholderText: { color: '#c0b8a8' },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  valueText: { fontFamily: fonts.mono, fontSize: 14, color: ink.primary },
+  placeholderText: { fontFamily: fonts.regular, color: ink.placeholder },
+  overlay: { flex: 1, backgroundColor: glass.scrimDark, alignItems: 'center', justifyContent: 'center', padding: 24 },
   sheet: {
     width: '100%',
     maxWidth: 320,
     maxHeight: '80%',
-    backgroundColor: surface.card,
+    backgroundColor: surface.solid,
     borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: glass.border,
     padding: 16,
-    shadowColor: '#2a2724',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 20,
-    elevation: 8,
+    ...shadow.hero,
   },
-  sheetTitle: { fontSize: 15, fontFamily: fonts.extraBold, color: ink.primary, marginBottom: 10, textAlign: 'center' },
+  sheetTitle: { fontSize: 15, fontFamily: fonts.medium, color: ink.primary, letterSpacing: -0.3, marginBottom: 10, textAlign: 'center' },
   option: {
     height: ITEM_HEIGHT,
     flexDirection: 'row',
@@ -186,9 +185,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: radius.tile,
   },
-  optionSelected: { backgroundColor: green.tint },
-  optionText: { fontSize: 14, fontFamily: fonts.semiBold, color: ink.primary },
-  optionTextSelected: { fontFamily: fonts.extraBold, color: green.primary },
+  optionSelected: { backgroundColor: accent.soft },
+  optionText: { fontSize: 14, fontFamily: fonts.monoRegular, color: ink.primary },
+  optionTextSelected: { fontFamily: fonts.mono, color: accent.ink },
   clearRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  clearText: { fontSize: 14, fontFamily: fonts.bold, color: ink.muted },
+  clearText: { fontSize: 14, fontFamily: fonts.regular, color: ink.muted },
 });

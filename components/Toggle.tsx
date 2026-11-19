@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Pressable } from 'react-native';
-import { green, line, ink } from '../theme/colors';
+import { accent, glass } from '../theme/colors';
 
-// Redesign pill toggle (screen_2f): green.mid track when on, warm hairline track
-// when off, white thumb. Sizing mirrors the mockup (44×26, 22px thumb).
+// Aurora Minimal pill toggle (design v2 `.toggle`): accent track when on, translucent
+// ink track with a hairline border when off, white knob. 46x28 with a 20px knob.
+const OFF_TRACK = 'rgba(14,14,20,0.08)';
+
 export function Toggle({
   on,
   onToggle,
@@ -20,15 +22,19 @@ export function Toggle({
       toValue: on ? 1 : 0,
       useNativeDriver: false,
       speed: 24,
-      bounciness: 6,
+      bounciness: 4,
     }).start();
   }, [on, anim]);
 
   const trackColor = anim.interpolate({
     inputRange: [0, 1],
-    outputRange: [line.border, green.mid],
+    outputRange: [OFF_TRACK, accent.primary],
   });
-  const translateX = anim.interpolate({ inputRange: [0, 1], outputRange: [2, 20] });
+  const borderColor = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [glass.border2, 'rgba(109,93,246,0)'],
+  });
+  const translateX = anim.interpolate({ inputRange: [0, 1], outputRange: [3, 21] });
 
   return (
     <Pressable
@@ -40,23 +46,25 @@ export function Toggle({
     >
       <Animated.View
         style={{
-          width: 44,
-          height: 26,
-          borderRadius: 999,
+          width: 46,
+          height: 28,
+          borderRadius: 14,
+          borderWidth: 1,
+          borderColor,
           backgroundColor: trackColor,
           justifyContent: 'center',
         }}
       >
         <Animated.View
           style={{
-            width: 22,
-            height: 22,
-            borderRadius: 11,
-            backgroundColor: ink.onDark,
+            width: 20,
+            height: 20,
+            borderRadius: 10,
+            backgroundColor: accent.onAccent,
             transform: [{ translateX }],
             shadowColor: '#000',
-            shadowOpacity: 0.2,
-            shadowRadius: 4,
+            shadowOpacity: 0.25,
+            shadowRadius: 3,
             shadowOffset: { width: 0, height: 1 },
             elevation: 2,
           }}

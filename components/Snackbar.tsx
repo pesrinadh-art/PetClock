@@ -98,8 +98,8 @@ function SnackbarToast({ state, onUndo }: { state: SnackbarState; onUndo: () => 
   }, [anim]);
 
   return (
-    // Sits above the tab bar + centre "+" button (bar ≈ 70px, button pokes ~38px above it).
-    <View pointerEvents="box-none" style={[styles.overlay, { paddingBottom: insets.bottom + 112 }]}>
+    // Sits just above the floating glass tab bar (62px bar + 12px gap).
+    <View pointerEvents="box-none" style={[styles.overlay, { paddingBottom: insets.bottom + 90 }]}>
       <Animated.View
         pointerEvents="box-none"
         style={{
@@ -152,21 +152,18 @@ const styles = StyleSheet.create({
     gap: 12,
     width: '100%',
     maxWidth: 420,
-    backgroundColor: colors.stone,
-    borderRadius: radius.sm,
+    backgroundColor: '#111118',
+    borderRadius: radius.tile,
     paddingVertical: 12,
     paddingHorizontal: 16,
     ...shadow.card,
   },
-  message: { flex: 1, fontSize: 13, fontFamily: fonts.semiBold, color: colors.white },
-  undoBtn: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8 },
+  message: { flex: 1, fontSize: 13, fontFamily: fonts.regular, color: '#F4F4F7' },
+  undoBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 10 },
   undoPressed: { opacity: 0.6 },
   undoText: {
     fontSize: 13,
-    fontFamily: fonts.extraBold,
-    color: '#f3d27a', // warm gold — readable on the dark toast
-
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontFamily: fonts.medium,
+    color: '#B4AAFF', // light accent — readable on the dark toast
   },
 });

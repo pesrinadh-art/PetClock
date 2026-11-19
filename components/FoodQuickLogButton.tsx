@@ -1,6 +1,6 @@
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { ink, radius, terracotta } from '../theme/colors';
+import { accent, ink, radius, shadow } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import type { Pet } from '../data/mockData';
 import { useLogs } from '../context/LogsContext';
@@ -61,14 +61,14 @@ export function FoodQuickLogButton({ pet }: { pet: Pet }) {
     >
       <Card padded style={styles.card}>
         <View style={styles.tile}>
-          <Icon name="bowl" size={16} color={terracotta.primary} strokeWidth={2} />
+          <Icon name="bowl" size={17} color={accent.ink} strokeWidth={1.8} />
         </View>
         <View style={styles.text}>
           <Text style={styles.label}>Log {dueMeal.name}</Text>
           <Text style={styles.sub} numberOfLines={1}>Due {formatClock(dueMeal.time)} · one tap to mark {pet.name} fed</Text>
         </View>
         <View style={styles.doneBtn}>
-          <Icon name="check" size={16} color="#ffffff" strokeWidth={2.4} />
+          <Icon name="check" size={16} color={accent.onAccent} strokeWidth={2.2} />
         </View>
       </Card>
     </Pressable>
@@ -77,32 +77,33 @@ export function FoodQuickLogButton({ pet }: { pet: Pet }) {
 
 const styles = StyleSheet.create({
   pressed: { opacity: 0.85, transform: [{ scale: 0.99 }] },
+  // Design v2 accent banner: a glass panel with an accent-soft icon tile and a round accent check.
   card: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     marginBottom: 10,
-    borderLeftWidth: 4,
-    borderLeftColor: terracotta.primary,
+    borderColor: accent.line,
   },
   tile: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.iconTileSm,
-    backgroundColor: terracotta.tint,
+    width: 34,
+    height: 34,
+    borderRadius: radius.iconTile,
+    backgroundColor: accent.soft,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
   },
-  text: { flex: 1 },
-  label: { fontSize: 14, fontFamily: fonts.bold, color: ink.primary },
-  sub: { fontSize: 11.5, fontFamily: fonts.medium, color: ink.muted, marginTop: 2 },
+  text: { flex: 1, minWidth: 0 },
+  label: { fontSize: 14, fontFamily: fonts.medium, color: ink.primary },
+  sub: { fontSize: 12, fontFamily: fonts.regular, color: ink.muted, marginTop: 2 },
   doneBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.iconTile,
-    backgroundColor: terracotta.primary,
+    width: 34,
+    height: 34,
+    borderRadius: radius.pill,
+    backgroundColor: accent.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    ...shadow.fab,
   },
 });

@@ -7,3 +7,5 @@ export { ListRow } from './ListRow';
 export { Pill } from './Pill';
 export { StatGroup } from './StatGroup';
 export { GlassSurface } from './GlassSurface';
+export { AuroraBackground } from './AuroraBackground';
+export { Screen, TAB_BAR_CLEARANCE } from './Screen';

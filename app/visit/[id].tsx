@@ -1,15 +1,14 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { amber, green, ink, line, radius, shadow, surface, terracotta } from '../../theme/colors';
+import { accent, danger, glass, ink, radius, shadow, surface, warn } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { Icon } from '../../components/Icon';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { AppModal } from '../../components/AppModal';
 import { Toggle } from '../../components/Toggle';
 import { PetAvatar } from '../../components/PetAvatar';
-import { Card, ListRow, Pill, SectionLabel } from '../../components/ui';
+import { Card, ListRow, Screen, SectionLabel } from '../../components/ui';
 import { useAppointments } from '../../context/AppointmentsContext';
 import { usePets } from '../../context/PetsContext';
 import { useNow } from '../../hooks/useNow';
@@ -35,7 +34,7 @@ function describeOffsets(offsets: number[]): string {
 }
 
 /**
- * Visit details (redesign v3) — read-only view of one visit, opened from "See visit details" or a
+ * Visit details (design v2) — read-only view of one visit, opened from "See visit details" or a
  * visit card. Offers Edit, Delete, a reminder toggle, and — for a visit whose date passed — pick a
  * new date or mark it done. A done visit can be reopened ("Undo").
  */
@@ -50,14 +49,16 @@ export default function VisitDetailsScreen() {
 
   if (!appt) {
     return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <Screen edges={['top']}>
         <ScreenHeader title="Visit" fallback="/(tabs)/appointments" />
         <View style={styles.empty}>
-          <Icon name="calendar" size={40} color={ink.faint} />
+          <View style={styles.emptyIcon}>
+            <Icon name="calendar" size={20} color={accent.ink} strokeWidth={1.8} />
+          </View>
           <Text style={styles.emptyTitle}>Visit not found</Text>
           <Text style={styles.emptyBody}>It may have been deleted.</Text>
         </View>
-      </SafeAreaView>
+      </Screen>
     );
   }
 
@@ -76,7 +77,7 @@ export default function VisitDetailsScreen() {
     updateAppointment(appt.id, { reminderOffsetsMinutes: reminderOn ? [] : [MINUTES_PER_DAY] });
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <Screen edges={['top', 'bottom']}>
       <ScreenHeader
         title={appt.title}
         subtitle={`${meta.label}${apptPets.length ? ` · For ${joinPetNames(apptPets.map((p) => p.name))}` : ''}`}
@@ -87,48 +88,48 @@ export default function VisitDetailsScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         {/* Status */}
         {done ? (
-          <View style={[styles.status, { backgroundColor: green.tint, borderColor: green.tintBorder }]}>
-            <Icon name="check" size={18} color={green.primary} strokeWidth={2.6} />
-            <Text style={[styles.statusText, { color: green.primary }]}>
-              Done · marked {formatApptDate(appt.completedAt!)}
+          <View style={[styles.status, styles.statusAccent]}>
+            <Icon name="check" size={17} color={accent.ink} strokeWidth={2} />
+            <Text style={[styles.statusText, { color: accent.ink }]}>
+              Done · marked <Text style={styles.mono}>{formatApptDate(appt.completedAt!)}</Text>
             </Text>
             <Pressable onPress={undoDone} role="button" aria-label="Undo done" hitSlop={8}>
               <Text style={styles.statusLink}>Undo</Text>
             </Pressable>
           </View>
         ) : late ? (
-          <View style={[styles.statusCol, { backgroundColor: amber.warnBg, borderColor: '#f3dfb9' }]}>
+          <View style={[styles.statusCol, styles.statusWarn]}>
             <View style={styles.statusRow}>
-              <Icon name="info" size={18} color={amber.warnInk} strokeWidth={2.2} />
-              <Text style={[styles.statusText, { color: amber.warnInk }]}>This date has passed</Text>
+              <Icon name="info" size={17} color={warn.ink} strokeWidth={1.9} />
+              <Text style={[styles.statusText, { color: ink.primary }]}>This date has passed</Text>
             </View>
             <Text style={styles.statusBody}>Pick a new day, or mark it done if the visit already happened.</Text>
             <View style={styles.statusActions}>
-              <Pressable style={({ pressed }) => [styles.btn, styles.btnPrimary, pressed && styles.pressed]} onPress={edit} role="button" aria-label="Pick a new date">
-                <Icon name="calendar" size={16} color="#ffffff" strokeWidth={2.2} />
-                <Text style={styles.btnPrimaryText}>Pick a new date</Text>
+              <Pressable style={({ pressed }) => [styles.btn, styles.btnInk, pressed && styles.pressed]} onPress={edit} role="button" aria-label="Pick a new date">
+                <Icon name="calendar" size={15} color={ink.onDark} strokeWidth={1.9} />
+                <Text style={styles.btnInkText}>Pick a new date</Text>
               </Pressable>
               <Pressable style={({ pressed }) => [styles.btn, styles.btnSecondary, pressed && styles.pressed]} onPress={markDone} role="button" aria-label="Mark as done">
-                <Icon name="check" size={16} color={green.primary} strokeWidth={2.6} />
+                <Icon name="check" size={15} color={ink.primary} strokeWidth={2} />
                 <Text style={styles.btnSecondaryText}>Mark as done</Text>
               </Pressable>
             </View>
           </View>
         ) : (
-          <View style={[styles.status, { backgroundColor: green.tint, borderColor: green.tintBorder }]}>
-            <Icon name="clock" size={18} color={green.primary} strokeWidth={2.2} />
-            <Text style={[styles.statusText, { color: green.primary }]}>{cd.label}</Text>
+          <View style={[styles.status, styles.statusAccent]}>
+            <Icon name="clock" size={17} color={accent.ink} strokeWidth={1.9} />
+            <Text style={[styles.statusText, styles.mono, { color: accent.ink }]}>{cd.label}</Text>
           </View>
         )}
 
         {/* Details */}
         <SectionLabel style={styles.sectionGap}>Details</SectionLabel>
         <Card>
-          <ListRow icon={meta.icon} iconBg={meta.bg} iconColor={meta.ink} iconLarge title={meta.label} subtitle="Type" showChevron={false} divider />
-          <ListRow icon="calendar" iconBg={surface.chip} iconColor={ink.primary} iconLarge title={formatApptDate(appt.startsAt, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} subtitle="Date" showChevron={false} divider />
-          <ListRow icon="clock" iconBg={surface.chip} iconColor={ink.primary} iconLarge title={hasTime ? formatApptTime(appt.startsAt) : 'All day'} subtitle="Time" showChevron={false} divider={!!appt.location} />
+          <ListRow icon={meta.icon} iconBg={accent.soft} iconColor={accent.ink} iconLarge title={meta.label} subtitle="Type" showChevron={false} divider />
+          <ListRow icon="calendar" iconBg={glass.strong} iconColor={ink.muted} iconLarge title={formatApptDate(appt.startsAt, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} subtitle="Date" showChevron={false} divider />
+          <ListRow icon="clock" iconBg={glass.strong} iconColor={ink.muted} iconLarge title={hasTime ? formatApptTime(appt.startsAt) : 'All day'} subtitle="Time" showChevron={false} divider={!!appt.location} />
           {!!appt.location && (
-            <ListRow icon="mapPin" iconBg={surface.chip} iconColor={ink.primary} iconLarge title={appt.location} subtitle="Where" showChevron={false} />
+            <ListRow icon="mapPin" iconBg={glass.strong} iconColor={ink.muted} iconLarge title={appt.location} subtitle="Where" showChevron={false} />
           )}
         </Card>
 
@@ -145,7 +146,7 @@ export default function VisitDetailsScreen() {
                   role="button"
                   aria-label={`Open ${p.name}`}
                 >
-                  <PetAvatar pet={p} size={30} emojiSize={17} style={{ backgroundColor: green.tint }} />
+                  <PetAvatar pet={p} size={28} emojiSize={15} style={styles.petAvatar} />
                   <Text style={styles.petName}>{p.name}</Text>
                 </Pressable>
               ))}
@@ -157,7 +158,10 @@ export default function VisitDetailsScreen() {
         {!done && (
           <>
             <SectionLabel style={styles.sectionGap}>Reminders</SectionLabel>
-            <Card padded style={styles.reminderCard}>
+            <Card style={styles.reminderCard}>
+              <View style={styles.reminderIcon}>
+                <Icon name="bell" size={17} color={accent.ink} strokeWidth={1.8} />
+              </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.reminderTitle}>{reminderOn ? describeOffsets(appt.reminderOffsetsMinutes) : 'No reminders'}</Text>
                 <Text style={styles.reminderSub}>{reminderOn ? 'We\'ll nudge everyone caring for them.' : 'Turn on for a nudge a day before.'}</Text>
@@ -179,7 +183,7 @@ export default function VisitDetailsScreen() {
 
         {!done && !late && (
           <Pressable style={({ pressed }) => [styles.btn, styles.btnSecondary, styles.fullBtn, pressed && styles.pressed]} onPress={markDone} role="button" aria-label="Mark as done">
-            <Icon name="check" size={16} color={green.primary} strokeWidth={2.6} />
+            <Icon name="check" size={15} color={ink.primary} strokeWidth={2} />
             <Text style={styles.btnSecondaryText}>Mark as done</Text>
           </Pressable>
         )}
@@ -190,14 +194,14 @@ export default function VisitDetailsScreen() {
           role="button"
           aria-label="Delete visit"
         >
-          <Icon name="trash" size={16} color={terracotta.primary} strokeWidth={2} />
+          <Icon name="trash" size={15} color={danger.primary} strokeWidth={1.8} />
           <Text style={styles.deleteText}>Delete visit</Text>
         </Pressable>
       </ScrollView>
 
       <View style={styles.footer}>
         <Pressable style={({ pressed }) => [styles.editBtn, pressed && styles.pressed]} onPress={edit} role="button" aria-label="Edit visit">
-          <Icon name="pencil" size={18} color="#ffffff" strokeWidth={2.2} />
+          <Icon name="pencil" size={17} color={accent.onAccent} strokeWidth={1.9} />
           <Text style={styles.editText}>Edit visit</Text>
         </Pressable>
       </View>
@@ -208,11 +212,11 @@ export default function VisitDetailsScreen() {
             <Text style={styles.dialogTitle}>Delete this visit?</Text>
             <Text style={styles.dialogBody}>"{appt.title}" will be removed. This can't be undone.</Text>
             <View style={styles.dialogActions}>
-              <Pressable style={({ pressed }) => [styles.dialogBtn, { backgroundColor: green.tint }, pressed && styles.pressed]} onPress={() => setConfirmDelete(false)} role="button" aria-label="Cancel">
-                <Text style={[styles.dialogBtnText, { color: green.primary }]}>Cancel</Text>
+              <Pressable style={({ pressed }) => [styles.dialogBtn, styles.cancelBtn, pressed && styles.pressed]} onPress={() => setConfirmDelete(false)} role="button" aria-label="Cancel">
+                <Text style={[styles.dialogBtnText, { color: ink.primary }]}>Cancel</Text>
               </Pressable>
               <Pressable
-                style={({ pressed }) => [styles.dialogBtn, { backgroundColor: terracotta.primary }, pressed && styles.pressed]}
+                style={({ pressed }) => [styles.dialogBtn, styles.deleteBtn, pressed && styles.pressed]}
                 onPress={() => {
                   setConfirmDelete(false);
                   removeAppointment(appt.id);
@@ -222,37 +226,39 @@ export default function VisitDetailsScreen() {
                 role="button"
                 aria-label="Delete"
               >
-                <Text style={[styles.dialogBtnText, { color: '#ffffff' }]}>Delete</Text>
+                <Text style={[styles.dialogBtnText, { color: ink.onDark }]}>Delete</Text>
               </Pressable>
             </View>
           </Pressable>
         </Pressable>
       </AppModal>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: surface.app },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 32 },
-  pressed: { opacity: 0.8 },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 32 },
+  pressed: { opacity: 0.75 },
   sectionGap: { marginTop: 24 },
+  mono: { fontFamily: fonts.mono },
 
   status: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     padding: 14,
-    borderRadius: radius.card,
+    borderRadius: radius.tile,
     borderWidth: 1,
   },
-  statusCol: { padding: 14, borderRadius: radius.card, borderWidth: 1 },
+  statusAccent: { backgroundColor: accent.soft, borderColor: accent.line },
+  statusWarn: { backgroundColor: warn.soft, borderColor: warn.line },
+  statusCol: { padding: 14, borderRadius: radius.tile, borderWidth: 1 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  statusText: { flex: 1, fontSize: 15, fontFamily: fonts.bold },
-  statusLink: { fontSize: 13.5, fontFamily: fonts.bold, color: green.primary },
-  statusBody: { fontSize: 13, fontFamily: fonts.medium, color: ink.muted, marginTop: 6, lineHeight: 18 },
-  statusActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  statusText: { flex: 1, fontSize: 14, fontFamily: fonts.medium },
+  statusLink: { fontSize: 13, fontFamily: fonts.medium, color: accent.ink },
+  statusBody: { fontSize: 12.5, fontFamily: fonts.regular, color: ink.muted, marginTop: 6, lineHeight: 18 },
+  statusActions: { flexDirection: 'row', gap: 6, marginTop: 12 },
 
   btn: {
     flex: 1,
@@ -260,61 +266,91 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 7,
-    paddingVertical: 12,
-    borderRadius: radius.tile,
+    minHeight: 40,
+    paddingHorizontal: 12,
+    borderRadius: radius.pill,
+    borderWidth: 1,
   },
-  btnPrimary: { backgroundColor: green.mid },
-  btnPrimaryText: { fontSize: 13.5, fontFamily: fonts.bold, color: '#ffffff' },
-  btnSecondary: { backgroundColor: surface.card, borderWidth: 1.5, borderColor: line.border },
-  btnSecondaryText: { fontSize: 13.5, fontFamily: fonts.bold, color: green.primary },
-  fullBtn: { flex: 0, marginTop: 24, paddingVertical: 14 },
+  btnInk: { backgroundColor: ink.primary, borderColor: 'transparent' },
+  btnInkText: { fontSize: 13, fontFamily: fonts.medium, color: ink.onDark },
+  btnSecondary: { backgroundColor: glass.strong, borderColor: glass.border2 },
+  btnSecondaryText: { fontSize: 13.5, fontFamily: fonts.medium, color: ink.primary },
+  fullBtn: { flex: 0, marginTop: 24, minHeight: 46 },
 
   petRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   petChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingVertical: 5,
+    minHeight: 38,
     paddingLeft: 5,
-    paddingRight: 14,
-    borderRadius: 999,
-    backgroundColor: surface.card,
-    borderWidth: 1.5,
-    borderColor: line.border,
-    ...shadow.sm,
+    paddingRight: 13,
+    borderRadius: radius.pill,
+    backgroundColor: glass.fill,
+    borderWidth: 1,
+    borderColor: glass.border,
   },
-  petName: { fontSize: 14, fontFamily: fonts.bold, color: ink.primary },
+  petAvatar: { backgroundColor: accent.soft, borderWidth: 1, borderColor: accent.line },
+  petName: { fontSize: 13.5, fontFamily: fonts.medium, color: ink.primary },
 
-  reminderCard: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  reminderTitle: { fontSize: 14, fontFamily: fonts.bold, color: ink.primary },
-  reminderSub: { fontSize: 12, fontFamily: fonts.medium, color: ink.muted, marginTop: 2 },
-  notes: { fontSize: 14, fontFamily: fonts.medium, color: ink.primary, lineHeight: 20 },
+  reminderCard: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 12, paddingHorizontal: 14 },
+  reminderIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.iconTile,
+    backgroundColor: accent.soft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reminderTitle: { fontSize: 14, fontFamily: fonts.medium, color: ink.primary },
+  reminderSub: { fontSize: 12, fontFamily: fonts.regular, color: ink.muted, marginTop: 2 },
+  notes: { fontSize: 14, fontFamily: fonts.regular, color: ink.primary, lineHeight: 21 },
 
-  deleteLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 18, paddingVertical: 10 },
-  deleteText: { fontSize: 14, fontFamily: fonts.bold, color: terracotta.primary },
+  deleteLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14, minHeight: 44 },
+  deleteText: { fontSize: 14, fontFamily: fonts.medium, color: danger.primary },
 
-  footer: { paddingHorizontal: 20, paddingVertical: 12, borderTopWidth: 1, borderTopColor: line.border },
+  footer: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 12, borderTopWidth: 1, borderTopColor: glass.border },
   editBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingVertical: 16,
-    borderRadius: radius.card,
-    backgroundColor: green.mid,
+    minHeight: 52,
+    borderRadius: radius.pill,
+    backgroundColor: accent.primary,
     ...shadow.fab,
   },
-  editText: { fontSize: 16, fontFamily: fonts.bold, color: '#ffffff' },
+  editText: { fontSize: 15, fontFamily: fonts.medium, color: accent.onAccent },
 
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  dialog: { width: '100%', maxWidth: 320, backgroundColor: surface.card, borderRadius: radius.card, padding: 20 },
-  dialogTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: ink.primary, marginBottom: 8 },
-  dialogBody: { fontSize: 13, color: ink.muted, lineHeight: 19, marginBottom: 18 },
-  dialogActions: { flexDirection: 'row', gap: 10 },
-  dialogBtn: { flex: 1, borderRadius: radius.tile, paddingVertical: 12, alignItems: 'center' },
-  dialogBtnText: { fontSize: 13, fontFamily: fonts.extraBold },
+  overlay: { flex: 1, backgroundColor: glass.scrimDark, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  dialog: {
+    width: '100%',
+    maxWidth: 320,
+    backgroundColor: surface.solid,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: glass.border,
+    padding: 20,
+    ...shadow.hero,
+  },
+  dialogTitle: { fontSize: 17, fontFamily: fonts.medium, color: ink.primary, letterSpacing: -0.4, marginBottom: 6 },
+  dialogBody: { fontSize: 13, fontFamily: fonts.regular, color: ink.muted, lineHeight: 19, marginBottom: 18 },
+  dialogActions: { flexDirection: 'row', gap: 8 },
+  dialogBtn: { flex: 1, borderRadius: radius.pill, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  cancelBtn: { backgroundColor: glass.strong, borderColor: glass.border2 },
+  deleteBtn: { backgroundColor: danger.primary, borderColor: 'transparent' },
+  dialogBtnText: { fontSize: 14, fontFamily: fonts.medium },
 
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 8 },
-  emptyTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: ink.primary },
-  emptyBody: { fontSize: 13, color: ink.muted, textAlign: 'center' },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 6 },
+  emptyIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: accent.soft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  emptyTitle: { fontSize: 16, fontFamily: fonts.medium, color: ink.primary },
+  emptyBody: { fontSize: 13, fontFamily: fonts.regular, color: ink.muted, textAlign: 'center' },
 });

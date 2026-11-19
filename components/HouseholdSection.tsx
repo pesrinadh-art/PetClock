@@ -25,7 +25,7 @@ import {
   type InviteRole,
   type Member,
 } from '../lib/household/invites';
-import { amber, green, ink, line, radius, surface } from '../theme/colors';
+import { accent, danger, glass, ink, radius, surface, warn } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 
 /** The `member_role` enum in caregiver terms — the DB never stores presentation strings. */
@@ -35,18 +35,18 @@ const ROLE_LABEL: Record<InviteRole, string> = {
   walker: 'Walker',
 };
 
-/** Role → pill palette. Owner reads as brand-green; a time-boxed walker as amber attention. */
-const ROLE_PILL: Record<InviteRole, { bg: string; color: string }> = {
-  owner: { bg: green.tint, color: green.primary },
-  member: { bg: surface.chip, color: ink.muted },
-  walker: { bg: amber.warnBg, color: amber.warnInk },
+/** Role → pill palette. Owner reads as the accent; a time-boxed walker as warn attention. */
+const ROLE_PILL: Record<InviteRole, { bg: string; color: string; border: string }> = {
+  owner: { bg: accent.soft, color: accent.ink, border: accent.line },
+  member: { bg: 'transparent', color: ink.muted, border: glass.border2 },
+  walker: { bg: warn.soft, color: warn.ink, border: warn.line },
 };
 
 /** A settled message shown under the section: success reads calm, error reads alarming. */
 type Notice = { text: string; error?: boolean };
 
-/** Destructive accent for remove/leave/revoke — a role token; theme/colors.ts is off-limits here. */
-const DANGER = '#c0392b';
+/** Destructive accent for remove/leave/revoke. */
+const DANGER = danger.primary;
 
 /**
  * Copy to the OS clipboard where we can without a native dependency. react-native-web maps
@@ -256,26 +256,34 @@ export function HouseholdSection({
     }
   };
 
+  const usesLeft = invite ? invite.maxUses - invite.useCount : 0;
+
   return (
     <>
       {/* ── Invite code ─────────────────────────────────────────────── */}
       <SectionLabel>Invite code</SectionLabel>
       {invite ? (
         <Card padded style={styles.inviteCard}>
-          <View style={styles.inviteHead}>
-            <View style={styles.keyTile}>
-              <Icon name="key" size={16} color={amber.warnInk} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.inviteLabel}>Invite code</Text>
-              <Text
-                style={styles.code}
-                selectable
-                accessibilityLabel={`Invite code ${invite.code}`}
-              >
-                {invite.code}
-              </Text>
-            </View>
+          <Text style={styles.kicker}>Invite code</Text>
+          <Text style={styles.code} selectable accessibilityLabel={`Invite code ${invite.code}`}>
+            {invite.code}
+          </Text>
+
+          <View style={styles.invitePills}>
+            <Pill
+              label={`${usesLeft} use${usesLeft === 1 ? '' : 's'} left`}
+              bg={accent.soft}
+              color={accent.ink}
+              size="sm"
+              style={{ ...styles.pillBorder, borderColor: accent.line }}
+            />
+            <Pill
+              label={`Expires ${new Date(invite.expiresAt).toLocaleDateString()}`}
+              bg="transparent"
+              color={ink.muted}
+              size="sm"
+              style={{ ...styles.pillBorder, borderColor: glass.border2 }}
+            />
           </View>
 
           <View style={styles.inviteBtns}>
@@ -285,81 +293,80 @@ export function HouseholdSection({
               role="button"
               aria-label="Share invite"
             >
-              <Icon name="share" size={14} color={ink.onDark} strokeWidth={2.2} />
+              <Icon name="share" size={15} color={accent.onAccent} strokeWidth={1.8} />
               <Text style={styles.btnPrimaryText}>{shared ? 'Shared!' : 'Share invite'}</Text>
             </Pressable>
             <Pressable
-              style={({ pressed }) => [styles.btn, styles.btnGhost, pressed && styles.pressed]}
+              style={({ pressed }) => [styles.btn, styles.btnGlass, pressed && styles.pressed]}
               onPress={() => void copyInvite()}
               role="button"
               aria-label="Copy code"
             >
-              <Icon name={copied ? 'check' : 'copy'} size={14} color={ink.muted} strokeWidth={2.2} />
-              <Text style={styles.btnGhostText}>{copied ? 'Copied!' : 'Copy code'}</Text>
+              <Icon name={copied ? 'check' : 'copy'} size={15} color={ink.primary} strokeWidth={1.8} />
+              <Text style={styles.btnGlassText}>{copied ? 'Copied!' : 'Copy code'}</Text>
             </Pressable>
           </View>
 
-          <View style={styles.inviteFootRow}>
-            <Text style={styles.inviteFoot}>
-              {invite.maxUses - invite.useCount} use
-              {invite.maxUses - invite.useCount === 1 ? '' : 's'} left · expires{' '}
-              {new Date(invite.expiresAt).toLocaleDateString()}
-            </Text>
-            <Pressable
-              onPress={() => void revoke()}
-              disabled={revoking}
-              hitSlop={8}
-              role="button"
-              aria-label="Revoke invite code"
-            >
-              {revoking ? (
-                <ActivityIndicator color={DANGER} size="small" />
-              ) : (
-                <Text style={styles.revokeText}>Revoke</Text>
-              )}
-            </Pressable>
-          </View>
+          <Pressable
+            style={({ pressed }) => [styles.revokeBtn, pressed && styles.pressed]}
+            onPress={() => void revoke()}
+            disabled={revoking}
+            hitSlop={8}
+            role="button"
+            aria-label="Revoke invite code"
+          >
+            {revoking ? (
+              <ActivityIndicator color={DANGER} size="small" />
+            ) : (
+              <Text style={styles.revokeText}>Revoke</Text>
+            )}
+          </Pressable>
         </Card>
       ) : (
         <Pressable
-          style={({ pressed }) => [styles.mintCta, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.mintCta, minting && styles.disabled, pressed && styles.pressed]}
           onPress={() => void mint()}
           disabled={minting}
           role="button"
           aria-label="Create an invite code"
         >
           {minting ? (
-            <ActivityIndicator color={green.mid} />
+            <ActivityIndicator color={accent.onAccent} />
           ) : (
             <>
-              <Icon name="userPlus" size={16} color={green.mid} strokeWidth={2.2} />
+              <Icon name="userPlus" size={17} color={accent.onAccent} strokeWidth={1.8} />
               <Text style={styles.mintCtaText}>Invite a caregiver</Text>
             </>
           )}
         </Pressable>
       )}
 
-      <Pressable
-        style={styles.joinLink}
-        onPress={() => {
-          setMessage(null);
-          setJoinOpen(true);
-        }}
-        role="button"
-        aria-label="Join a household with a code"
-        hitSlop={6}
-      >
-        <Text style={styles.joinLinkText}>
-          Have a code? <Text style={styles.joinLinkStrong}>Join a household</Text>
-        </Text>
-      </Pressable>
+      <Card style={styles.joinCard}>
+        <Pressable
+          style={({ pressed }) => [styles.joinRow, pressed && styles.rowPressed]}
+          onPress={() => {
+            setMessage(null);
+            setJoinOpen(true);
+          }}
+          role="button"
+          aria-label="Join a household with a code"
+        >
+          <View style={styles.joinIcon}>
+            <Icon name="key" size={17} color={ink.muted} strokeWidth={1.8} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.joinTitle}>Have a code?</Text>
+            <Text style={styles.joinSub}>Join a household</Text>
+          </View>
+          <Icon name="chevronRight" size={15} color={ink.placeholder} strokeWidth={2} />
+        </Pressable>
+      </Card>
 
       {/* ── Members ─────────────────────────────────────────────────── */}
-      <View style={{ height: 18 }} />
-      <SectionLabel>Members</SectionLabel>
+      <SectionLabel style={styles.sectionSpacer}>Members</SectionLabel>
       {membersLoading && members.length === 0 ? (
         <Card padded style={styles.stateCard}>
-          <ActivityIndicator color={green.mid} />
+          <ActivityIndicator color={accent.primary} />
         </Card>
       ) : membersError ? (
         <Card padded>
@@ -374,53 +381,60 @@ export function HouseholdSection({
           {members.map((m, i) => {
             const isYou = m.userId === currentUserId;
             const pill = ROLE_PILL[m.role];
-            const expires = m.memberExpiresAt
-              ? ` · access until ${new Date(m.memberExpiresAt).toLocaleDateString()}`
-              : '';
             return (
               <View key={m.userId}>
                 <View style={styles.memberRow}>
-                  <View style={[styles.avatar, isYou && styles.avatarYou]}>
-                    <Icon name="user" size={16} color={isYou ? ink.onDark : ink.faint2} />
+                  <View style={[styles.avatar, isYou ? styles.avatarYou : styles.avatarMute]}>
+                    <Icon name="user" size={15} color={isYou ? accent.ink : ink.muted} strokeWidth={1.8} />
                   </View>
-                  <View style={{ flex: 1 }}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={styles.memberName} numberOfLines={1}>
                       {ROLE_LABEL[m.role]}
                       {isYou ? <Text style={styles.youTag}> · you</Text> : null}
                     </Text>
-                    <Text style={styles.memberSub} numberOfLines={1}>
-                      Joined {new Date(m.joinedAt).toLocaleDateString()}
-                      {expires}
-                    </Text>
+                    <View style={styles.memberMeta}>
+                      <Pill
+                        label={ROLE_LABEL[m.role]}
+                        bg={pill.bg}
+                        color={pill.color}
+                        size="sm"
+                        style={{ ...styles.pillBorder, borderColor: pill.border }}
+                      />
+                      <Text style={styles.memberSub} numberOfLines={1}>
+                        Joined {new Date(m.joinedAt).toLocaleDateString()}
+                        {m.memberExpiresAt
+                          ? ` · access until ${new Date(m.memberExpiresAt).toLocaleDateString()}`
+                          : ''}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.memberRight}>
-                    <Pill label={ROLE_LABEL[m.role]} bg={pill.bg} color={pill.color} size="sm" />
-                    {isYou ? (
-                      <Pressable
-                        onPress={() => {
-                          setMessage(null);
-                          setLeaveOpen(true);
-                        }}
-                        hitSlop={6}
-                        role="button"
-                        aria-label="Leave household"
-                      >
-                        <Text style={styles.rowAction}>Leave</Text>
-                      </Pressable>
-                    ) : isOwner ? (
-                      <Pressable
-                        onPress={() => {
-                          setMessage(null);
-                          setRemoveTarget(m);
-                        }}
-                        hitSlop={6}
-                        role="button"
-                        aria-label={`Remove ${ROLE_LABEL[m.role]}`}
-                      >
-                        <Text style={styles.rowAction}>Remove</Text>
-                      </Pressable>
-                    ) : null}
-                  </View>
+                  {isYou ? (
+                    <Pressable
+                      style={({ pressed }) => [styles.rowBtn, pressed && styles.pressed]}
+                      onPress={() => {
+                        setMessage(null);
+                        setLeaveOpen(true);
+                      }}
+                      hitSlop={6}
+                      role="button"
+                      aria-label="Leave household"
+                    >
+                      <Text style={styles.rowBtnText}>Leave</Text>
+                    </Pressable>
+                  ) : isOwner ? (
+                    <Pressable
+                      style={({ pressed }) => [styles.rowBtn, pressed && styles.pressed]}
+                      onPress={() => {
+                        setMessage(null);
+                        setRemoveTarget(m);
+                      }}
+                      hitSlop={6}
+                      role="button"
+                      aria-label={`Remove ${ROLE_LABEL[m.role]}`}
+                    >
+                      <Text style={styles.rowBtnText}>Remove</Text>
+                    </Pressable>
+                  ) : null}
                 </View>
                 {i < members.length - 1 && <View style={styles.divider} />}
               </View>
@@ -442,7 +456,7 @@ export function HouseholdSection({
       >
         <Pressable style={styles.overlay} onPress={() => setRemoveTarget(null)}>
           <Pressable onPress={(e) => e.stopPropagation()} style={styles.dialogWrap}>
-            <GlassSurface fallbackColor={surface.card} fallbackOpacity={1} style={styles.dialog}>
+            <GlassSurface fallbackColor={surface.solid} style={styles.dialog}>
               <Text style={styles.dialogTitle}>
                 Remove this {removeTarget ? ROLE_LABEL[removeTarget.role].toLowerCase() : 'member'}?
               </Text>
@@ -474,7 +488,7 @@ export function HouseholdSection({
                   {removing ? (
                     <ActivityIndicator color={ink.onDark} />
                   ) : (
-                    <Text style={styles.dlgDangerText}>Remove</Text>
+                    <Text style={styles.dlgSolidText}>Remove</Text>
                   )}
                 </Pressable>
               </View>
@@ -492,7 +506,7 @@ export function HouseholdSection({
       >
         <Pressable style={styles.overlay} onPress={() => setLeaveOpen(false)}>
           <Pressable onPress={(e) => e.stopPropagation()} style={styles.dialogWrap}>
-            <GlassSurface fallbackColor={surface.card} fallbackOpacity={1} style={styles.dialog}>
+            <GlassSurface fallbackColor={surface.solid} style={styles.dialog}>
               <Text style={styles.dialogTitle}>Leave this household?</Text>
               <Text style={styles.dialogBody}>
                 This device will lose access to the shared pets and reminders and move to a fresh
@@ -522,7 +536,7 @@ export function HouseholdSection({
                   {leaving ? (
                     <ActivityIndicator color={ink.onDark} />
                   ) : (
-                    <Text style={styles.dlgDangerText}>Leave</Text>
+                    <Text style={styles.dlgSolidText}>Leave</Text>
                   )}
                 </Pressable>
               </View>
@@ -540,18 +554,19 @@ export function HouseholdSection({
       >
         <Pressable style={styles.overlay} onPress={() => setJoinOpen(false)}>
           <Pressable onPress={(e) => e.stopPropagation()} style={styles.dialogWrap}>
-            <GlassSurface fallbackColor={surface.card} fallbackOpacity={1} style={styles.dialog}>
+            <GlassSurface fallbackColor={surface.solid} style={styles.dialog}>
               <Text style={styles.dialogTitle}>Join a household</Text>
               <Text style={styles.dialogBody}>
                 This device will switch to their pets and reminders. Anything you added here first
                 stays behind on your own household.
               </Text>
+              <Text style={styles.fieldLabel}>Invite code</Text>
               <TextInput
                 style={styles.input}
                 value={code}
                 onChangeText={(t) => setCode(t.toUpperCase())}
                 placeholder="ABC123"
-                placeholderTextColor={ink.faint}
+                placeholderTextColor={ink.placeholder}
                 autoCapitalize="characters"
                 autoCorrect={false}
                 maxLength={12}
@@ -579,9 +594,9 @@ export function HouseholdSection({
                   aria-label="Join"
                 >
                   {joining ? (
-                    <ActivityIndicator color={ink.onDark} />
+                    <ActivityIndicator color={accent.onAccent} />
                   ) : (
-                    <Text style={styles.dlgConfirmText}>Join</Text>
+                    <Text style={styles.dlgSolidText}>Join</Text>
                   )}
                 </Pressable>
               </View>
@@ -594,132 +609,164 @@ export function HouseholdSection({
 }
 
 const styles = StyleSheet.create({
-  // Invite code card
-  inviteCard: {},
-  inviteHead: { flexDirection: 'row', alignItems: 'center', gap: 11 },
-  keyTile: {
-    width: 30,
-    height: 30,
-    borderRadius: radius.iconTileSm,
-    backgroundColor: amber.warnBg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  inviteLabel: {
-    fontFamily: fonts.bold,
-    fontSize: 10,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    color: ink.faint2,
-  },
+  sectionSpacer: { marginTop: 24 },
+
+  // Invite code card (design v2 `.card.glass.ev-code`)
+  inviteCard: { alignItems: 'center', paddingTop: 18 },
+  kicker: { fontFamily: fonts.mono, fontSize: 11.5, color: accent.ink },
   code: {
-    fontFamily: fonts.extraBold,
-    fontSize: 20,
-    letterSpacing: 3,
+    fontFamily: fonts.mono,
+    fontSize: 28,
+    letterSpacing: 5,
     color: ink.primary,
-    marginTop: 1,
+    textAlign: 'center',
+    marginTop: 6,
+    marginBottom: 10,
+    paddingLeft: 5, // balance the trailing letter-spacing so the code reads centred
   },
-  inviteBtns: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  invitePills: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: 6 },
+  pillBorder: { borderWidth: 1 },
+  inviteBtns: { flexDirection: 'row', gap: 8, marginTop: 16, alignSelf: 'stretch' },
   btn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 7,
-    paddingVertical: 11,
-    borderRadius: radius.tile,
+    minHeight: 44,
+    paddingHorizontal: 12,
+    borderRadius: radius.pill,
   },
-  btnPrimary: { backgroundColor: green.mid },
-  btnPrimaryText: { fontFamily: fonts.bold, fontSize: 13, color: ink.onDark },
-  btnGhost: { backgroundColor: surface.field },
-  btnGhostText: { fontFamily: fonts.semiBold, fontSize: 13, color: ink.muted },
-  inviteFootRow: {
-    flexDirection: 'row',
+  btnPrimary: { backgroundColor: accent.primary },
+  btnPrimaryText: { fontFamily: fonts.medium, fontSize: 14, color: accent.onAccent },
+  btnGlass: { backgroundColor: glass.strong, borderWidth: 1, borderColor: glass.border2 },
+  btnGlassText: { fontFamily: fonts.medium, fontSize: 14, color: ink.primary },
+  revokeBtn: {
+    minHeight: 36,
+    paddingHorizontal: 12,
+    marginTop: 8,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 11,
-    gap: 12,
+    justifyContent: 'center',
   },
-  inviteFoot: { flex: 1, fontFamily: fonts.medium, fontSize: 11.5, color: ink.faint2, lineHeight: 16 },
-  revokeText: { fontFamily: fonts.bold, fontSize: 12, color: DANGER },
+  revokeText: { fontFamily: fonts.medium, fontSize: 13, color: DANGER },
 
-  // Create-invite CTA
+  // Create-invite CTA (design v2 `.btn.primary`)
   mintCta: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingVertical: 15,
-    borderRadius: radius.tile,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: green.tintBorder,
-    backgroundColor: green.tint,
+    minHeight: 48,
+    borderRadius: radius.pill,
+    backgroundColor: accent.primary,
+    shadowColor: accent.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 14,
+    elevation: 4,
   },
-  mintCtaText: { fontFamily: fonts.bold, fontSize: 13.5, color: green.primary },
+  mintCtaText: { fontFamily: fonts.medium, fontSize: 14.5, color: accent.onAccent },
 
-  joinLink: { alignSelf: 'center', paddingVertical: 12 },
-  joinLinkText: { fontFamily: fonts.medium, fontSize: 12.5, color: ink.muted },
-  joinLinkStrong: { fontFamily: fonts.bold, color: green.primary },
-
-  // Members
-  stateCard: { alignItems: 'center' },
-  errorText: { fontFamily: fonts.medium, fontSize: 12.5, color: DANGER, lineHeight: 18 },
-  emptyText: { fontFamily: fonts.medium, fontSize: 12.5, color: ink.muted, lineHeight: 18 },
-  memberRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 16 },
-  avatar: {
+  // "Have a code?" row (design v2 `.row.tap` with a muted tile)
+  joinCard: { marginTop: 10 },
+  joinRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 10, paddingHorizontal: 14 },
+  joinIcon: {
     width: 34,
     height: 34,
-    borderRadius: 17,
-    backgroundColor: surface.chip,
+    borderRadius: radius.iconTile,
+    backgroundColor: glass.strong,
+    borderWidth: 1,
+    borderColor: glass.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarYou: { backgroundColor: green.mid },
-  memberName: { fontFamily: fonts.bold, fontSize: 14, color: ink.primary },
-  youTag: { fontFamily: fonts.medium, color: ink.faint2 },
-  memberSub: { fontFamily: fonts.medium, fontSize: 12, color: ink.muted, marginTop: 2 },
-  memberRight: { alignItems: 'flex-end', gap: 6 },
-  rowAction: { fontFamily: fonts.bold, fontSize: 11.5, color: DANGER },
-  divider: { height: 1, backgroundColor: line.hairline, marginHorizontal: 16 },
+  joinTitle: { fontFamily: fonts.medium, fontSize: 14, color: ink.primary },
+  joinSub: { fontFamily: fonts.regular, fontSize: 12, color: ink.muted, marginTop: 2 },
+  rowPressed: { opacity: 0.6 },
 
-  message: { fontFamily: fonts.medium, fontSize: 12.5, color: green.primary, lineHeight: 18, marginTop: 12, paddingHorizontal: 2 },
+  // Members
+  stateCard: { alignItems: 'center' },
+  errorText: { fontFamily: fonts.regular, fontSize: 13, color: DANGER, lineHeight: 19 },
+  emptyText: { fontFamily: fonts.regular, fontSize: 13, color: ink.muted, lineHeight: 19 },
+  memberRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingVertical: 12, paddingHorizontal: 14 },
+  avatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarYou: { backgroundColor: accent.soft, borderColor: accent.line },
+  avatarMute: { backgroundColor: glass.strong, borderColor: glass.border },
+  memberName: { fontFamily: fonts.medium, fontSize: 14, color: ink.primary },
+  youTag: { fontFamily: fonts.regular, color: ink.muted },
+  memberMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  memberSub: { flexShrink: 1, fontFamily: fonts.monoRegular, fontSize: 11, color: ink.muted },
+  rowBtn: {
+    minHeight: 36,
+    paddingHorizontal: 12,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: glass.border2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowBtnText: { fontFamily: fonts.medium, fontSize: 13, color: DANGER },
+  divider: { height: 1, backgroundColor: glass.border, marginLeft: 58, marginRight: 14 },
+
+  message: {
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    color: accent.ink,
+    lineHeight: 19,
+    marginTop: 12,
+    paddingHorizontal: 2,
+  },
   messageError: { color: DANGER },
 
   // Dialogs
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(42,39,36,0.45)',
+    backgroundColor: glass.scrimDark,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
   },
   dialogWrap: { width: '100%', maxWidth: 340 },
-  dialog: { borderRadius: radius.sheet, padding: 22 },
-  dialogTitle: { fontFamily: fonts.extraBold, fontSize: 17, color: ink.primary, letterSpacing: -0.3, marginBottom: 8 },
-  dialogBody: { fontFamily: fonts.medium, fontSize: 13, color: ink.muted, lineHeight: 19, marginBottom: 16 },
+  // glass.strong overrides GlassSurface's thin iOS wash so dialog copy stays legible.
+  dialog: { borderRadius: radius.sheet, padding: 22, backgroundColor: glass.strong },
+  dialogTitle: { fontFamily: fonts.medium, fontSize: 18, color: ink.primary, letterSpacing: -0.45, marginBottom: 8 },
+  dialogBody: { fontFamily: fonts.regular, fontSize: 13.5, color: ink.muted, lineHeight: 20, marginBottom: 16 },
+  fieldLabel: { fontFamily: fonts.regular, fontSize: 12, color: ink.muted, marginBottom: 6, marginLeft: 2 },
   input: {
     borderWidth: 1,
-    borderColor: line.border,
-    backgroundColor: surface.field,
+    borderColor: glass.border2,
+    backgroundColor: glass.strong,
     borderRadius: radius.tile,
-    paddingVertical: 13,
+    minHeight: 50,
+    paddingVertical: 12,
     paddingHorizontal: 14,
-    fontFamily: fonts.extraBold,
-    fontSize: 20,
+    fontFamily: fonts.mono,
+    fontSize: 18,
     letterSpacing: 3,
     textAlign: 'center',
     color: ink.primary,
     marginBottom: 18,
   },
   dialogActions: { flexDirection: 'row', gap: 10 },
-  dlgBtn: { flex: 1, borderRadius: radius.tile, paddingVertical: 13, alignItems: 'center', justifyContent: 'center' },
-  dlgCancel: { backgroundColor: surface.field },
-  dlgCancelText: { fontFamily: fonts.bold, fontSize: 13, color: ink.muted },
-  dlgConfirm: { backgroundColor: green.mid },
-  dlgConfirmText: { fontFamily: fonts.bold, fontSize: 13, color: ink.onDark },
+  dlgBtn: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dlgCancel: { backgroundColor: glass.strong, borderWidth: 1, borderColor: glass.border2 },
+  dlgCancelText: { fontFamily: fonts.medium, fontSize: 14, color: ink.primary },
+  dlgConfirm: { backgroundColor: accent.primary },
   dlgDanger: { backgroundColor: DANGER },
-  dlgDangerText: { fontFamily: fonts.bold, fontSize: 13, color: ink.onDark },
+  dlgSolidText: { fontFamily: fonts.medium, fontSize: 14, color: accent.onAccent },
   disabled: { opacity: 0.5 },
   pressed: { opacity: 0.75 },
 });

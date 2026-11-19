@@ -277,7 +277,7 @@ const GLYPHS: Record<IconName, React.ReactNode> = {
 export function Icon({
   name,
   size = 24,
-  color = '#2a2724',
+  color = '#0E0E14',
   strokeWidth = 2,
   filled = false,
   ...rest

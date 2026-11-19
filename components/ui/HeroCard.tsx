@@ -1,8 +1,7 @@
 import * as React from 'react';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, G } from 'react-native-svg';
-import { green, ink, radius, shadow } from '../../theme/colors';
+import { accent, glass, ink, radius, shadow, surface } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { Icon } from '../Icon';
 import { PetAvatar } from '../PetAvatar';
@@ -10,21 +9,19 @@ import { StatGroup, type Stat } from './StatGroup';
 
 export type { Stat };
 
-const DEFAULT_GRADIENT: [string, string] = [green.gradientFrom, green.gradientTo];
-
 /**
- * The green gradient hero at the top of every main screen (redesign v3).
+ * The hero panel at the top of the main screens — design v2: a glass panel with ink
+ * text (it was a green gradient with white text in v3).
  *
  * Shapes:
- *  • avatar hero — `leading` (usually a {@link HeroAvatar}) or `progress` (ring-with-paw)
- *    beside a title that may wrap to two lines and a wrapping subtitle.
- *  • eyebrow hero — `eyebrow` (uppercase, e.g. "3 IN YOUR CARE") above a large title.
- *  • centered hero — `centered` stacks the leading avatar, title and subtitle in the
- *    middle (pet profile).
+ *  • avatar hero — `leading` (usually a {@link HeroAvatar}) or `progress` (violet ring
+ *    with a paw) beside a title and subtitle.
+ *  • eyebrow hero — `eyebrow` (mono kicker, e.g. "3 in your care") above a large title.
+ *  • centered hero — `centered` stacks avatar, title and subtitle (pet profile).
  *
- * `stats` renders the divider + {@link StatGroup}; `children` renders below everything
- * (chips, a "See visit details" button, an avatar stack). Decorative translucent bubbles
- * sit behind the content, bottom-right.
+ * `stats` renders a hairline + {@link StatGroup}; `children` renders below everything.
+ * `gradient`, `watermark` and `ringColor` are accepted for older call sites; only
+ * `ringColor` still has an effect.
  */
 export function HeroCard({
   title,
@@ -34,9 +31,7 @@ export function HeroCard({
   progress,
   leading,
   centered = false,
-  gradient = DEFAULT_GRADIENT,
-  watermark = true,
-  ringColor = '#f3d27a',
+  ringColor = accent.primary,
   children,
   style,
 }: {
@@ -47,7 +42,9 @@ export function HeroCard({
   progress?: number;
   leading?: React.ReactNode;
   centered?: boolean;
+  /** @deprecated v3 gradient; ignored in design v2. */
   gradient?: [string, string];
+  /** @deprecated ignored in design v2. */
   watermark?: boolean;
   ringColor?: string;
   children?: React.ReactNode;
@@ -55,15 +52,7 @@ export function HeroCard({
 }) {
   const lead = progress != null ? <ProgressRing progress={progress} ringColor={ringColor} /> : leading;
   return (
-    <LinearGradient
-      // 150deg in CSS ≈ this start/end on a roughly square card.
-      colors={gradient}
-      start={{ x: 0.1, y: 0 }}
-      end={{ x: 0.9, y: 1 }}
-      style={[styles.hero, style]}
-    >
-      {watermark && <Bubbles />}
-
+    <View style={[styles.hero, style]}>
       {eyebrow != null ? (
         <View>
           <Text style={styles.eyebrow}>{eyebrow}</Text>
@@ -94,47 +83,37 @@ export function HeroCard({
 
       {!!stats?.length && (
         <View style={styles.statsWrap}>
-          <StatGroup stats={stats} variant="onDark" />
+          <StatGroup stats={stats} variant="onLight" />
         </View>
       )}
 
       {!centered && children}
-    </LinearGradient>
+    </View>
   );
 }
 
-/** The white avatar circle with a translucent ring that leads a hero ("Getting to know Mochi"). */
+/** The pet avatar that leads a hero: accent-soft circle with a hairline ring. */
 export function HeroAvatar({ pet, size = 62 }: { pet: { id: string; avatarEmoji: string }; size?: number }) {
-  const ring = Math.round(size * 0.07);
+  const ring = Math.round(size * 0.06);
   return (
     <View
       style={{
         width: size + ring * 2,
         height: size + ring * 2,
         borderRadius: (size + ring * 2) / 2,
-        backgroundColor: 'rgba(255,255,255,0.28)',
+        backgroundColor: glass.strong,
+        borderWidth: 1,
+        borderColor: accent.line,
         alignItems: 'center',
         justifyContent: 'center',
       }}
     >
-      <PetAvatar pet={pet} size={size} emojiSize={Math.round(size * 0.5)} style={{ backgroundColor: '#e8efe6' }} />
+      <PetAvatar pet={pet} size={size} emojiSize={Math.round(size * 0.5)} style={{ backgroundColor: accent.soft }} />
     </View>
   );
 }
 
-/** Soft translucent circles + blob bleeding off the bottom-right (design watermark). */
-function Bubbles() {
-  return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      <View style={[styles.bubble, { width: 26, height: 26, right: 52, bottom: 58 }]} />
-      <View style={[styles.bubble, { width: 26, height: 26, right: 14, bottom: 40 }]} />
-      <View style={[styles.bubble, { width: 22, height: 22, right: 22, bottom: 92 }]} />
-      <View style={[styles.bubble, { width: 84, height: 84, right: 40, bottom: -30, borderRadius: 30 }]} />
-    </View>
-  );
-}
-
-/** 62px progress ring with a paw at its centre (Home, once predictions are live). */
+/** 62px violet progress ring with a paw at its centre (Home, once predictions are live). */
 function ProgressRing({ progress, ringColor }: { progress: number; ringColor: string }) {
   const size = 62;
   const r = 28;
@@ -148,7 +127,7 @@ function ProgressRing({ progress, ringColor }: { progress: number; ringColor: st
             rotation/origin props — react-native-svg-web maps `origin` to an invalid
             `transform-origin` DOM attribute, which React 19 rejects on web. */}
         <G transform={`rotate(-90 ${size / 2} ${size / 2})`}>
-          <Circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(255,255,255,0.22)" strokeWidth={4} fill="none" />
+          <Circle cx={size / 2} cy={size / 2} r={r} stroke={accent.soft} strokeWidth={4} fill="none" />
           <Circle
             cx={size / 2}
             cy={size / 2}
@@ -163,7 +142,7 @@ function ProgressRing({ progress, ringColor }: { progress: number; ringColor: st
         </G>
       </Svg>
       <View style={styles.ringCenter}>
-        <Icon name="paw" size={24} color="#ffffff" strokeWidth={1.8} />
+        <Icon name="paw" size={22} color={accent.primary} strokeWidth={1.8} />
       </View>
     </View>
   );
@@ -172,39 +151,35 @@ function ProgressRing({ progress, ringColor }: { progress: number; ringColor: st
 const styles = StyleSheet.create({
   hero: {
     borderRadius: radius.hero,
-    padding: 20,
+    padding: 18,
     overflow: 'hidden',
+    backgroundColor: surface.card,
+    borderWidth: 1,
+    borderColor: glass.border,
     ...shadow.hero,
   },
-  bubble: { position: 'absolute', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.08)' },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   headerText: { flex: 1 },
   centered: { alignItems: 'center' },
   centerText: { textAlign: 'center' },
-  title: { fontFamily: fonts.extraBold, fontSize: 25, color: ink.onDark, letterSpacing: -0.6, lineHeight: 28 },
-  subtitle: { fontFamily: fonts.medium, fontSize: 13, color: 'rgba(255,255,255,0.82)', marginTop: 4, lineHeight: 18 },
-  eyebrow: {
-    fontFamily: fonts.bold,
-    fontSize: 11,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-    color: 'rgba(255,255,255,0.78)',
-  },
-  bigTitle: { fontFamily: fonts.extraBold, fontSize: 27, color: ink.onDark, letterSpacing: -0.6, marginTop: 4, lineHeight: 31 },
+  title: { fontFamily: fonts.medium, fontSize: 20, color: ink.primary, letterSpacing: -0.6, lineHeight: 25 },
+  subtitle: { fontFamily: fonts.regular, fontSize: 13, color: ink.muted, marginTop: 4, lineHeight: 19 },
+  eyebrow: { fontFamily: fonts.mono, fontSize: 11.5, color: accent.ink },
+  bigTitle: { fontFamily: fonts.medium, fontSize: 24, color: ink.primary, letterSpacing: -0.8, marginTop: 4, lineHeight: 28 },
   statsWrap: {
-    marginTop: 18,
-    paddingTop: 16,
+    marginTop: 16,
+    paddingTop: 14,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.18)',
+    borderTopColor: glass.border,
   },
   ringCenter: {
     position: 'absolute',
-    top: 7,
-    left: 7,
-    right: 7,
-    bottom: 7,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.16)',
+    top: 8,
+    left: 8,
+    right: 8,
+    bottom: 8,
+    borderRadius: 23,
+    backgroundColor: accent.soft,
     alignItems: 'center',
     justifyContent: 'center',
   },

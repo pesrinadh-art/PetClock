@@ -1,30 +1,34 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { amber, ink, radius, surface } from '../theme/colors';
+import { accent, glass, ink, warn } from '../theme/colors';
 import { fonts } from '../theme/fonts';
-import { Icon } from './Icon';
+import { Icon, type IconName } from './Icon';
 import { PetAvatar } from './PetAvatar';
 
 /** "Good morning" / "Good afternoon" / "Good evening" / "Late-night check-in" for the header eyebrow. */
 export { greeting } from '../lib/petVoice';
 
 /**
- * Screen header (redesign v3): an optional round pet avatar, a small muted eyebrow over a
- * bold title ("Good afternoon / Mochi's day", "Family / Your pets"), and two round chip
- * buttons on the right — a bell with an amber unread dot, and the settings gear.
+ * Tab-screen header (design v2 `.ph-head`): an optional round pet avatar, a small muted
+ * greeting over a weight-500 title ("Good afternoon / Mochi's day", "Family / Your pets"),
+ * and two round glass icon buttons on the right — a bell with a warn dot, and the
+ * settings gear.
  */
 export function TopNavBar({
   title,
   eyebrow,
   pet,
+  action,
 }: {
   title: string;
   eyebrow?: string;
   pet?: { id: string; avatarEmoji: string } | null;
+  /** Optional extra round button before the bell (e.g. "+" to add a pet or a visit). */
+  action?: { icon: IconName; label: string; onPress: () => void };
 }) {
   return (
     <View style={styles.container}>
-      {pet ? <PetAvatar pet={pet} size={46} emojiSize={24} style={styles.avatar} /> : null}
+      {pet ? <PetAvatar pet={pet} size={40} emojiSize={20} style={styles.avatar} /> : null}
       <View style={styles.text}>
         {!!eyebrow && (
           <Text style={styles.eyebrow} numberOfLines={1}>
@@ -36,24 +40,35 @@ export function TopNavBar({
         </Text>
       </View>
       <View style={styles.actions}>
+        {action ? (
+          <Pressable
+            style={({ pressed }) => [styles.iconBtn, styles.actionBtn, pressed && styles.pressed]}
+            onPress={action.onPress}
+            role="button"
+            aria-label={action.label}
+            hitSlop={8}
+          >
+            <Icon name={action.icon} size={18} color={accent.onAccent} strokeWidth={2.2} />
+          </Pressable>
+        ) : null}
         <Pressable
-          style={({ pressed }) => [styles.chip, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}
           onPress={() => router.push('/notifications')}
           role="button"
           aria-label="Notifications"
           hitSlop={8}
         >
-          <Icon name="bell" size={19} color={ink.primary} strokeWidth={1.9} />
+          <Icon name="bell" size={18} color={ink.primary} strokeWidth={1.8} />
           <View style={styles.dot} />
         </Pressable>
         <Pressable
-          style={({ pressed }) => [styles.chip, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.iconBtn, pressed && styles.pressed]}
           onPress={() => router.push('/settings')}
           role="button"
           aria-label="Settings"
           hitSlop={8}
         >
-          <Icon name="gear" size={19} color={ink.primary} strokeWidth={1.9} />
+          <Icon name="gear" size={18} color={ink.primary} strokeWidth={1.8} />
         </Pressable>
       </View>
     </View>
@@ -65,42 +80,47 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 12,
+    paddingHorizontal: 18,
+    paddingTop: 8,
+    paddingBottom: 8,
   },
   avatar: {
-    backgroundColor: '#e8efe6',
-    borderWidth: 3,
-    borderColor: '#ffffff',
-    shadowColor: '#2a2724',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 2,
+    backgroundColor: accent.soft,
+    borderWidth: 1,
+    borderColor: accent.line,
   },
   text: { flex: 1 },
-  eyebrow: { fontSize: 13, fontFamily: fonts.medium, color: ink.muted },
-  title: { fontSize: 23, fontFamily: fonts.extraBold, color: ink.primary, letterSpacing: -0.6, marginTop: 1 },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  chip: {
-    width: 42,
-    height: 42,
-    borderRadius: radius.pill,
-    backgroundColor: surface.chip,
+  eyebrow: { fontSize: 12.5, fontFamily: fonts.regular, color: ink.muted },
+  title: {
+    fontSize: 24,
+    fontFamily: fonts.medium,
+    color: ink.primary,
+    letterSpacing: -0.85,
+    lineHeight: 28,
+    marginTop: 2,
+  },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: glass.fill,
+    borderWidth: 1,
+    borderColor: glass.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pressed: { opacity: 0.7, transform: [{ scale: 0.92 }] },
+  actionBtn: { backgroundColor: accent.primary, borderColor: accent.primary },
+  pressed: { opacity: 0.75, transform: [{ scale: 0.92 }] },
   dot: {
     position: 'absolute',
-    top: 8,
-    right: 10,
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: amber.primary,
+    top: 7,
+    right: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: warn.primary,
     borderWidth: 1.5,
-    borderColor: surface.chip,
+    borderColor: glass.highlight,
   },
 });

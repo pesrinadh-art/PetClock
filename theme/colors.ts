@@ -1,161 +1,186 @@
 /**
- * PawClock design tokens (Phase-1 redesign foundation).
+ * PawClock design tokens — Aurora Minimal (design v2).
  *
- * Values lifted directly from the approved redesign HTML (screen_2a / 2b …).
- * The design's restraint principle: liveliness comes from a progress ring, soft
- * depth and a paw watermark — NOT from more colour. Colour carries ROLE, not
- * decoration:
- *   green      = pet & state         terracotta = food
- *   amber      = attention           + incidental tints (pee blue, poo brown)
+ * One violet accent on a light aurora field (sky → lilac → peach → mint), hairline
+ * glass panels, Geist type and Geist Mono for every time and number. Colour carries
+ * ROLE only: accent = action/state, warn = attention, danger = destructive/errors.
+ * Everything else is ink on glass.
  *
- * BACK-COMPAT: the `colors` object still exposes every key the current screens
- * import (sage, food, apptVet, stone, cream …) so the app keeps compiling.
- * Those aliases now point at the redesign palette; screen agents migrate call
- * sites to the named role tokens below over Phase 2.
+ * BACK-COMPAT: every export and key the app imported under the v3 (green) palette
+ * still exists. `green.*` now means "the accent" and the per-type tints (pee, poo,
+ * food, vet …) all collapse onto the accent's soft tint, per the one-accent rule.
+ * New code should import `accent`, `glass`, `danger`, `aurora`.
  */
+
+// ── Accent (the only colour) ────────────────────────────────────────────────
+export const accent = {
+  primary: '#6D5DF6', // fills: primary buttons, active tab icon, toggles, FAB
+  ink: '#5544E0', // accent TEXT on white/glass (AA ≥ 4.5:1)
+  soft: '#EEEBFE', // icon tiles, selected chips (≈ rgba(109,93,246,.10) on white)
+  line: 'rgba(109,93,246,0.34)', // focused input / selected outline
+  glow: 'rgba(109,93,246,0.16)',
+  onAccent: '#FFFFFF',
+} as const;
+
+// ── Aurora field (screen background) ─────────────────────────────────────────
+export const aurora = {
+  base: '#F3EEFB', // solid fallback when a flat colour is needed
+  gradient: ['#DDE9FF', '#E9E2FF', '#FFE8D9', '#D9F5E7'] as const,
+  gradientStops: [0, 0.28, 0.58, 1] as const,
+  orbBlue: 'rgba(110,160,255,0.45)', // top-right glow
+  orbPink: 'rgba(255,150,190,0.35)', // bottom-left glow
+  page: '#EDEEF2', // web backdrop behind the phone frame
+} as const;
+
+// ── Glass ────────────────────────────────────────────────────────────────────
+export const glass = {
+  fill: 'rgba(255,255,255,0.62)', // standard panel
+  strong: 'rgba(255,255,255,0.9)', // inputs, sheets, raised controls
+  highlight: 'rgba(255,255,255,0.95)', // 1px inner top highlight
+  border: 'rgba(14,14,20,0.08)',
+  border2: 'rgba(14,14,20,0.15)',
+  scrim: 'rgba(244,244,247,0.62)', // light scrim behind menus
+  scrimDark: 'rgba(14,14,20,0.35)', // dim behind modal sheets
+} as const;
+
+// ── Status ───────────────────────────────────────────────────────────────────
+export const warn = {
+  primary: '#E89B28',
+  ink: '#A86100',
+  soft: '#FBF0DF',
+  line: 'rgba(232,155,40,0.42)',
+} as const;
+export const danger = { primary: '#D63B40', soft: '#FBE7E8' } as const;
 
 // ── Surfaces ────────────────────────────────────────────────────────────────
 export const surface = {
-  app: '#faf7f0', // screen background
-  card: '#ffffff', // cards / sheets content
-  tabBar: '#fffdf8', // bottom bar + glass headers
-  chip: '#f2ede1', // round icon buttons / chips
-  chipAlt: '#f0ebdf', // slightly warmer chip (settings back button)
-  field: '#f7f4ec', // inset input / value wells
-  sheet: '#2a2724', // dimmed scrim behind a modal sheet
+  app: aurora.base, // screens draw <AuroraBackground/>; this is the flat fallback
+  card: glass.fill,
+  tabBar: 'rgba(255,255,255,0.72)',
+  chip: glass.fill,
+  chipAlt: glass.fill,
+  field: glass.strong,
+  sheet: '#0E0E14',
+  solid: '#FFFFFF', // when content must be fully opaque (sheets, dialogs)
 } as const;
 
 // ── Hairlines / borders ───────────────────────────────────────────────────────
 export const line = {
-  hairline: '#f1ece0', // in-card dividers
-  border: '#ece6d9', // tab bar / chip outlines
-  dashed: '#d8d1c2', // dashed "add …" affordances
-  divider: '#e7e0d1', // "or" separators
+  hairline: glass.border,
+  border: glass.border,
+  dashed: glass.border2,
+  divider: glass.border,
 } as const;
 
 // ── Ink (text) ────────────────────────────────────────────────────────────────
-// Darkened (from PR #41) so every text role clears WCAG AA (4.5:1) on both
-// `surface.app` and white. `placeholder` is for input placeholders / chevrons only.
 export const ink = {
-  primary: '#2a2724', // ~14:1
-  muted: '#6f685d', // ~5.1:1 — secondary copy, subtitles
-  faint: '#776f63', // ~4.6:1 — labels, timestamps
-  faint2: '#7a7266', // ~4.4:1 app bg / 4.7:1 white — inset field labels
-  placeholder: '#a39b8c', // placeholders + chevrons ONLY
-  onDark: '#ffffff',
+  primary: '#0E0E14',
+  muted: '#5F6070', // secondary copy (AA on glass)
+  faint: '#5F6070', // labels, timestamps (kept AA; the design's #9A9BA8 is for icons only)
+  faint2: '#5F6070',
+  placeholder: '#9A9BA8', // placeholders + chevrons ONLY
+  onDark: '#FFFFFF',
 } as const;
 
-// ── Green — pet & state (primary brand) ───────────────────────────────────────
+// ── Legacy role groups, re-pointed at the accent ──────────────────────────────
+/** @deprecated name kept for back-compat: this is the accent now. */
 export const green = {
-  primary: '#2f6b45', // headings, focused tab, "See all"
-  mid: '#417a55', // FAB, primary buttons, active toggle
-  gradientFrom: '#4b8a60',
-  gradientTo: '#356b48',
-  tint: '#e8efe6', // green pill background
-  tintBorder: '#cfe0cd',
-  ink: '#2f6b45',
+  primary: accent.ink, // headings / links / focused tab → accent text
+  mid: accent.primary, // FAB, primary buttons, active toggle
+  gradientFrom: '#7E70F8',
+  gradientTo: '#5B4BE8',
+  tint: accent.soft,
+  tintBorder: accent.line,
+  ink: accent.ink,
 } as const;
 
-// ── Terracotta — food ─────────────────────────────────────────────────────────
+/** Food used terracotta; one accent now. `ink` stays readable text. */
 export const terracotta = {
-  primary: '#c9532f', // fills, icons
-  tint: '#fbe9e1',
-  ink: '#a8432a', // text on white/tint (AA)
+  primary: accent.primary,
+  tint: accent.soft,
+  ink: accent.ink,
 } as const;
 
-// ── Amber — attention (bell dot, warnings) ────────────────────────────────────
 export const amber = {
-  primary: '#e8a33d',
-  warnBg: '#fdf3e3', // "Not secured" / pending pill bg
-  warnInk: '#8a5d14', // AA on warnBg (was #a8741f)
+  primary: warn.primary,
+  warnBg: warn.soft,
+  warnInk: warn.ink,
 } as const;
 
-// ── Incidental log tints (pee / poo) ──────────────────────────────────────────
 export const logTint = {
-  peeBg: '#e6f0f6',
-  peeInk: '#2f6483',
-  pooBg: '#f3ece3',
-  pooInk: '#7a5c3c',
+  peeBg: accent.soft,
+  peeInk: accent.ink,
+  pooBg: accent.soft,
+  pooInk: accent.ink,
 } as const;
 
-// ── Appointment / category roles (from sheet + appt screens) ──────────────────
 export const category = {
-  // Inks darkened for AA contrast on their tints (PR #41).
-  vetBg: '#eaf1f7',
-  vetInk: '#2f6a8f',
-  vaccineBg: '#e9f4f1',
-  vaccineInk: '#2d6e62',
-  groomBg: '#f1ecf6',
-  groomInk: '#6c528c',
-  otherBg: '#f2efe6',
-  otherInk: '#6b6457',
-  // meal slots
-  breakfastBg: '#fdf0e2',
-  breakfastInk: '#8f5e12',
-  dinnerBg: '#eceaf6',
-  dinnerInk: '#5f5b96',
-  // medication
-  medBg: '#eaf1f7',
-  medInk: '#2f6a8f',
+  vetBg: accent.soft,
+  vetInk: accent.ink,
+  vaccineBg: accent.soft,
+  vaccineInk: accent.ink,
+  groomBg: accent.soft,
+  groomInk: accent.ink,
+  otherBg: 'rgba(14,14,20,0.05)',
+  otherInk: ink.muted,
+  breakfastBg: accent.soft,
+  breakfastInk: accent.ink,
+  dinnerBg: accent.soft,
+  dinnerInk: accent.ink,
+  medBg: accent.soft,
+  medInk: accent.ink,
 } as const;
 
 // ── Radii ─────────────────────────────────────────────────────────────────────
 export const radius = {
-  hero: 22, // hero gradient card
-  card: 18, // standard card
-  sheet: 26, // bottom sheet top corners
-  tile: 14, // quick-log tiles / buttons
-  iconTile: 12, // 34px rounded icon tiles
-  iconTileSm: 10, // 28-30px icon tiles
+  hero: 24,
+  card: 24, // glass panels / lists (--r-lg)
+  sheet: 28,
+  tile: 18, // buttons, tiles (--r)
+  iconTile: 11, // 34px icon tiles
+  iconTileSm: 10,
   pill: 999,
-  // back-compat with existing screens
-  lg: 20,
+  lg: 24,
   sm: 12,
 } as const;
 
 /**
- * Elevation. RN can only render a single shadow, so these approximate the
- * design's tight top-lit shadows. `card` ≈ `0 4px 14px -10px rgba(42,39,36,.45)`,
- * `hero` ≈ `0 10px 24px -14px rgba(53,107,72,.9)`.
+ * Elevation. The design is mostly flat glass with one soft, wide shadow
+ * (`0 14px 34px -14px rgba(30,30,70,.16)`); RN renders a single shadow.
  */
 export const shadow = {
   card: {
-    shadowColor: '#2a2724',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.14,
-    shadowRadius: 12,
-    elevation: 3,
+    shadowColor: '#1E1E46',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 2,
   },
   hero: {
-    shadowColor: '#356b48',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.35,
-    shadowRadius: 18,
-    elevation: 8,
+    shadowColor: '#1E1E46',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.1,
+    shadowRadius: 24,
+    elevation: 3,
   },
   fab: {
-    shadowColor: '#417a55',
+    shadowColor: accent.primary,
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5,
+    shadowOpacity: 0.45,
     shadowRadius: 14,
     elevation: 8,
   },
   sm: {
-    shadowColor: '#2a2724',
+    shadowColor: '#1E1E46',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
+    shadowOpacity: 0.05,
     shadowRadius: 8,
-    elevation: 2,
+    elevation: 1,
   },
 } as const;
 
-/**
- * `colors` — the flat map the whole app imports today. New role tokens live at
- * the top; the block below preserves every legacy key (now re-pointed at the
- * redesign palette) so nothing breaks before screens migrate.
- */
+/** The flat map older call sites import. Keys preserved; values re-pointed. */
 export const colors = {
-  // new role tokens (mirror the grouped exports above)
   appBg: surface.app,
   card: surface.card,
   tabBar: surface.tabBar,
@@ -188,13 +213,13 @@ export const colors = {
   pooBg: logTint.pooBg,
   pooInk: logTint.pooInk,
 
-  // ── legacy aliases (kept so existing screens compile) ──
+  // ── legacy aliases ──
   sage: green.primary,
   sageLight: green.mid,
   sagePale: green.tint,
   pee: logTint.peeInk,
   poo: logTint.pooInk,
-  pooLight: '#C4845A',
+  pooLight: accent.primary,
   food: terracotta.primary,
   foodLight: terracotta.tint,
   apptVet: category.vetInk,
@@ -210,7 +235,7 @@ export const colors = {
   cream: surface.app,
   stone: ink.primary,
   stoneMid: ink.muted,
-  stoneLight: '#C8C3BA',
+  stoneLight: '#C8C9D2',
   white: '#FFFFFF',
   background: surface.app,
 } as const;

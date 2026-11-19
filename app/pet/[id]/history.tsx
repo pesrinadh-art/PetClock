@@ -2,12 +2,11 @@ import { useMemo } from 'react';
 import { possessive, pottyBreakPhrase } from '../../../lib/petVoice';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { surface, ink, radius, shadow, line, logTint, terracotta, category, green } from '../../../theme/colors';
+import { accent, ink, line, logTint, terracotta, category, radius } from '../../../theme/colors';
 import { fonts } from '../../../theme/fonts';
 import { Icon, type IconName } from '../../../components/Icon';
 import { ScreenHeader } from '../../../components/ScreenHeader';
-import { PetAvatar } from '../../../components/PetAvatar';
+import { Card, HeroAvatar, Screen } from '../../../components/ui';
 import { usePets } from '../../../context/PetsContext';
 import { useLogs } from '../../../context/LogsContext';
 import { useAppointments } from '../../../context/AppointmentsContext';
@@ -43,7 +42,7 @@ type Visual = { icon: IconName; bg: string; fg: string };
 const LOG_VISUAL: Record<LogType, Visual> = {
   pee: { icon: 'drop', bg: logTint.peeBg, fg: logTint.peeInk },
   poo: { icon: 'poo', bg: logTint.pooBg, fg: logTint.pooInk },
-  food: { icon: 'bowl', bg: terracotta.tint, fg: terracotta.primary },
+  food: { icon: 'bowl', bg: terracotta.tint, fg: terracotta.ink },
   medication: { icon: 'pill', bg: category.medBg, fg: category.medInk },
   vet: { icon: 'vet', bg: category.vetBg, fg: category.vetInk },
   other: { icon: 'dots', bg: category.otherBg, fg: category.otherInk },
@@ -102,15 +101,15 @@ function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-/** "1 meal · 2 potty walks · 1 more" — "litter box trips" for cats and rabbits. */
+/** "2 potty walks · 1 meal · 1 more" — "litter box trips" for cats and rabbits. */
 function daySummary(moments: Moment[], species: string | null | undefined): string {
   const potty1 = pottyBreakPhrase(species);
   const meals = moments.filter((m) => m.bucket === 'meal').length;
   const potty = moments.filter((m) => m.bucket === 'potty').length;
   const other = moments.length - meals - potty;
   return [
-    meals > 0 ? plural(meals, 'meal', 'meals') : null,
     potty > 0 ? plural(potty, potty1, `${potty1}s`) : null,
+    meals > 0 ? plural(meals, 'meal', 'meals') : null,
     other > 0 ? `${other} more` : null,
   ]
     .filter(Boolean)
@@ -118,8 +117,9 @@ function daySummary(moments: Moment[], species: string | null | undefined): stri
 }
 
 /**
- * "Mochi's diary" (redesign v3): everything that happened to the pet — pee/poo/meal/med logs
- * plus vet visits — newest first, grouped by day in one timeline card per day.
+ * "Mochi's diary" (design v2): everything that happened to the pet — pee/poo/meal/med logs
+ * plus vet visits — newest first. Each day gets a plain heading with a mono one-line summary,
+ * and that day's entries sit in one glass list card (icon tile · title · note · mono time).
  */
 export default function LogHistoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -153,18 +153,18 @@ export default function LogHistoryScreen() {
       : `${plural(moments.length, 'moment', 'moments')} over ${plural(groups.length, 'day', 'days')}`;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <Screen edges={['top']}>
       <ScreenHeader
         title={pet ? `${possessive(pet.name)} diary` : 'Diary'}
         subtitle={subtitle}
         fallback="/(tabs)/pets"
-        right={pet ? <PetAvatar pet={pet} size={46} emojiSize={24} style={styles.headerAvatar} /> : <View />}
+        right={pet ? <HeroAvatar pet={pet} size={38} /> : <View />}
       />
 
       {groups.length === 0 ? (
         <View style={styles.empty}>
           <View style={styles.emptyIcon}>
-            <Icon name="clock" size={26} color={green.primary} />
+            <Icon name="clock" size={24} color={accent.ink} strokeWidth={1.8} />
           </View>
           <Text style={styles.emptyTitle}>No moments yet</Text>
           <Text style={styles.emptyBody}>Potty breaks, meals, meds and vet visits will appear here, grouped by day.</Text>
@@ -173,73 +173,71 @@ export default function LogHistoryScreen() {
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
           {groups.map((group) => (
             <View key={group.dayMs} style={styles.group}>
-              <View style={styles.dayRow}>
-                <Text style={styles.dayHeader}>{group.label}</Text>
+              <View style={styles.dayHead}>
+                <Text style={styles.dayHeader} role="heading">
+                  {group.label}
+                </Text>
                 <Text style={styles.daySummary} numberOfLines={1}>
                   {daySummary(group.entries, pet?.species)}
                 </Text>
               </View>
-              <View style={styles.card}>
+              <Card>
                 {group.entries.map((m, i) => (
-                  <View key={m.id} style={styles.row}>
-                    <View style={styles.rail}>
+                  <View key={m.id}>
+                    <View style={styles.row}>
                       <View style={[styles.tile, { backgroundColor: m.visual.bg }]}>
-                        <Icon name={m.visual.icon} size={19} color={m.visual.fg} strokeWidth={2} />
+                        <Icon name={m.visual.icon} size={16} color={m.visual.fg} strokeWidth={1.8} />
                       </View>
-                      {i < group.entries.length - 1 && <View style={styles.connector} />}
+                      <View style={styles.rowText}>
+                        <Text style={styles.rowLabel} numberOfLines={1}>
+                          {m.label}
+                        </Text>
+                        {!!m.note && (
+                          <Text style={styles.rowNote} numberOfLines={2}>
+                            {m.note}
+                          </Text>
+                        )}
+                      </View>
+                      <Text style={styles.rowTime}>{m.allDay ? 'All day' : formatClock(new Date(m.at))}</Text>
                     </View>
-                    <View style={styles.rowText}>
-                      <Text style={styles.rowLabel}>{m.label}</Text>
-                      {!!m.note && <Text style={styles.rowNote}>{m.note}</Text>}
-                    </View>
-                    <Text style={styles.rowTime}>{m.allDay ? 'All day' : formatClock(new Date(m.at))}</Text>
+                    {i < group.entries.length - 1 && <View style={styles.divider} />}
                   </View>
                 ))}
-              </View>
+              </Card>
             </View>
           ))}
         </ScrollView>
       )}
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: surface.app },
-  headerAvatar: { backgroundColor: green.tint, borderWidth: 3, borderColor: '#ffffff', ...shadow.sm },
-
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 32, paddingTop: 8 },
-  group: { marginBottom: 22 },
-  dayRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 12 },
-  dayHeader: { fontSize: 17, fontFamily: fonts.extraBold, color: ink.primary, letterSpacing: -0.35 },
-  daySummary: { flexShrink: 1, fontSize: 12.5, fontFamily: fonts.semiBold, color: ink.muted },
+  scrollContent: { paddingHorizontal: 16, paddingBottom: 32, paddingTop: 4 },
+  group: { marginBottom: 14 },
+  dayHead: { gap: 2, paddingHorizontal: 4, paddingTop: 8, marginBottom: 8 },
+  dayHeader: { fontSize: 14, fontFamily: fonts.medium, color: ink.primary, letterSpacing: -0.15 },
+  daySummary: { fontSize: 11, fontFamily: fonts.monoRegular, color: ink.muted },
 
-  card: {
-    backgroundColor: surface.card,
-    borderRadius: radius.card,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    ...shadow.card,
-  },
-  row: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
-  rail: { alignItems: 'center', width: 42 },
-  tile: { width: 42, height: 42, borderRadius: radius.iconTile, alignItems: 'center', justifyContent: 'center' },
-  connector: { width: 2, height: 14, backgroundColor: line.hairline, marginVertical: 3 },
-  rowText: { flex: 1, minHeight: 42, justifyContent: 'center' },
-  rowLabel: { fontSize: 15, fontFamily: fonts.bold, color: ink.primary },
-  rowNote: { fontSize: 12, fontFamily: fonts.medium, color: ink.muted, marginTop: 2 },
-  rowTime: { fontSize: 13, fontFamily: fonts.semiBold, color: ink.muted, lineHeight: 42 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 54, paddingVertical: 10, paddingHorizontal: 14 },
+  tile: { width: 34, height: 34, borderRadius: radius.iconTile, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  rowText: { flex: 1, minWidth: 0 },
+  rowLabel: { fontSize: 14, fontFamily: fonts.medium, color: ink.primary },
+  rowNote: { fontSize: 12, fontFamily: fonts.regular, color: ink.muted, marginTop: 2 },
+  rowTime: { fontSize: 12, fontFamily: fonts.monoRegular, color: ink.muted, flexShrink: 0 },
+  divider: { height: 1, backgroundColor: line.hairline, marginHorizontal: 14 },
 
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 10 },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, gap: 8 },
   emptyIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: green.tint,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: accent.soft,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 4,
   },
-  emptyTitle: { fontSize: 17, fontFamily: fonts.extraBold, color: ink.primary },
-  emptyBody: { fontSize: 13, color: ink.muted, textAlign: 'center', lineHeight: 19 },
+  emptyTitle: { fontSize: 17, fontFamily: fonts.medium, color: ink.primary, letterSpacing: -0.35 },
+  emptyBody: { fontSize: 13, fontFamily: fonts.regular, color: ink.muted, textAlign: 'center', lineHeight: 19 },
 });

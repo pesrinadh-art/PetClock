@@ -44,12 +44,12 @@ const styles = StyleSheet.create({
   },
   label: {
     flexShrink: 1,
-    fontFamily: fonts.extraBold,
-    fontSize: 17,
-    letterSpacing: -0.35,
+    fontFamily: fonts.medium,
+    fontSize: 15,
+    letterSpacing: -0.25,
     color: ink.primary,
   },
-  sub: { fontFamily: fonts.medium, fontSize: 12.5, color: ink.muted, marginTop: 3, lineHeight: 17 },
+  sub: { fontFamily: fonts.regular, fontSize: 12, color: ink.muted, marginTop: 2, lineHeight: 17 },
 });
 
 export default SectionLabel;

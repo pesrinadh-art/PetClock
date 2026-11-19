@@ -1,6 +1,5 @@
-import { ScrollView, StyleSheet, Text } from 'react-native';
-import { Pressable } from 'react-native';
-import { green, ink, line, surface, shadow } from '../theme/colors';
+import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { glass, ink, radius } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { Icon } from './Icon';
 import type { ApptType } from '../data/mockData';
@@ -11,9 +10,9 @@ export type ApptFilter = 'all' | ApptType;
 const ORDER: ApptType[] = ['vet', 'vaccine', 'groom', 'other'];
 
 /**
- * Visit filter chips (redesign v3): "All · 3 ✓" then one chip per visit type that has any
- * visits ("Vet · 1", "Vaccines · 1"), each with its drawn icon. The selected chip is a green
- * tint pill with a check.
+ * Visit filter chips (design v2 `.chips` / `.chip`): "All 3" then one chip per visit type that
+ * has any visits ("Vet 1", "Vaccines 1"), each with its line icon and a mono count. The selected
+ * chip is an ink-filled pill with light text; the rest are hairline glass pills.
  */
 export function ApptTabs({
   value,
@@ -24,10 +23,12 @@ export function ApptTabs({
   onChange: (v: ApptFilter) => void;
   counts: Record<ApptFilter, number>;
 }) {
-  const tabs: { key: ApptFilter; label: string }[] = [
-    { key: 'all', label: `All · ${counts.all}` },
+  const tabs: { key: ApptFilter; name: string; count: number; label: string }[] = [
+    { key: 'all', name: 'All', count: counts.all, label: `All · ${counts.all}` },
     ...ORDER.filter((t) => counts[t] > 0 || value === t).map((t) => ({
       key: t as ApptFilter,
+      name: VISIT_META[t].plural,
+      count: counts[t],
       label: `${VISIT_META[t].plural} · ${counts[t]}`,
     })),
   ];
@@ -36,6 +37,7 @@ export function ApptTabs({
       {tabs.map((t) => {
         const selected = value === t.key;
         const icon = t.key === 'all' ? 'calendar' : VISIT_META[t.key].icon;
+        const color = selected ? ink.onDark : ink.primary;
         return (
           <Pressable
             key={t.key}
@@ -45,9 +47,9 @@ export function ApptTabs({
             aria-selected={selected}
             style={({ pressed }) => [styles.tab, selected ? styles.tabOn : styles.tabOff, pressed && styles.pressed]}
           >
-            <Icon name={icon} size={16} color={selected ? green.primary : ink.primary} strokeWidth={2} />
-            <Text style={[styles.label, selected && styles.labelOn]}>{t.label}</Text>
-            {selected && <Icon name="check" size={15} color={green.primary} strokeWidth={2.6} />}
+            <Icon name={icon} size={15} color={color} strokeWidth={1.8} />
+            <Text style={[styles.label, { color }]}>{t.name}</Text>
+            <Text style={[styles.count, { color }]}>{t.count}</Text>
           </Pressable>
         );
       })}
@@ -62,14 +64,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    borderWidth: 1.5,
+    minHeight: 38,
+    paddingHorizontal: 13,
+    borderRadius: radius.pill,
+    borderWidth: 1,
   },
-  tabOn: { backgroundColor: green.tint, borderColor: green.mid },
-  tabOff: { backgroundColor: surface.card, borderColor: line.border, ...shadow.sm },
-  label: { fontSize: 14, fontFamily: fonts.bold, color: ink.primary },
-  labelOn: { color: green.primary },
-  pressed: { opacity: 0.7 },
+  tabOn: { backgroundColor: ink.primary, borderColor: 'transparent' },
+  tabOff: { backgroundColor: glass.fill, borderColor: glass.border },
+  label: { fontSize: 13, fontFamily: fonts.medium },
+  count: { fontSize: 11, fontFamily: fonts.mono, opacity: 0.65 },
+  pressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
 });

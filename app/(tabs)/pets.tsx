@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { surface, green, ink, line, radius } from '../../theme/colors';
+import { accent, danger, glass, ink, radius, shadow, surface } from '../../theme/colors';
 import { fonts } from '../../theme/fonts';
 import { Icon } from '../../components/Icon';
-import { HeroCard, SectionLabel, type Stat } from '../../components/ui';
+import { Card, HeroCard, Screen, SectionLabel, TAB_BAR_CLEARANCE, type Stat } from '../../components/ui';
 import { TopNavBar } from '../../components/TopNavBar';
 import { PetListItem } from '../../components/PetListItem';
 import { PetAvatar } from '../../components/PetAvatar';
@@ -39,6 +38,9 @@ export default function PetsScreen() {
     if (!ok) setBlockedMessage(true);
   };
 
+  // The tab bar's centre button is quick-log now, so the Pets tab owns "Add a pet".
+  const addPet = () => router.push('/add-pet');
+
   // Household summary for the hero — sums across every pet.
   const logsToday = pets.reduce((sum, p) => sum + countLogsToday(getLogsForPet(p.id), now), 0);
   const medsCount = pets.reduce((sum, p) => sum + getMedicationsForPet(p.id).filter((m) => m.active).length, 0);
@@ -55,8 +57,8 @@ export default function PetsScreen() {
         : `${logsToday} ${logsToday === 1 ? 'moment' : 'moments'} logged today. Lovely work.`;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <TopNavBar eyebrow="Family" title="Your pets" />
+    <Screen edges={['top']}>
+      <TopNavBar eyebrow="Family" title="Your pets" action={{ icon: 'plus', label: 'Add a pet', onPress: addPet }} />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <HeroCard
           eyebrow={`${pets.length} in your care`}
@@ -70,9 +72,9 @@ export default function PetsScreen() {
                 <PetAvatar
                   key={p.id}
                   pet={p}
-                  size={44}
-                  emojiSize={22}
-                  style={[styles.stackAvatar, i > 0 && { marginLeft: -10 }]}
+                  size={34}
+                  emojiSize={17}
+                  style={[styles.stackAvatar, i > 0 && { marginLeft: -8 }]}
                 />
               ))}
             </View>
@@ -81,18 +83,30 @@ export default function PetsScreen() {
 
         <View style={styles.section}>
           <SectionLabel sub="Tap a pet to open their profile.">Your family</SectionLabel>
-          {pets.map((pet) => (
-            <PetListItem key={pet.id} pet={pet} onDelete={() => setPendingDelete(pet)} />
-          ))}
+          {pets.length > 0 && (
+            <Card>
+              {pets.map((pet, i) => (
+                <PetListItem
+                  key={pet.id}
+                  pet={pet}
+                  onDelete={() => setPendingDelete(pet)}
+                  divider={i < pets.length - 1}
+                />
+              ))}
+            </Card>
+          )}
 
           <Pressable
-            style={({ pressed }) => [styles.addCard, pressed && styles.dashedPressed]}
-            onPress={() => router.push('/add-pet')}
+            style={({ pressed }) => [styles.addCard, pressed && styles.addPressed]}
+            onPress={addPet}
             role="button"
             aria-label="Add a pet"
           >
-            <Icon name="plus" size={18} color={green.primary} strokeWidth={2.4} />
-            <Text style={styles.addText}>Add a pet</Text>
+            <View style={styles.addIcon}>
+              <Icon name="plus" size={18} color={accent.ink} strokeWidth={1.9} />
+            </View>
+            <Text style={styles.addTitle}>Add a pet</Text>
+            <Text style={styles.addBody}>About, routine and meds, in three short steps.</Text>
           </Pressable>
         </View>
 
@@ -201,48 +215,59 @@ export default function PetsScreen() {
           </Pressable>
         </Pressable>
       </AppModal>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: surface.app },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 80 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: TAB_BAR_CLEARANCE },
   section: { marginTop: 24 },
-  stack: { flexDirection: 'row', marginTop: 16 },
-  stackAvatar: { backgroundColor: '#e8efe6', borderWidth: 3, borderColor: 'rgba(255,255,255,0.85)' },
+  stack: { flexDirection: 'row', marginTop: 14 },
+  stackAvatar: { backgroundColor: accent.soft, borderWidth: 2, borderColor: surface.solid },
+
+
+  // "Add a pet" glass card (design `.card.glass.ev-add`).
   addCard: {
-    flexDirection: 'row',
+    marginTop: 12,
+    padding: 16,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: glass.border,
+    backgroundColor: surface.card,
+    ...shadow.card,
+  },
+  addPressed: { opacity: 0.8, transform: [{ scale: 0.99 }] },
+  addIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.sm,
+    backgroundColor: accent.soft,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    marginTop: 2,
-    paddingVertical: 16,
-    borderRadius: radius.card,
-    borderWidth: 1.5,
-    borderColor: line.border,
-    backgroundColor: surface.card,
+    marginBottom: 12,
   },
-  dashedPressed: { opacity: 0.6 },
-  addText: { fontSize: 15, fontFamily: fonts.bold, color: green.primary },
+  addTitle: { fontSize: 15, fontFamily: fonts.medium, color: ink.primary, letterSpacing: -0.25, marginBottom: 4 },
+  addBody: { fontSize: 13, fontFamily: fonts.regular, color: ink.muted, lineHeight: 19 },
 
   // TODO(FE-5): move to Settings — styling for the temporary demo/reset affordance.
   demoBox: { marginTop: 24, alignItems: 'center', gap: 12, paddingHorizontal: 8 },
-  demoText: { fontSize: 13, color: ink.muted, textAlign: 'center', lineHeight: 19 },
+  demoText: { fontSize: 13, fontFamily: fonts.regular, color: ink.muted, textAlign: 'center', lineHeight: 19 },
   demoBtn: {
-    backgroundColor: green.mid,
+    backgroundColor: accent.primary,
     borderRadius: radius.pill,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    ...shadow.fab,
   },
-  demoBtnText: { color: ink.onDark, fontSize: 14, fontFamily: fonts.extraBold },
+  demoBtnText: { color: accent.onAccent, fontSize: 14, fontFamily: fonts.medium },
   resetLink: { paddingVertical: 6, paddingHorizontal: 8 },
-  resetLinkText: { fontSize: 12, fontFamily: fonts.bold, color: ink.faint },
+  resetLinkText: { fontSize: 12.5, fontFamily: fonts.medium, color: ink.muted },
 
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: glass.scrimDark,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
@@ -250,17 +275,26 @@ const styles = StyleSheet.create({
   dialog: {
     width: '100%',
     maxWidth: 320,
-    backgroundColor: surface.card,
+    backgroundColor: surface.solid,
     borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: glass.border,
     padding: 20,
+    ...shadow.hero,
   },
-  dialogTitle: { fontSize: 16, fontFamily: fonts.extraBold, color: ink.primary, marginBottom: 8 },
-  dialogBody: { fontSize: 13, color: ink.muted, lineHeight: 19, marginBottom: 18 },
-  dialogActions: { flexDirection: 'row', gap: 10 },
-  dialogBtn: { flex: 1, borderRadius: radius.sm, paddingVertical: 12, alignItems: 'center' },
+  dialogTitle: { fontSize: 17, fontFamily: fonts.medium, color: ink.primary, letterSpacing: -0.35, marginBottom: 8 },
+  dialogBody: { fontSize: 13.5, fontFamily: fonts.regular, color: ink.muted, lineHeight: 20, marginBottom: 18 },
+  dialogActions: { flexDirection: 'row', gap: 8 },
+  dialogBtn: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   pressed: { opacity: 0.8 },
-  cancelBtn: { backgroundColor: green.tint },
-  cancelBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: green.primary },
-  deleteBtn: { backgroundColor: '#C0392B' },
-  deleteBtnText: { fontSize: 13, fontFamily: fonts.extraBold, color: ink.onDark },
+  cancelBtn: { backgroundColor: glass.strong, borderWidth: 1, borderColor: glass.border2 },
+  cancelBtnText: { fontSize: 14, fontFamily: fonts.medium, color: ink.primary },
+  deleteBtn: { backgroundColor: danger.primary },
+  deleteBtnText: { fontSize: 14, fontFamily: fonts.medium, color: ink.onDark },
 });

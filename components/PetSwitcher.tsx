@@ -1,7 +1,6 @@
 import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
-import { green, ink, line, radius, shadow, surface } from '../theme/colors';
+import { accent, glass, ink, radius } from '../theme/colors';
 import { fonts } from '../theme/fonts';
-import { Icon } from './Icon';
 import { PetAvatar } from './PetAvatar';
 import type { Pet } from '../data/mockData';
 
@@ -12,9 +11,9 @@ type Props = {
 };
 
 /**
- * Pet-switcher chips (redesign v3): the selected pet is a green-tint pill with a ringed
- * avatar, green name and a check; every other pet is a white pill. Adding a pet lives on the
- * Pets tab and the centre + button, so there is no trailing add chip here.
+ * Pet-switcher chips (design v2 `.chips`): glass pills with a small avatar and the pet's
+ * name; the selected pet is a solid ink pill with light text. Adding a pet lives on the
+ * Pets tab and the tab bar's + button, so there is no trailing add chip here.
  */
 export function PetSwitcher({ pets, activeId, onSelect }: Props) {
   return (
@@ -39,16 +38,10 @@ export function PetSwitcher({ pets, activeId, onSelect }: Props) {
               pressed && styles.pressed,
             ]}
           >
-            <PetAvatar
-              pet={pet}
-              size={32}
-              emojiSize={18}
-              style={[styles.avatar, active && styles.avatarActive]}
-            />
+            <PetAvatar pet={pet} size={24} emojiSize={13} style={[styles.avatar, active && styles.avatarActive]} />
             <Text numberOfLines={1} style={[styles.name, active ? styles.nameActive : styles.nameIdle]}>
               {pet.name}
             </Text>
-            {active && <Icon name="check" size={15} color={green.primary} strokeWidth={2.6} />}
           </Pressable>
         );
       })}
@@ -58,23 +51,23 @@ export function PetSwitcher({ pets, activeId, onSelect }: Props) {
 
 const styles = StyleSheet.create({
   scroll: { flexGrow: 0, flexShrink: 0 },
-  row: { paddingHorizontal: 20, paddingTop: 2, paddingBottom: 14, gap: 8, alignItems: 'center' },
-  pressed: { opacity: 0.7, transform: [{ scale: 0.96 }] },
+  row: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 8, gap: 6, alignItems: 'center' },
+  pressed: { opacity: 0.75, transform: [{ scale: 0.96 }] },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: 4,
-    paddingLeft: 4,
-    paddingRight: 14,
+    gap: 7,
+    minHeight: 38,
+    paddingLeft: 7,
+    paddingRight: 13,
     borderRadius: radius.pill,
-    borderWidth: 1.5,
+    borderWidth: 1,
   },
-  chipActive: { backgroundColor: green.tint, borderColor: green.tintBorder },
-  chipIdle: { backgroundColor: surface.card, borderColor: line.border, ...shadow.sm },
-  avatar: { backgroundColor: green.tint, borderWidth: 2, borderColor: '#ffffff' },
-  avatarActive: { backgroundColor: '#ffffff', borderColor: green.primary },
-  name: { fontSize: 14, fontFamily: fonts.bold, maxWidth: 160 },
-  nameActive: { color: green.primary },
+  chipActive: { backgroundColor: ink.primary, borderColor: 'transparent' },
+  chipIdle: { backgroundColor: glass.fill, borderColor: glass.border },
+  avatar: { backgroundColor: accent.soft, borderWidth: 1, borderColor: accent.line },
+  avatarActive: { borderColor: 'transparent' },
+  name: { fontSize: 13, fontFamily: fonts.medium, maxWidth: 160 },
+  nameActive: { color: ink.onDark },
   nameIdle: { color: ink.primary },
 });

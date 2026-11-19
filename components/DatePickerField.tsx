@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { green, ink, line, radius, surface } from '../theme/colors';
+import { accent, glass, ink, radius, shadow, surface } from '../theme/colors';
 import { fonts } from '../theme/fonts';
 import { Icon } from './Icon';
 import { AppModal } from './AppModal';
@@ -89,7 +89,7 @@ export function DatePickerField({ label, value, onChange, placeholder = 'Select 
             aria-label={`${label ? `${label}: ` : ''}${value || placeholder}`}
           >
             <Text style={[styles.valueText, !value && styles.placeholderText]}>{value || placeholder}</Text>
-            <Icon name="calendar" size={16} color={ink.faint} strokeWidth={2} />
+            <Icon name="calendar" size={16} color={ink.muted} strokeWidth={1.8} />
           </Pressable>
         </>
       )}
@@ -104,7 +104,7 @@ export function DatePickerField({ label, value, onChange, placeholder = 'Select 
                 role="button"
                 aria-label="Previous month"
               >
-                <Icon name="chevronLeft" size={16} color={green.primary} strokeWidth={2.4} />
+                <Icon name="chevronLeft" size={16} color={ink.primary} strokeWidth={1.9} />
               </Pressable>
               <Text style={styles.headerTitle}>
                 {viewDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
@@ -115,7 +115,7 @@ export function DatePickerField({ label, value, onChange, placeholder = 'Select 
                 role="button"
                 aria-label="Next month"
               >
-                <Icon name="chevronRight" size={16} color={green.primary} strokeWidth={2.4} />
+                <Icon name="chevronRight" size={16} color={ink.primary} strokeWidth={1.9} />
               </Pressable>
             </View>
 
@@ -173,65 +173,66 @@ const CELL_SIZE = 38;
 
 const styles = StyleSheet.create({
   formGroup: { gap: 6 },
-  formLabel: { fontSize: 11, fontFamily: fonts.extraBold, textTransform: 'uppercase', letterSpacing: 1, color: ink.muted },
+  formLabel: { fontSize: 12, fontFamily: fonts.regular, color: ink.muted, marginHorizontal: 2 },
   field: {
-    backgroundColor: surface.card,
+    minHeight: 46,
+    backgroundColor: glass.strong,
     borderWidth: 1,
-    borderColor: line.border,
+    borderColor: glass.border,
     borderRadius: radius.tile,
-    paddingVertical: 13,
+    paddingVertical: 12,
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  fieldFilled: { borderColor: green.tintBorder },
+  fieldFilled: { borderColor: accent.line },
   // inset (card cell) variant
   insetGroup: {},
-  insetField: { paddingVertical: 13, paddingHorizontal: 16 },
-  insetLabel: { fontSize: 10, fontFamily: fonts.bold, textTransform: 'uppercase', letterSpacing: 1.2, color: ink.faint2 },
-  insetValue: { fontFamily: fonts.bold, fontSize: 14.5, color: ink.primary, marginTop: 3 },
-  insetPlaceholder: { fontFamily: fonts.semiBold, color: '#c0b8a8' },
+  insetField: { paddingVertical: 12, paddingHorizontal: 16 },
+  insetLabel: { fontSize: 12, fontFamily: fonts.regular, color: ink.muted },
+  insetValue: { fontFamily: fonts.mono, fontSize: 14.5, color: ink.primary, marginTop: 3 },
+  insetPlaceholder: { fontFamily: fonts.regular, color: ink.placeholder },
   pressed: { opacity: 0.7 },
-  valueText: { fontFamily: fonts.semiBold, fontSize: 14, color: ink.primary },
-  placeholderText: { color: '#c0b8a8' },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  valueText: { fontFamily: fonts.mono, fontSize: 14, color: ink.primary },
+  placeholderText: { fontFamily: fonts.regular, color: ink.placeholder },
+  overlay: { flex: 1, backgroundColor: glass.scrimDark, alignItems: 'center', justifyContent: 'center', padding: 24 },
   sheet: {
     width: '100%',
     maxWidth: 340,
-    backgroundColor: surface.card,
+    backgroundColor: surface.solid,
     borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: glass.border,
     padding: 18,
-    shadowColor: '#2a2724',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 20,
-    elevation: 8,
+    ...shadow.hero,
   },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   navBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: green.tint,
+    width: 34,
+    height: 34,
+    borderRadius: radius.pill,
+    backgroundColor: glass.strong,
+    borderWidth: 1,
+    borderColor: glass.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerTitle: { fontSize: 14, fontFamily: fonts.extraBold, color: ink.primary },
+  headerTitle: { fontSize: 15, fontFamily: fonts.medium, color: ink.primary, letterSpacing: -0.3 },
   weekdayRow: { flexDirection: 'row', marginBottom: 6 },
   weekdayLabel: {
     width: CELL_SIZE,
     textAlign: 'center',
     fontSize: 11,
-    fontFamily: fonts.extraBold,
+    fontFamily: fonts.monoRegular,
     color: ink.muted,
   },
   weekRow: { flexDirection: 'row' },
   dayCell: { width: CELL_SIZE, height: CELL_SIZE, alignItems: 'center', justifyContent: 'center' },
   dayCellPressable: { borderRadius: CELL_SIZE / 2 },
-  dayCellToday: { borderWidth: 1.5, borderColor: green.mid },
-  dayCellSelected: { backgroundColor: green.mid },
-  dayText: { fontSize: 13, fontFamily: fonts.semiBold, color: ink.primary },
-  dayTextSelected: { color: ink.onDark, fontFamily: fonts.extraBold },
-  dayTextDisabled: { color: '#c8c3ba' },
+  dayCellToday: { borderWidth: 1, borderColor: accent.line, backgroundColor: accent.soft },
+  dayCellSelected: { backgroundColor: accent.primary },
+  dayText: { fontSize: 13, fontFamily: fonts.monoRegular, color: ink.primary },
+  dayTextSelected: { color: accent.onAccent, fontFamily: fonts.mono },
+  dayTextDisabled: { opacity: 0.3 },
 });
