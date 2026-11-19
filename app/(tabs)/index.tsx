@@ -73,7 +73,7 @@ export default function HomeScreen() {
   if (!activePet) {
     return (
       <Screen edges={['top']}>
-        <TopNavBar eyebrow={greeting(now)} title="Today" />
+        <TopNavBar logo eyebrow={greeting(now)} title="Today" />
         <EmptyState icon="🐾" title="No pets yet" body="Add your first pet to start tracking their day." />
       </Screen>
     );
@@ -81,7 +81,7 @@ export default function HomeScreen() {
 
   return (
     <Screen edges={['top']}>
-      <TopNavBar pet={activePet} eyebrow={greeting(now)} title={petDayTitle(activePet.name, now)} />
+      <TopNavBar logo eyebrow={greeting(now)} title={petDayTitle(activePet.name, now)} />
       <PetSwitcher pets={pets} activeId={activePetId} onSelect={setActivePetId} />
       <ScrollView
         style={styles.scroll}
